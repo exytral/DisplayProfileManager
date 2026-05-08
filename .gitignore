@@ -1,0 +1,111 @@
+# ── Visual Studio ────────────────────────────────────────────────────
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.rsuser
+*.env
+
+# ── Build output ─────────────────────────────────────────────────────
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+[Aa][Rr][Mm]64[Ee][Cc]/
+[Oo]bj/
+[Bb]in/
+[Oo]ut/
+bld/
+
+# ── Logs ─────────────────────────────────────────────────────────────
+*.log
+*.tlog
+[Ll]og/
+[Ll]ogs/
+
+# ── NuGet ────────────────────────────────────────────────────────────
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+*.nuget.props
+*.nuget.targets
+
+# ── Test results ─────────────────────────────────────────────────────
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+*.trx
+*.coverage
+*.coveragexml
+TestResults/
+
+# ── Compiled output ───────────────────────────────────────────────────
+*.pdb
+*.ilk
+*.obj
+*.pch
+*.idb
+*.iobj
+*.ipdb
+*.sbr
+*.tlb
+*.tli
+*.tlh
+*.tmp
+*_wpftmp.csproj
+
+# ── Installer build output ───────────────────────────────────────────
+*.cab
+*.msi
+*.msix
+[Ss]etup/
+[Ss]etups/
+publish/
+
+# ── Python (DPM Theme Builder) ────────────────────────────────────────
+**/__pycache__/
+*.pyc
+*.pyo
+
+# ── VS Code ──────────────────────────────────────────────────────────
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+.history/
+
+# ── ReSharper ────────────────────────────────────────────────────────
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+# ── Coverage tools ────────────────────────────────────────────────────
+coverage*.json
+coverage*.xml
+coverage*.info
+*.dotCover
+.axoCover/*
+!.axoCover/settings.json
+
+# ── MSBuild ──────────────────────────────────────────────────────────
+*.binlog
+MSBuild_Logs/
+
+# ── Misc ─────────────────────────────────────────────────────────────
+~$*
+*~
+*.tmp
+Backup*/
+_UpgradeReport_Files/
+UpgradeLog*.XML
+UpgradeLog*.htm
+.localhistory/
+.vshistory/
+MigrationBackup/

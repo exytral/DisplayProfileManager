@@ -1,0 +1,123 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 18
+VisualStudioVersion = 18.5.11716.220
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DisplayProfileManager", "DisplayProfileManager\DisplayProfileManager.csproj", "{238D468E-8218-4643-AA8C-789C6A15A48B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DisplayProfileManager.Tests", "DisplayProfileManager.Tests\DisplayProfileManager.Tests.csproj", "{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{1613DB26-DDED-4BC9-A633-1200FC369886}"
+	ProjectSection(SolutionItems) = preProject
+		.gitignore = .gitignore
+		CHANGELOG.md = CHANGELOG.md
+		CLAUDE.md = CLAUDE.md
+		dev-build.ps1 = dev-build.ps1
+		LICENSE = LICENSE
+		README.md = README.md
+		THIRD-PARTY-LICENSES.md = THIRD-PARTY-LICENSES.md
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{CECB3619-F746-4B0E-8DEE-C14F19944C00}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "wiki", "wiki", "{6A37A941-4E91-430E-AF6F-D5C3F501DE5F}"
+	ProjectSection(SolutionItems) = preProject
+		docs\wiki\bug_report.md = docs\wiki\bug_report.md
+		docs\wiki\cli.md = docs\wiki\cli.md
+		docs\wiki\profiles.md = docs\wiki\profiles.md
+		docs\wiki\scripts.md = docs\wiki\scripts.md
+		docs\wiki\settings.md = docs\wiki\settings.md
+		docs\wiki\themes.md = docs\wiki\themes.md
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "img", "img", "{AB0556B1-B191-4242-97C7-1BB1381173BA}"
+	ProjectSection(SolutionItems) = preProject
+		docs\img\edit-window.png = docs\img\edit-window.png
+		docs\img\main-window-details.png = docs\img\main-window-details.png
+		docs\img\main-window.png = docs\img\main-window.png
+		docs\img\profile-editor.png = docs\img\profile-editor.png
+		docs\img\settings.png = docs\img\settings.png
+		docs\img\theme-builder.png = docs\img\theme-builder.png
+		docs\img\themes-dropdown.png = docs\img\themes-dropdown.png
+		docs\img\themes.webp = docs\img\themes.webp
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".github", ".github", "{EFE7AEC1-2D73-4201-9823-1B8562BAEAC1}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ISSUE_TEMPLATE", "ISSUE_TEMPLATE", "{87A50602-EC6A-4012-8B3F-0AFEDB81AFDD}"
+	ProjectSection(SolutionItems) = preProject
+		.github\ISSUE_TEMPLATE\bug_report.yml = .github\ISSUE_TEMPLATE\bug_report.yml
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "DPMThemeBuilder", "DPMThemeBuilder", "{3AF2AD87-98B5-47C8-BA65-158F5855DFF0}"
+	ProjectSection(SolutionItems) = preProject
+		DPMThemeBuilder\DPMThemeBuilder.pyw = DPMThemeBuilder\DPMThemeBuilder.pyw
+		DPMThemeBuilder\icon.ico = DPMThemeBuilder\icon.ico
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "workflows", "workflows", "{3E669510-6249-4F6B-B23C-8A7FC48F1A6C}"
+	ProjectSection(SolutionItems) = preProject
+		.github\workflows\release.yml = .github\workflows\release.yml
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Debug|ARM64 = Debug|ARM64
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|Any CPU = Release|Any CPU
+		Release|ARM64 = Release|ARM64
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{238D468E-8218-4643-AA8C-789C6A15A48B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{238D468E-8218-4643-AA8C-789C6A15A48B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{238D468E-8218-4643-AA8C-789C6A15A48B}.Debug|ARM64.ActiveCfg = Debug|ARM64
+		{238D468E-8218-4643-AA8C-789C6A15A48B}.Debug|ARM64.Build.0 = Debug|ARM64
+		{238D468E-8218-4643-AA8C-789C6A15A48B}.Debug|x64.ActiveCfg = Debug|x64
+		{238D468E-8218-4643-AA8C-789C6A15A48B}.Debug|x64.Build.0 = Debug|x64
+		{238D468E-8218-4643-AA8C-789C6A15A48B}.Debug|x86.ActiveCfg = Debug|x86
+		{238D468E-8218-4643-AA8C-789C6A15A48B}.Debug|x86.Build.0 = Debug|x86
+		{238D468E-8218-4643-AA8C-789C6A15A48B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{238D468E-8218-4643-AA8C-789C6A15A48B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{238D468E-8218-4643-AA8C-789C6A15A48B}.Release|ARM64.ActiveCfg = Release|ARM64
+		{238D468E-8218-4643-AA8C-789C6A15A48B}.Release|ARM64.Build.0 = Release|ARM64
+		{238D468E-8218-4643-AA8C-789C6A15A48B}.Release|x64.ActiveCfg = Release|x64
+		{238D468E-8218-4643-AA8C-789C6A15A48B}.Release|x64.Build.0 = Release|x64
+		{238D468E-8218-4643-AA8C-789C6A15A48B}.Release|x86.ActiveCfg = Release|x86
+		{238D468E-8218-4643-AA8C-789C6A15A48B}.Release|x86.Build.0 = Release|x86
+		{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Debug|ARM64.ActiveCfg = Debug|Any CPU
+		{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Debug|ARM64.Build.0 = Debug|Any CPU
+		{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Debug|x64.Build.0 = Debug|Any CPU
+		{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Debug|x86.Build.0 = Debug|Any CPU
+		{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Release|ARM64.ActiveCfg = Release|Any CPU
+		{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Release|ARM64.Build.0 = Release|Any CPU
+		{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Release|x64.ActiveCfg = Release|Any CPU
+		{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Release|x64.Build.0 = Release|Any CPU
+		{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Release|x86.ActiveCfg = Release|Any CPU
+		{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Release|x86.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{CECB3619-F746-4B0E-8DEE-C14F19944C00} = {1613DB26-DDED-4BC9-A633-1200FC369886}
+		{6A37A941-4E91-430E-AF6F-D5C3F501DE5F} = {CECB3619-F746-4B0E-8DEE-C14F19944C00}
+		{AB0556B1-B191-4242-97C7-1BB1381173BA} = {CECB3619-F746-4B0E-8DEE-C14F19944C00}
+		{EFE7AEC1-2D73-4201-9823-1B8562BAEAC1} = {1613DB26-DDED-4BC9-A633-1200FC369886}
+		{87A50602-EC6A-4012-8B3F-0AFEDB81AFDD} = {EFE7AEC1-2D73-4201-9823-1B8562BAEAC1}
+		{3AF2AD87-98B5-47C8-BA65-158F5855DFF0} = {1613DB26-DDED-4BC9-A633-1200FC369886}
+		{3E669510-6249-4F6B-B23C-8A7FC48F1A6C} = {EFE7AEC1-2D73-4201-9823-1B8562BAEAC1}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {0E9B1789-6DB1-43D1-B04E-9D6050328194}
+	EndGlobalSection
+EndGlobal

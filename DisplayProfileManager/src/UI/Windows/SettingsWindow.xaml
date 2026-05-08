@@ -1,0 +1,437 @@
+﻿<Window x:Class="DisplayProfileManager.UI.Windows.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:DisplayProfileManager.UI.Windows"
+        xmlns:converters="clr-namespace:DisplayProfileManager.UI.Converters"
+        mc:Ignorable="d"
+        Title="Settings" Height="600" Width="500" MinHeight="500" MinWidth="450"
+        WindowStartupLocation="CenterOwner" ResizeMode="CanResize"
+        WindowStyle="SingleBorderWindow"
+        Loaded="Window_Loaded">
+    
+    <WindowChrome.WindowChrome>
+        <WindowChrome 
+            CaptionHeight="32"
+            ResizeBorderThickness="6"
+            CornerRadius="0"
+            GlassFrameThickness="0,32,0,0"
+            UseAeroCaptionButtons="True" />
+    </WindowChrome.WindowChrome>
+    
+    <Window.Resources>
+        <Style x:Key="PrimaryButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource ButtonBackgroundBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource ButtonForegroundBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" 
+                                CornerRadius="4" 
+                                BorderBrush="{TemplateBinding BorderBrush}" 
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource ButtonHoverBackgroundBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource ButtonPressedBackgroundBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+            <Setter Property="Background" Value="{DynamicResource SecondaryButtonBackgroundBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource SecondaryButtonForegroundBrush}"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource SecondaryButtonHoverBackgroundBrush}"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource SecondaryButtonPressedBackgroundBrush}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="DangerButtonStyle" TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+            <Setter Property="Background" Value="{DynamicResource DangerButtonBackgroundBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource ButtonForegroundBrush}"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource DangerButtonHoverBackgroundBrush}"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource DangerButtonHoverBackgroundBrush}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+
+
+        <Style x:Key="PrimaryCheckBoxStyle" TargetType="CheckBox">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
+            <Setter Property="Margin" Value="0,4"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+
+        <Style x:Key="PrimaryRadioButtonStyle" TargetType="RadioButton">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
+            <Setter Property="Margin" Value="0,4"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+
+        <Style x:Key="PrimaryTextBlockStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+        </Style>
+
+        <Style x:Key="HeaderTextBlockStyle" TargetType="TextBlock" BasedOn="{StaticResource PrimaryTextBlockStyle}">
+            <Setter Property="FontSize" Value="20"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
+        </Style>
+
+        <Style x:Key="SectionHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource PrimaryTextBlockStyle}">
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+        </Style>
+
+        <Style x:Key="LabelTextBlockStyle" TargetType="TextBlock" BasedOn="{StaticResource PrimaryTextBlockStyle}">
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Margin" Value="0,0,0,4"/>
+        </Style>
+
+        <Style x:Key="WindowControlButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Width" Value="46"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource WindowControlHoverBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource ControlPressedBackgroundBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="WindowCloseButtonStyle" TargetType="Button" BasedOn="{StaticResource WindowControlButtonStyle}">
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource CloseButtonHoverBrush}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource ButtonForegroundBrush}"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource CloseButtonHoverBrush}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource ButtonForegroundBrush}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+
+    <Grid Background="{DynamicResource WindowBackgroundBrush}">
+        <Grid.RowDefinitions>
+            <!-- Title bar area (32px normal, 40px maximized) -->
+            <RowDefinition Name="TitleBarRowDefinition" Height="32"/>
+            <!-- Main content area -->
+            <RowDefinition Height="*"/>
+            <!-- Footer area -->
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Title Bar Area -->
+        <Grid Grid.Row="0" Name="TitleBarGrid" Background="{DynamicResource TitleBarBackgroundBrush}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            
+            <!-- App Title -->
+            <TextBlock Grid.Column="0"
+                       Text="Settings"
+                       VerticalAlignment="Center"
+                       Margin="12,0,0,0"
+                       FontFamily="Segoe UI"
+                       FontSize="12"
+                       Foreground="{DynamicResource TitleBarTextBrush}"/>
+            
+            <!-- Window Control Buttons -->
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <!-- Minimize Button -->
+                <Button Name="MinimizeButton"
+                        Content="&#xE921;"
+                        Style="{StaticResource WindowControlButtonStyle}"
+                        Click="MinimizeButton_Click"
+                        WindowChrome.IsHitTestVisibleInChrome="True"
+                        ToolTip="Minimize"/>
+                
+                <!-- Close Button -->
+                <Button Name="CloseButton"
+                        Content="&#xE8BB;"
+                        Style="{StaticResource WindowCloseButtonStyle}"
+                        Click="CloseButton_Click"
+                        WindowChrome.IsHitTestVisibleInChrome="True"
+                        ToolTip="Close"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- Main Content Area -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,16,0" Margin="16,16,0,16">
+            <StackPanel>
+                <!-- General Section -->
+                <Border Background="{DynamicResource ContentBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4" Padding="16" Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="General" Style="{StaticResource SectionHeaderStyle}"/>
+
+                        <TextBlock Text="Theme" Style="{StaticResource LabelTextBlockStyle}"/>
+                        <ComboBox Name="ThemeComboBox" Style="{StaticResource PrimaryComboBoxStyle}" SelectionChanged="ThemeComboBox_SelectionChanged"/>
+
+                        <TextBlock Text="Language"
+                                   Style="{StaticResource LabelTextBlockStyle}"
+                                   Margin="0,12,0,4"/>
+                        <ComboBox Name="LanguageComboBox" Style="{StaticResource PrimaryComboBoxStyle}" SelectionChanged="LanguageComboBox_SelectionChanged">
+                            <ComboBoxItem Content="English (US)" Tag="en-US"/>
+                        </ComboBox>
+                    </StackPanel>
+                </Border>
+
+                <!-- Startup Section -->
+                <Border Background="{DynamicResource ContentBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4" Padding="16" Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="Startup" Style="{StaticResource SectionHeaderStyle}"/>
+
+                        <CheckBox Name="StartWithWindowsCheckBox"
+                                  Content="Start with Windows"
+                                  Style="{StaticResource PrimaryCheckBoxStyle}"
+                                  Padding="6,0,-1,0"
+                                  Checked="StartWithWindowsCheckBox_Changed"
+                                  Unchecked="StartWithWindowsCheckBox_Changed"/>
+
+                        <CheckBox Name="StartInSystemTrayCheckBox"
+                                  Content="Start in system tray when Windows starts"
+                                  Style="{StaticResource PrimaryCheckBoxStyle}"
+                                  Padding="6,0,-1,0"
+                                  Margin="20,4,0,0"
+                                  Checked="StartInSystemTrayCheckBox_Changed"
+                                  Unchecked="StartInSystemTrayCheckBox_Changed"/>
+
+                        <TextBlock Text="Auto-Start Method"
+                                   Style="{StaticResource LabelTextBlockStyle}"
+                                   Margin="0,16,0,4"/>
+                        <StackPanel Name="AutoStartModePanel">
+                            <RadioButton Name="RegistryModeRadio"
+                                         Content="Standard (No admin required)"
+                                         Style="{StaticResource PrimaryRadioButtonStyle}"
+                                         Padding="6,0,-1,0"
+                                         GroupName="AutoStartMode"
+                                         Checked="AutoStartModeRadio_Changed"/>
+                            <TextBlock Style="{StaticResource PrimaryTextBlockStyle}"
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TertiaryTextBrush}"
+                                       Margin="20,0,0,4"
+                                       TextWrapping="Wrap">
+                                       Uses Windows Registry. Normal startup speed.
+                            </TextBlock>
+
+                            <RadioButton Name="TaskSchedulerModeRadio"
+                                         Content="Quick Launch (Requires admin for setup)"
+                                         Style="{StaticResource PrimaryRadioButtonStyle}"
+                                         Padding="6,0,-1,0"
+                                         GroupName="AutoStartMode"
+                                         Checked="AutoStartModeRadio_Changed"/>
+                            <TextBlock Style="{StaticResource PrimaryTextBlockStyle}"
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TertiaryTextBrush}"
+                                       Margin="20,0,0,4"
+                                       TextWrapping="Wrap">
+                                       Uses Windows Task Scheduler. Faster/higher priority startup. Requires admin privileges for initial setup only.
+                            </TextBlock>
+                        </StackPanel>
+
+                        <TextBlock Text="Startup Profile"
+                                   Style="{StaticResource LabelTextBlockStyle}"
+                                   Margin="0,12,0,4"/>
+                        <ComboBox Name="StartupProfileComboBox" Style="{StaticResource PrimaryComboBoxStyle}" SelectionChanged="StartupProfileComboBox_SelectionChanged">
+                            <ComboBoxItem Content="None" Tag=""/>
+                        </ComboBox>
+
+                        <CheckBox Name="ApplyStartupProfileCheckBox"
+                                  Content="Apply startup profile on launch"
+                                  Style="{StaticResource PrimaryCheckBoxStyle}"
+                                  Padding="6,0,-1,0"
+                                  Margin="0,8,0,0"
+                                  IsEnabled="{Binding ElementName=StartupProfileComboBox, Path=SelectedIndex, Converter={x:Static converters:BooleanToVisibilityConverter.Instance}}"
+                                  Checked="ApplyStartupProfileCheckBox_Changed"
+                                  Unchecked="ApplyStartupProfileCheckBox_Changed"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Window Behavior Section -->
+                <Border Background="{DynamicResource ContentBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4" Padding="16" Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="Window Behavior" Style="{StaticResource SectionHeaderStyle}"/>
+
+                        <TextBlock Text="When closing the application:"
+                                   Style="{StaticResource LabelTextBlockStyle}"
+                                   Margin="0,12,0,4"/>
+                        <StackPanel>
+                            <RadioButton Name="CloseToTrayRadio"
+                                         Content="Minimize to system tray"
+                                         Style="{StaticResource PrimaryRadioButtonStyle}"
+                                         Padding="6,0,-1,0"
+                                         GroupName="CloseAction"
+                                         Checked="CloseActionRadio_Changed"/>
+                            <RadioButton Name="ExitApplicationRadio"
+                                         Content="Exit application"
+                                         Style="{StaticResource PrimaryRadioButtonStyle}"
+                                         Padding="6,0,-1,0"
+                                         GroupName="CloseAction"
+                                         Checked="CloseActionRadio_Changed"/>
+                        </StackPanel>
+
+                        <CheckBox Name="RememberCloseChoiceCheckBox"
+                                  Content="Remember my choice"
+                                  Style="{StaticResource PrimaryCheckBoxStyle}"
+                                  Padding="6,0,-1,0"
+                                  Margin="20,8,0,0"
+                                  Checked="RememberCloseChoiceCheckBox_Changed"
+                                  Unchecked="RememberCloseChoiceCheckBox_Changed"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Notifications Section -->
+                <Border Background="{DynamicResource ContentBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4" Padding="16" Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="Notifications" Style="{StaticResource SectionHeaderStyle}"/>
+
+                        <CheckBox Name="ShowNotificationsCheckBox" Content="Show notifications when profiles are applied"
+                                  Style="{StaticResource PrimaryCheckBoxStyle}"
+                                  Padding="6,0,-1,0"
+                                  Checked="ShowNotificationsCheckBox_Changed"
+                                  Unchecked="ShowNotificationsCheckBox_Changed"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Global Hotkeys Section -->
+                <Border Background="{DynamicResource ContentBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4" Padding="16" Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="Global Hotkeys" Style="{StaticResource SectionHeaderStyle}"/>
+
+                        <TextBlock Text="Hotkeys are configured individually for each profile in the Profile Editor. Each hotkey can be enabled or disabled per profile."
+                                   Style="{StaticResource PrimaryTextBlockStyle}"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource TertiaryTextBrush}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,8"/>
+
+                        <!-- Read-only list of configured hotkeys -->
+                        <TextBlock Text="Configured Hotkeys:"
+                                   Style="{StaticResource LabelTextBlockStyle}"
+                                   Margin="0,12,0,4"/>
+                        <Border Background="{DynamicResource TextBoxBackgroundBrush}"
+                                BorderBrush="{DynamicResource TextBoxBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="3"
+                                MinHeight="80"
+                                MaxHeight="120">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="8" ScrollViewer.CanContentScroll="False" PreviewMouseWheel="InnerScrollViewer_PreviewMouseWheel">
+                            <StackPanel Name="HotkeyListPanel">
+                                    <TextBlock Text="No hotkeys configured"
+                                               Style="{StaticResource PrimaryTextBlockStyle}"
+                                               FontSize="12"
+                                               Foreground="{DynamicResource TertiaryTextBrush}"
+                                               FontStyle="Italic"/>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- About Section -->
+                <Border Background="{DynamicResource ContentBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4" Padding="16" Margin="0,0,0,16">
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" ScrollViewer.CanContentScroll="False" PreviewMouseWheel="InnerScrollViewer_PreviewMouseWheel">
+                        <StackPanel>
+                            <TextBlock Text="About" Style="{StaticResource SectionHeaderStyle}"/>
+
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Version: "
+                                           Style="{StaticResource PrimaryTextBlockStyle}"/>
+                                <TextBlock Name="VersionTextBlock"
+                                           Text="1.0.0"
+                                           Style="{StaticResource PrimaryTextBlockStyle}"/>
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                <TextBlock Text="Settings Location: "
+                                           Style="{StaticResource PrimaryTextBlockStyle}"
+                                           FontSize="12"
+                                           Foreground="{DynamicResource TertiaryTextBrush}"/>
+                                <TextBlock Name="SettingsPathTextBlock"
+                                           Style="{StaticResource PrimaryTextBlockStyle}"
+                                           FontSize="12"
+                                           Foreground="{DynamicResource TertiaryTextBrush}"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                            
+                            <!-- Libraries Section -->
+                            <TextBlock Text="Third-Party Libraries:"
+                                       Style="{StaticResource PrimaryTextBlockStyle}"
+                                       FontWeight="SemiBold"
+                                       Margin="0,12,0,4"/>
+                            <StackPanel Name="LibrariesPanel" Margin="0,0,0,4">
+                                <!-- This will be populated programmatically -->
+                            </StackPanel>
+                            <TextBlock Style="{StaticResource PrimaryTextBlockStyle}"
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TertiaryTextBrush}"
+                                       Margin="0,2,0,4"
+                                       FontStyle="Italic">
+                                    <Run Text="See THIRD-PARTY-LICENSES.md for complete license texts"/>
+                            </TextBlock>
+
+                            <!-- Contributors Section -->
+                            <TextBlock Text="Contributors:"
+                                       Style="{StaticResource PrimaryTextBlockStyle}"
+                                       FontWeight="SemiBold"
+                                       Margin="0,12,0,4"/>
+                            <StackPanel Name="ContributorsPanel" Margin="0,0,0,4">
+                                <!-- This will be populated programmatically -->
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Window>

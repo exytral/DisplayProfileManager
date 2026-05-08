@@ -1,0 +1,57 @@
+name: Bug Report
+description: Report a bug or unexpected behavior in Display Profile Manager
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing, please check [existing issues](../../issues) to see if this has already been reported.
+        For usage questions, open a [Discussion](../../discussions) instead.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: What did you expect, and what actually happened? Is this reproducible or intermittent?
+      placeholder: "Expected: profile applied cleanly. Actual: second monitor stayed black."
+    validations:
+      required: true
+
+  - type: input
+    id: source-profile
+    attributes:
+      label: Source profile (switching from)
+      description: The profile or state you were switching away from. Attach the .dpm file below.
+      placeholder: "e.g. Desktop, or 'no profile applied / fresh launch'"
+    validations:
+      required: true
+
+  - type: input
+    id: dest-profile
+    attributes:
+      label: Destination profile (switching to)
+      description: The profile you were applying when the issue occurred. Attach the .dpm file below.
+      placeholder: "e.g. TV Setup"
+    validations:
+      required: true
+
+  - type: textarea
+    id: attachments
+    attributes:
+      label: Attached files
+      description: |
+        Please attach the following files by dragging them into this text box or using the paperclip icon:
+        - **Both .dpm profile files** — found at `%AppData%\Roaming\DisplayProfileManager\Profiles\`
+        - **Log file for the day the issue occurred** — found at `%AppData%\Roaming\DisplayProfileManager\Logs\`
+      placeholder: "Drag files here or describe why they can't be attached."
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Anything else?
+      description: Steps to reproduce, workarounds you've found, relevant monitor setup details (connection type, HDR, clone/mirror groups), etc.
+    validations:
+      required: false

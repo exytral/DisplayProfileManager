@@ -1,0 +1,128 @@
+name: Release
+on:
+  push:
+    tags:
+      - '*'
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      # ── A1: Checkout ────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ── A2: MSBuild ─────────────────────────────────────────────────
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      # ── A3: NuGet restore ───────────────────────────────────────────
+      - name: Restore NuGet packages
+        run: nuget restore DisplayProfileManager.sln
+
+      # ── B: Multi-arch .NET build ─────────────────────────────────────
+      - name: Build x64
+        run: >
+          msbuild DisplayProfileManager/DisplayProfileManager.csproj
+          /p:Configuration=Release
+          /p:Platform=x64
+          /p:SolutionDir="$PWD\\"
+
+      - name: Build x86
+        run: >
+          msbuild DisplayProfileManager/DisplayProfileManager.csproj
+          /p:Configuration=Release
+          /p:Platform=x86
+          /p:SolutionDir="$PWD\\"
+
+      - name: Build ARM64
+        run: >
+          msbuild DisplayProfileManager/DisplayProfileManager.csproj
+          /p:Configuration=Release
+          /p:Platform=ARM64
+          /p:SolutionDir="$PWD\\"
+
+      # ── B: Package portable zips ─────────────────────────────────────
+      - name: Package portable zips
+        shell: pwsh
+        run: |
+          $exclude = @('*.pdb', '*.xml', '*.tmp', '*.log')
+          $archs = @('x64', 'x86', 'ARM64')
+          $version = "${{ github.ref_name }}".TrimStart('v')
+
+          foreach ($arch in $archs) {
+            $src  = "DisplayProfileManager/bin/$arch/Release"
+            $dest = "dist/portable/$arch"
+            
+            # Formats output as arm64 even if source is ARM64
+            $outArch = $arch.ToLower()
+            $zip  = "dist/DisplayProfileManager-$version-$outArch-Portable.zip"
+
+            New-Item -ItemType Directory -Force -Path $dest | Out-Null
+
+            Get-ChildItem -Path $src -File | Where-Object {
+              $name = $_.Name
+              -not ($exclude | Where-Object { $name -like $_ })
+            } | Copy-Item -Destination $dest
+
+            Compress-Archive -Path "$dest/*" -DestinationPath $zip
+          }
+
+      # ── C: Python build (DPMThemeBuilder) ────────────────────────────
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install PyInstaller and dependencies
+        run: pip install pyinstaller requests
+
+      - name: Build DPMThemeBuilder executable
+        shell: pwsh
+        run: |
+          cd DPMThemeBuilder
+          pyinstaller `
+            --onefile `
+            --windowed `
+            --icon="icon.ico" `
+            --name="DPMThemeBuilder" `
+            DPMThemeBuilder.pyw
+
+      # ── D: Inno Setup installers ─────────────────────────────────────
+      - name: Build installers
+        shell: pwsh
+        run: |
+          $iscc    = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          $iss     = "DisplayProfileManager/DisplayProfileManager.Setup.iss"
+          $archs   = @('x64', 'x86', 'ARM64')
+          $tag     = "${{ github.ref_name }}"
+          $version = $tag.TrimStart('v')
+
+          foreach ($arch in $archs) {
+            $outArch = $arch.ToLower()
+            $outputName = "DisplayProfileManager-$version-$outArch-Setup"
+            
+            & $iscc $iss `
+              "/DTargetArch=$arch" `
+              "/DMyAppVersion=$tag" `
+              "/O$PWD/dist/installers" `
+              "/F$outputName"
+            
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+          }
+
+      # ── E: Create GitHub Release and upload assets ───────────────────
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Display Profile Manager ${{ github.ref_name }}
+          generate_release_notes: false
+          files: |
+            dist/installers/*.exe
+            dist/*.zip
+            DPMThemeBuilder/dist/DPMThemeBuilder.exe
+            DPMThemeBuilder/DPMThemeBuilder.pyw

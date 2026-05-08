@@ -1,0 +1,8 @@
+﻿<Application x:Class="DisplayProfileManager.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:DisplayProfileManager">
+    <Application.Resources>
+        <!-- Theme resources will be added dynamically -->
+    </Application.Resources>
+</Application>
