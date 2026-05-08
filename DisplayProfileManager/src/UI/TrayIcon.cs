@@ -164,10 +164,7 @@ namespace DisplayProfileManager.UI
             _contextMenu.Items.Add(settingsItem);
 
             _contextMenu.Items.Add(new ToolStripSeparator());
-
-            var aboutItem = new ToolStripMenuItem("About");
-            _contextMenu.Items.Add(aboutItem);
-
+            
             var exitItem = new ToolStripMenuItem("Exit");
             exitItem.Click += OnExitClick;
             _contextMenu.Items.Add(exitItem);
