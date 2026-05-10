@@ -117,9 +117,15 @@ namespace DisplayProfileManager.Core
 
                 string destinationPath = Path.Combine(_scriptsFolderPath, fileName);
 
-                if (string.Equals(Path.GetDirectoryName(externalPath), _scriptsFolderPath, StringComparison.OrdinalIgnoreCase))
+                logger.Debug($"ImportScript sandbox check: dir='{Path.GetFullPath(Path.GetDirectoryName(externalPath)).TrimEnd(Path.DirectorySeparatorChar)}' sandbox='{Path.GetFullPath(_scriptsFolderPath).TrimEnd(Path.DirectorySeparatorChar)}'");
+
+                // Early-return if already in sandbox — normalize both paths to avoid separator mismatches
+                if (string.Equals(
+                    Path.GetFullPath(Path.GetDirectoryName(externalPath)).TrimEnd(Path.DirectorySeparatorChar),
+                    Path.GetFullPath(_scriptsFolderPath).TrimEnd(Path.DirectorySeparatorChar),
+                    StringComparison.OrdinalIgnoreCase))
                 {
-                    return fileName;
+                    return Path.GetFileName(externalPath);
                 }
 
                 int counter = 1;

@@ -481,7 +481,7 @@ namespace DisplayProfileManager.UI.Windows
             try
             {
                 _isApplying = true;
-                StatusTextBlock.Text = $"Applying profile: {profile.Name}...";
+                StatusTextBlock.Text = $"Applying profile: {profile.Name}..."; // Skipped — update resolves too fast and causes flicker
 
                 var applyWatch = Stopwatch.StartNew();
                 var applyResult = await _profileManager.ApplyProfileAsync(profile);

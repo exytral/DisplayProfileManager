@@ -414,7 +414,7 @@ namespace DisplayProfileManager.UI.Windows
                         var d = (dynamic)s;
                         string fileName = System.IO.Path.GetFileName((string)d.FilePath);
                         string args = ((string)d.Arguments).Trim();
-                        return string.IsNullOrWhiteSpace(args) ? fileName : $"{fileName} {args}";
+                        return ScriptManager.Instance.FormatCommand(fileName, args);
                     })
                     .ToList();
 
@@ -802,7 +802,7 @@ namespace DisplayProfileManager.UI.Windows
             StatusTextBlock.Text = "Scripts will not be executed for this profile";
         }
 
-        private void AddScriptButton_Click(object sender, RoutedEventArgs e)
+        private async void AddScriptButton_Click(object sender, RoutedEventArgs e)
         {
             // Path resolution
             string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
@@ -825,19 +825,31 @@ namespace DisplayProfileManager.UI.Windows
             var openFileDialog = new Microsoft.Win32.OpenFileDialog
             {
                 InitialDirectory = scriptsPath,
-                Filter = "Scripts (*.ps1;*.bat;*.cmd)|*.ps1;*.bat;*.cmd|All files (*.*)|*.*",
-                Title = "Import Script"
+                Filter = "Scripts (*.ps1;*.bat;*.cmd;*.py;*.exe)|*.ps1;*.bat;*.cmd;*.py;*.exe|All files (*.*)|*.*",
+                Title = "Import Script",
+                DereferenceLinks = false
             };
 
             if (openFileDialog.ShowDialog() == true)
             {
+                // Sandbox import — copies file, creates .lnk for .exe
+                string importedFileName = await ScriptManager.Instance.ImportScriptAsync(openFileDialog.FileName);
+
+                if (importedFileName == null)
+                {
+                    StatusTextBlock.Text = "Failed to import script";
+                    MessageBox.Show("The selected file could not be imported to the scripts folder.",
+                        "Import Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
                 // Entry creation
-                var (fullPath, args) = ScriptHelper.ParseScriptString(openFileDialog.FileName);
+                string fullPath = System.IO.Path.Combine(scriptsPath, importedFileName);
 
                 dynamic newEntry = new System.Dynamic.ExpandoObject();
                 newEntry.FilePath = fullPath;
-                newEntry.FileName = System.IO.Path.GetFileName(fullPath);
-                newEntry.Arguments = args;
+                newEntry.FileName = importedFileName;
+                newEntry.Arguments = string.Empty;
                 newEntry.IsDeleted = false;
 
                 _scriptList.Add(newEntry);
@@ -855,7 +867,7 @@ namespace DisplayProfileManager.UI.Windows
 
                 // View update
                 UpdateScriptsVisibility();
-                StatusTextBlock.Text = $"'{System.IO.Path.GetFileName(fullPath)}' added";
+                StatusTextBlock.Text = $"'{importedFileName}' added";
             }
         }
 

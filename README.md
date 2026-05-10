@@ -2,12 +2,12 @@
 
 [![Platform](https://img.shields.io/badge/platform-Windows-blue.svg)](https://www.microsoft.com/windows)
 [![.NET Framework](https://img.shields.io/badge/.NET%20Framework-4.8-purple.svg)](https://dotnet.microsoft.com/download/dotnet-framework/net48)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![License: MIT + Commons Clause](https://img.shields.io/badge/License-MIT%20%2B%20Commons%20Clause-green.svg)](LICENSE)
 [![Built with Claude Code](https://img.shields.io/badge/Built%20with-Claude%20Code-orange.svg)](https://claude.ai/code)
 
 A lightweight Windows desktop application for managing display profiles — save your monitor layout, resolution, refresh rate, HDR state, DPI, audio devices, and scripts into named profiles and switch between them on demand.
 
-This is a fork by [exytral](https://github.com/exytral) based on [zac15987/DisplayProfileManager](https://github.com/zac15987/DisplayProfileManager). Distributed under MIT + Commons Clause.
+This is a fork based on [zac15987/DisplayProfileManager](https://github.com/zac15987/DisplayProfileManager). Distributed under MIT + Commons Clause.
 
 ---
 

@@ -6,8 +6,15 @@ For user-facing release notes, see the [GitHub Releases](https://github.com/Exyt
 
 ---
 
+<a id="2.0.1"></a>
+## [2.0.1] - 2026-05-09
+
+- **Script file picker** now includes `.py` and `.exe` files
+- **Script import** correctly copies files to sandbox and converts `.exe` to `.lnk` shortcuts
+- **Script filenames with spaces** no longer split incorrectly on import and save
+
 <a id="2.0.0"></a>
-## [2.0.0] - Unreleased
+## [2.0.0] - 2026-05-08
 
 _[Fork](https://github.com/exytral/DisplayProfileManager) by [exytral](https://github.com/Exytral) — incorporating [PR #23](https://github.com/zac15987/DisplayProfileManager/pull/23) by [rvahilario](https://github.com/rvahilario) and [PR #14](https://github.com/zac15987/DisplayProfileManager/pull/14) by [jonathanasdf](https://github.com/jonathanasdf)_
 
