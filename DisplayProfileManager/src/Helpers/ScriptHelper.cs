@@ -18,7 +18,7 @@ namespace DisplayProfileManager.Helpers
                 string fileName = filePath;
                 string finalArguments = "";
 
-                bool useShell = extension == ".lnk"; // .lnk files require the Windows Shell to execute
+                bool useShell = extension == ".lnk";
 
                 if (extension == ".ps1")
                 {
@@ -30,9 +30,19 @@ namespace DisplayProfileManager.Helpers
                     fileName = "cmd.exe";
                     finalArguments = $"/c \"{filePath}\" {cmdArgs}";
                 }
+                else if (extension == ".vbs" || extension == ".js")
+                {
+                    fileName = "cscript.exe";
+                    finalArguments = $"/nologo \"{filePath}\" {cmdArgs}";
+                }
                 else if (extension == ".py")
                 {
                     fileName = "python.exe";
+                    finalArguments = $"\"{filePath}\" {cmdArgs}";
+                }
+                else if (extension == ".ahk")
+                {
+                    fileName = "autohotkey.exe";
                     finalArguments = $"\"{filePath}\" {cmdArgs}";
                 }
                 else

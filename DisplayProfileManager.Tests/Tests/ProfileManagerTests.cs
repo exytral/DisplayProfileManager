@@ -10,7 +10,7 @@ using DisplayProfileManager.Tests.Helpers;
 namespace DisplayProfileManager.Tests.Tests
 {
     [TestClass]
-    public class ProfileManagerInMemoryTests
+    public class ProfileManagerTests
     {
         private ProfileManager _pm;
         private FieldInfo _profilesField;

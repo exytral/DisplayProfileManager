@@ -4,14 +4,52 @@ All notable changes to this project are documented here.
 Technical entries are intended for developers and contributors.
 For user-facing release notes, see the [GitHub Releases](https://github.com/Exytral/DisplayProfileManager/releases) page.
 
+<a id="2.0.2"></a>
+## [2.0.2] - 2026-05-21
+
+### feat — scripts
+
+- **`.vbs`, `.js`, `.ahk` script support** — VBScript and JScript run via `cscript.exe /nologo`; AutoHotkey runs via `autohotkey.exe`. File picker updated to include all new types.
+
+### feat — profile schema
+
+- **`SchemaVersion` field on profiles** — defaults to `0` on deserialization so existing profiles without the field automatically trigger migration on first load. New profiles write `schemaVersion: 1`.
+- **Automatic profile migration** — `LoadProfilesAsync` migrates outdated profiles on startup without changing `LastModifiedDate`. Version 0 → 1 backfills `NativeWidth`/`NativeHeight` and corrects `ReadableDeviceName` from live display data by `TargetId`. Disconnected displays are skipped and backfilled on next load when reconnected.
+- **`NativeWidth`/`NativeHeight` on `DisplaySetting`** — stores the EDID preferred timing resolution from `targetVideoSignalInfo.activeSize`, representing the panel's physical pixel grid. Populated during `GetCurrentDisplaySettingsAsync` and used by `BreakClone` to restore the correct resolution rather than defaulting to the highest supported (which may be a wider DCI resolution).
+- **`DisplaySetting` property reorder** — fields now follow identity → state → layout → active configuration → native → capabilities. Purely cosmetic for `.dpm` files; no functional change.
+
+### feat — display
+
+- **Disconnected display detection** — `ApplyProfileAsync` checks enabled profile displays against live configs before topology apply. Missing displays are recorded in `ProfileApplyResult.DisconnectedDisplays`, logged as warnings immediately, and excluded from the defer wait. The remaining displays still apply. Previously, a disconnected display would cause the full 10s defer timeout before any error surfaced.
+- **`DeferDisplayLayoutAsync` skips disconnected displays** — only waits for displays confirmed present during disconnected display detection.
+
+### fix — display
+
+- **`BreakClone` uses native resolution** — non-representative clone members now restore to `NativeWidth`/`NativeHeight` instead of `AvailableResolutions[0]`, which could be a DCI resolution wider than the panel's actual pixel grid (e.g. 4096x2160 on a 3840x2160 panel).
+
+### fix — profile management
+
+- **Friendly monitor name** — `ReadableDeviceName` now uses the CCD friendly name from `DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_NAME` instead of the raw WMI `Win32_PnPEntity` string. Applied on new profile captures and backfilled during migration.
+
+### fix — script import
+
+- **`.lnk` files already in sandbox no longer duplicated** — the early-return sandbox check now uses `DereferenceLinks = false` on the file picker so `.lnk` paths are not resolved to their targets before the directory comparison.
+
+### refactor — tests
+
+- **Test files reorganised** — `SourceIdNormalizationTests.cs` split into `DisplayConfigNormalizationTests.cs` (SourceId normalization and `BuildSourceIdMap`) and `ProfileTests.cs` (`ApplyProfileScriptLogicTests` moved here as it tests `Profile` model behavior). `ProfileManagerInMemoryTests.cs` renamed to `ProfileManagerTests.cs`. `ScriptHelperTests.cs` added as a new file.
+- **`DisplaySettingTests.cs` updated** — new default value coverage for `NativeWidth`, `NativeHeight`, and `SchemaVersion`.
+
 ---
 
 <a id="2.0.1"></a>
 ## [2.0.1] - 2026-05-09
 
-- **Script file picker** now includes `.py` and `.exe` files
-- **Script import** correctly copies files to sandbox and converts `.exe` to `.lnk` shortcuts
-- **Script filenames with spaces** no longer split incorrectly on import and save
+### fix — script import
+
+- **File picker extended** — filter now explicitly includes `.py` and `.exe` alongside previously supported types
+- **Sandbox import and shortcut virtualization** — `.exe` files now correctly copy to the scripts sandbox and are automatically converted to `.lnk` shortcuts via late-bound `WScript.Shell`, fixing failures in the import pipeline
+- **Filename tokenization with spaces** — script paths containing spaces no longer split incorrectly during import or configuration serialization
 
 <a id="2.0.0"></a>
 ## [2.0.0] - 2026-05-08

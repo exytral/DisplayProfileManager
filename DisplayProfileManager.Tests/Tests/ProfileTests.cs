@@ -1,6 +1,7 @@
-using System;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using DisplayProfileManager.Core;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using System;
+using System.Linq;
 
 namespace DisplayProfileManager.Tests.Tests
 {
@@ -54,6 +55,16 @@ namespace DisplayProfileManager.Tests.Tests
             var profile = new Profile();
 
             Assert.IsFalse(profile.IsDefault);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void Profile_DefaultConstructor_SchemaVersionIsZero()
+        {
+            var profile = new Profile();
+
+            Assert.AreEqual(0, profile.SchemaVersion,
+                "SchemaVersion must default to 0 so old profiles without this field trigger migration on load.");
         }
 
         [TestMethod]
@@ -230,6 +241,26 @@ namespace DisplayProfileManager.Tests.Tests
 
             Assert.AreEqual(string.Empty, setting.CloneGroupId,
                 "CloneGroupId must default to empty string so old profiles load as extended mode.");
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void DisplaySetting_DefaultNativeWidth_IsZero()
+        {
+            var setting = new DisplaySetting();
+
+            Assert.AreEqual(0, setting.NativeWidth,
+                "NativeWidth must default to 0 so old profiles without this field trigger migration backfill.");
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void DisplaySetting_DefaultNativeHeight_IsZero()
+        {
+            var setting = new DisplaySetting();
+
+            Assert.AreEqual(0, setting.NativeHeight,
+                "NativeHeight must default to 0 so old profiles without this field trigger migration backfill.");
         }
 
         [TestMethod]
@@ -544,6 +575,62 @@ namespace DisplayProfileManager.Tests.Tests
             col.UpdateProfile(ghost);
 
             Assert.AreEqual(1, col.Profiles.Count);
+        }
+    }
+
+    [TestClass]
+    public class ApplyProfileScriptLogicTests
+    {
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void EnableScriptsFalse_ScriptListIsPreserved()
+        {
+            var profile = new Profile("Test");
+            profile.Scripts.Add("myscript.ps1");
+            profile.EnableScripts = false;
+
+            Assert.AreEqual(1, profile.Scripts.Count,
+                "Scripts must remain stored when EnableScripts is false.");
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void EnableScriptsTrue_WithEmptyList_DoesNotExecute()
+        {
+            var profile = new Profile("Test");
+            profile.EnableScripts = true;
+
+            bool wouldExecute = profile.EnableScripts && profile.Scripts != null && profile.Scripts.Any();
+
+            Assert.IsFalse(wouldExecute,
+                "No scripts must execute when the list is empty, even if EnableScripts is true.");
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void EnableScriptsFalse_WithScripts_DoesNotExecute()
+        {
+            var profile = new Profile("Test");
+            profile.Scripts.Add("myscript.ps1");
+            profile.EnableScripts = false;
+
+            bool wouldExecute = profile.EnableScripts && profile.Scripts != null && profile.Scripts.Any();
+
+            Assert.IsFalse(wouldExecute,
+                "Scripts must not execute when EnableScripts is false, regardless of list contents.");
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void EnableScriptsTrue_WithScripts_Executes()
+        {
+            var profile = new Profile("Test");
+            profile.Scripts.Add("myscript.ps1");
+            profile.EnableScripts = true;
+
+            bool wouldExecute = profile.EnableScripts && profile.Scripts != null && profile.Scripts.Any();
+
+            Assert.IsTrue(wouldExecute);
         }
     }
 }

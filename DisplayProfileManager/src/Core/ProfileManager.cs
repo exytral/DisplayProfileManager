@@ -23,7 +23,10 @@ namespace DisplayProfileManager.Core
             public bool ResolutionChanged { get; set; }
             public bool DpiChanged { get; set; }
             public bool AudioSuccess { get; set; }
+            public List<string> DisconnectedDisplays { get; set; } = new List<string>();
         }
+
+        private const int CurrentSchemaVersion = 1;
 
         private static ProfileManager _instance;
         private static readonly object _lock = new object();
@@ -105,6 +108,9 @@ namespace DisplayProfileManager.Core
 
                 var profileFiles = Directory.GetFiles(_profilesFolderPath, "*.dpm");
 
+                // Fetch live configs once — reused across all profile migrations
+                List<DisplayConfigHelper.DisplayConfigInfo> liveConfigs = null;
+
                 foreach (var file in profileFiles)
                 {
                     try
@@ -116,6 +122,22 @@ namespace DisplayProfileManager.Core
                         {
                             logger.Warn($"Skipping invalid profile file: {Path.GetFileName(file)}");
                             continue;
+                        }
+
+                        // Migrate Outdated Profiles
+                        if (profile.SchemaVersion < CurrentSchemaVersion)
+                        {
+                            if (liveConfigs == null)
+                                liveConfigs = DisplayConfigHelper.GetDisplayConfigs();
+
+                            bool migrated = await MigrateProfileAsync(profile, liveConfigs);
+                            if (migrated)
+                            {
+                                var savedDate = profile.LastModifiedDate;
+                                await SaveProfileAsync(profile);
+                                profile.LastModifiedDate = savedDate;
+                                logger.Info($"Migrated profile '{profile.Name}' to schema version {CurrentSchemaVersion}");
+                            }
                         }
 
                         _profiles.Add(profile);
@@ -143,6 +165,44 @@ namespace DisplayProfileManager.Core
                 _profiles = new List<Profile>();
                 return false;
             }
+        }
+
+        private async Task<bool> MigrateProfileAsync(Profile profile, List<DisplayConfigHelper.DisplayConfigInfo> liveConfigs)
+        {
+            bool changed = false;
+
+            // Version 0 → 1: backfill NativeWidth/NativeHeight and fix ReadableDeviceName
+            if (profile.SchemaVersion < 1)
+            {
+                foreach (var setting in profile.DisplaySettings)
+                {
+                    var match = liveConfigs.FirstOrDefault(c => c.TargetId == setting.TargetId);
+                    if (match != null)
+                    {
+                        if (setting.NativeWidth == 0 && match.NativeWidth > 0)
+                        {
+                            setting.NativeWidth = match.NativeWidth;
+                            setting.NativeHeight = match.NativeHeight;
+                            changed = true;
+                        }
+
+                        if (!string.IsNullOrEmpty(match.FriendlyName))
+                        {
+                            setting.ReadableDeviceName = match.FriendlyName;
+                            changed = true;
+                        }
+                    }
+                    else
+                    {
+                        logger.Info($"Migration: {setting.ReadableDeviceName} (TargetId {setting.TargetId}) not connected, skipping backfill");
+                    }
+                }
+
+                profile.SchemaVersion = 1;
+                changed = true;
+            }
+
+            return changed;
         }
 
         public async Task<bool> SaveProfileAsync(Profile profile)
@@ -252,28 +312,41 @@ namespace DisplayProfileManager.Core
                             DpiHelper.DPIScalingInfo dpiInfo = DpiHelper.GetDPIScalingInfo(foundConfig.DeviceName, foundConfig);
 
                             DisplaySetting setting = new DisplaySetting();
+
+                            // Identity
                             setting.DeviceName = foundConfig.DeviceName;
                             setting.DeviceString = foundDisplay?.DeviceString ?? foundConfig.DeviceName;
-                            setting.ReadableDeviceName = foundMonitor?.Name ?? foundConfig.FriendlyName;
-                            setting.Width = foundConfig.Width;
-                            setting.Height = foundConfig.Height;
-                            setting.Frequency = foundDisplay?.Frequency ?? (int)foundConfig.RefreshRate;
-                            setting.DpiScaling = dpiInfo.Current;
-                            setting.IsPrimary = foundDisplay?.IsPrimary ?? foundConfig.IsPrimary;
-                            setting.AdapterId = adpaterIdText;
-                            setting.SourceId = foundConfig.SourceId;
-                            setting.IsEnabled = foundConfig.IsEnabled;
-                            setting.PathIndex = foundConfig.PathIndex;
-                            setting.TargetId = foundConfig.TargetId;
-                            setting.DisplayPositionX = foundConfig.DisplayPositionX;
-                            setting.DisplayPositionY = foundConfig.DisplayPositionY;
-                            setting.IsHdrSupported = foundConfig.IsHdrSupported;
-                            setting.IsHdrEnabled = foundConfig.IsHdrEnabled;
-                            setting.Rotation = (int)foundConfig.Rotation;
-
+                            setting.ReadableDeviceName = !string.IsNullOrEmpty(foundConfig.FriendlyName)
+                                ? foundConfig.FriendlyName
+                                : foundMonitor?.Name ?? foundConfig.DeviceName;
                             setting.ManufacturerName = foundMonitorId?.ManufacturerName ?? "";
                             setting.ProductCodeID = foundMonitorId?.ProductCodeID ?? "";
                             setting.SerialNumberID = foundMonitorId?.SerialNumberID ?? "";
+                            setting.AdapterId = adpaterIdText;
+                            setting.TargetId = foundConfig.TargetId;
+                            setting.SourceId = foundConfig.SourceId;
+                            setting.PathIndex = foundConfig.PathIndex;
+
+                            // State
+                            setting.IsEnabled = foundConfig.IsEnabled;
+                            setting.IsPrimary = foundDisplay?.IsPrimary ?? foundConfig.IsPrimary;
+
+                            // Layout
+                            setting.DisplayPositionX = foundConfig.DisplayPositionX;
+                            setting.DisplayPositionY = foundConfig.DisplayPositionY;
+
+                            // Active configuration
+                            setting.Width = foundConfig.Width;
+                            setting.Height = foundConfig.Height;
+                            setting.Frequency = foundDisplay?.Frequency ?? (int)foundConfig.RefreshRate;
+                            setting.Rotation = (int)foundConfig.Rotation;
+                            setting.IsHdrSupported = foundConfig.IsHdrSupported;
+                            setting.IsHdrEnabled = foundConfig.IsHdrEnabled;
+                            setting.DpiScaling = dpiInfo.Current;
+
+                            // Native
+                            setting.NativeWidth = foundConfig.NativeWidth;
+                            setting.NativeHeight = foundConfig.NativeHeight;
 
                             // Capture available options for this monitor
                             try
@@ -396,6 +469,22 @@ namespace DisplayProfileManager.Core
                 }
                 mapWatch.Stop();
 
+                // Detect Disconnected Displays
+                var liveConfigs = DisplayConfigHelper.GetDisplayConfigs();
+                var disconnected = displayConfigs
+                    .Where(dc => dc.IsEnabled && !liveConfigs.Any(c => c.TargetId == dc.TargetId))
+                    .ToList();
+
+                if (disconnected.Any())
+                {
+                    foreach (var dc in disconnected)
+                    {
+                        var name = !string.IsNullOrEmpty(dc.FriendlyName) ? dc.FriendlyName : dc.DeviceName;
+                        logger.Warn($"Display not detected: {name} (TargetId: {dc.TargetId})");
+                        result.DisconnectedDisplays.Add(name);
+                    }
+                }
+
                 // Log Clone Groups
                 var logWatch = Stopwatch.StartNew();
                 var cloneGroupsToApply = displayConfigs
@@ -427,7 +516,11 @@ namespace DisplayProfileManager.Core
 
                 // Defer until Topology is Stabilized
                 var deferWatch = Stopwatch.StartNew();
-                await DisplayConfigHelper.DeferDisplayLayoutAsync(displayConfigs);
+                var connectedConfigs = displayConfigs
+                    .Where(dc => !result.DisconnectedDisplays.Any(name =>
+                        name.Equals(dc.FriendlyName, StringComparison.OrdinalIgnoreCase)))
+                    .ToList();
+                await DisplayConfigHelper.DeferDisplayLayoutAsync(connectedConfigs);
                 deferWatch.Stop();
 
                 // Apply Display Configuration (Layout, Resolution, Frequency, HDR)
@@ -442,7 +535,7 @@ namespace DisplayProfileManager.Core
                 var uniqueDevicesForDpi = profile.DisplaySettings
                     .Where(s => s.IsEnabled)
                     .GroupBy(s => s.DeviceName)
-                    .Select(g => g.First()) // Take first setting for each unique device
+                    .Select(g => g.First())
                     .ToList();
 
                 foreach (var setting in uniqueDevicesForDpi)
@@ -500,10 +593,14 @@ namespace DisplayProfileManager.Core
 
                     var activeCount = profile.DisplaySettings.Count(d => d.IsEnabled);
                     var sb = new StringBuilder();
-                    sb.Append($"Successfully applied profile '{profile.Name}' -> ({activeCount} active display{(activeCount == 1 ? "s" : "")})");
+                    sb.Append($"Successfully applied profile '{profile.Name}' -> ({activeCount} active display{(activeCount == 1 ? "" : "s")})");
                     if (cloneGroupCount > 0)
                     {
-                        sb.Append($" | ({cloneGroupCount} clone group{(cloneGroupCount == 1 ? "s" : "")})");
+                        sb.Append($" | ({cloneGroupCount} clone group{(cloneGroupCount == 1 ? "" : "s")})");
+                    }
+                    if (result.DisconnectedDisplays.Any())
+                    {
+                        sb.Append($" | ({result.DisconnectedDisplays.Count} display{(result.DisconnectedDisplays.Count == 1 ? "" : "s")} not detected)");
                     }
                     logger.Info(sb.ToString());
 
@@ -819,32 +916,47 @@ namespace DisplayProfileManager.Core
                 IsDefault = false, // Never duplicate as default
                 CreatedDate = DateTime.Now,
                 LastModifiedDate = DateTime.Now,
+                SchemaVersion = CurrentSchemaVersion,
                 DisplaySettings = sourceProfile.DisplaySettings.Select(ds => new DisplaySetting
                 {
+                    // Identity
                     DeviceName = ds.DeviceName,
                     DeviceString = ds.DeviceString,
                     ReadableDeviceName = ds.ReadableDeviceName,
-                    Width = ds.Width,
-                    Height = ds.Height,
-                    Frequency = ds.Frequency,
-                    DpiScaling = ds.DpiScaling,
-                    IsPrimary = ds.IsPrimary,
-                    AdapterId = ds.AdapterId,
-                    SourceId = ds.SourceId,
-                    IsEnabled = ds.IsEnabled,
-                    PathIndex = ds.PathIndex,
-                    TargetId = ds.TargetId,
-                    DisplayPositionX = ds.DisplayPositionX,
-                    IsHdrSupported = ds.IsHdrSupported,
-                    IsHdrEnabled = ds.IsHdrEnabled,
-                    Rotation = ds.Rotation,
-                    DisplayPositionY = ds.DisplayPositionY,
                     ManufacturerName = ds.ManufacturerName,
                     ProductCodeID = ds.ProductCodeID,
                     SerialNumberID = ds.SerialNumberID,
+                    AdapterId = ds.AdapterId,
+                    TargetId = ds.TargetId,
+                    SourceId = ds.SourceId,
+                    CloneGroupId = ds.CloneGroupId,
+                    PathIndex = ds.PathIndex,
+
+                    // State
+                    IsEnabled = ds.IsEnabled,
+                    IsPrimary = ds.IsPrimary,
+
+                    // Layout
+                    DisplayPositionX = ds.DisplayPositionX,
+                    DisplayPositionY = ds.DisplayPositionY,
+
+                    // Active configuration
+                    Width = ds.Width,
+                    Height = ds.Height,
+                    Frequency = ds.Frequency,
+                    Rotation = ds.Rotation,
+                    IsHdrSupported = ds.IsHdrSupported,
+                    IsHdrEnabled = ds.IsHdrEnabled,
+                    DpiScaling = ds.DpiScaling,
+
+                    // Native
+                    NativeWidth = ds.NativeWidth,
+                    NativeHeight = ds.NativeHeight,
+
+                    // Capabilities
                     AvailableResolutions = ds.AvailableResolutions != null ? new List<string>(ds.AvailableResolutions) : new List<string>(),
-                    AvailableDpiScaling = ds.AvailableDpiScaling != null ? new List<uint>(ds.AvailableDpiScaling) : new List<uint>(),
-                    AvailableRefreshRates = ds.AvailableRefreshRates != null ? new Dictionary<string, List<int>>(ds.AvailableRefreshRates.ToDictionary(kvp => kvp.Key, kvp => new List<int>(kvp.Value))) : new Dictionary<string, List<int>>()
+                    AvailableRefreshRates = ds.AvailableRefreshRates != null ? new Dictionary<string, List<int>>(ds.AvailableRefreshRates.ToDictionary(kvp => kvp.Key, kvp => new List<int>(kvp.Value))) : new Dictionary<string, List<int>>(),
+                    AvailableDpiScaling = ds.AvailableDpiScaling != null ? new List<uint>(ds.AvailableDpiScaling) : new List<uint>()
                 }).ToList(),
                 AudioSettings = sourceProfile.AudioSettings != null ? new AudioSetting
                 {

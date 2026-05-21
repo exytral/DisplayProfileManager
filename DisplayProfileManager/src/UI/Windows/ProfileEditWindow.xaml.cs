@@ -825,7 +825,7 @@ namespace DisplayProfileManager.UI.Windows
             var openFileDialog = new Microsoft.Win32.OpenFileDialog
             {
                 InitialDirectory = scriptsPath,
-                Filter = "Scripts (*.ps1;*.bat;*.cmd;*.py;*.exe)|*.ps1;*.bat;*.cmd;*.py;*.exe|All files (*.*)|*.*",
+                Filter = "Scripts (*.exe;*.ps1;*.bat;*.cmd;*.vbs;*.js;*.py;*.ahk)|*.exe;*.ps1;*.bat;*.cmd;*.vbs;*.js;*.py;*.ahk|All files (*.*)|*.*",
                 Title = "Import Script",
                 DereferenceLinks = false
             };
@@ -1738,40 +1738,44 @@ namespace DisplayProfileManager.UI.Windows
 
                 var displaySetting = new DisplaySetting
                 {
-                    // Identification metadata
+                    // Identity
                     DeviceName = originalSetting.DeviceName,
                     DeviceString = originalSetting.DeviceString,
                     ReadableDeviceName = originalSetting.ReadableDeviceName,
-                    AdapterId = originalSetting.AdapterId,
-                    SourceId = originalSetting.SourceId,
-                    TargetId = originalSetting.TargetId,
-                    PathIndex = originalSetting.PathIndex,
                     ManufacturerName = originalSetting.ManufacturerName,
                     ProductCodeID = originalSetting.ProductCodeID,
                     SerialNumberID = originalSetting.SerialNumberID,
+                    AdapterId = originalSetting.AdapterId,
+                    TargetId = originalSetting.TargetId,
+                    SourceId = originalSetting.SourceId,
                     CloneGroupId = originalSetting.CloneGroupId,
+                    PathIndex = originalSetting.PathIndex,
 
-                    // Configurable parameters
-                    Width = useOwnParams ? originalSetting.Width : width,
-                    Height = useOwnParams ? originalSetting.Height : height,
-                    Frequency = useOwnParams ? originalSetting.Frequency : frequency,
-                    DpiScaling = useOwnParams ? originalSetting.DpiScaling : dpiScaling,
-
-                    Rotation = rotation,
+                    // State
                     IsEnabled = isEnabled,
-                    IsHdrSupported = originalSetting.IsHdrSupported,
-                    IsHdrEnabled = isHdrEnabled && originalSetting.IsHdrSupported,
+                    IsPrimary = isFirst && isPrimary,
 
+                    // Layout
                     DisplayPositionX = originalSetting.DisplayPositionX,
                     DisplayPositionY = originalSetting.DisplayPositionY,
 
-                    // Flags
-                    IsPrimary = isFirst && isPrimary,
+                    // Active configuration
+                    Width = useOwnParams ? originalSetting.Width : width,
+                    Height = useOwnParams ? originalSetting.Height : height,
+                    Frequency = useOwnParams ? originalSetting.Frequency : frequency,
+                    Rotation = rotation,
+                    IsHdrSupported = originalSetting.IsHdrSupported,
+                    IsHdrEnabled = isHdrEnabled && originalSetting.IsHdrSupported,
+                    DpiScaling = useOwnParams ? originalSetting.DpiScaling : dpiScaling,
 
-                    // Capability reference
+                    // Native
+                    NativeWidth = originalSetting.NativeWidth,
+                    NativeHeight = originalSetting.NativeHeight,
+
+                    // Capabilities
                     AvailableResolutions = originalSetting.AvailableResolutions,
-                    AvailableDpiScaling = originalSetting.AvailableDpiScaling,
-                    AvailableRefreshRates = originalSetting.AvailableRefreshRates
+                    AvailableRefreshRates = originalSetting.AvailableRefreshRates,
+                    AvailableDpiScaling = originalSetting.AvailableDpiScaling
                 };
 
                 settings.Add(displaySetting);
@@ -2019,8 +2023,16 @@ namespace DisplayProfileManager.UI.Windows
                     // Parameter restoration for non-representative members
                     if (member.AvailableResolutions != null && member.AvailableResolutions.Count > 0)
                     {
-                        var firstRes = member.AvailableResolutions[0];
-                        var parts = firstRes.Split('x');
+                        // Prefer stored EDID native resolution — AvailableResolutions[0] may be a wider DCI resolution
+                        string preferredRes = member.NativeWidth > 0
+                            ? $"{member.NativeWidth}x{member.NativeHeight}"
+                            : null;
+
+                        string targetRes = (preferredRes != null && member.AvailableResolutions.Contains(preferredRes))
+                            ? preferredRes
+                            : member.AvailableResolutions[0];
+
+                        var parts = targetRes.Split('x');
                         if (parts.Length == 2 &&
                             int.TryParse(parts[0], out int w) &&
                             int.TryParse(parts[1], out int h))

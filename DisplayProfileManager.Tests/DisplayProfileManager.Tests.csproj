@@ -58,14 +58,15 @@
     <Compile Include="Helpers\DisplaySettingBuilder.cs" />
     <Compile Include="Helpers\DisplayConfigInfoBuilder.cs" />
     <Compile Include="Tests\CloneGroupValidationTests.cs" />
+    <Compile Include="Tests\DisplayConfigNormalizationTests.cs" />
     <Compile Include="Tests\DisplayConfigPathSourceInfoTests.cs" />
     <Compile Include="Tests\DisplaySettingTests.cs" />
     <Compile Include="Tests\CloneGroupTopologyTests.cs" />
     <Compile Include="Tests\GetLUIDFromStringTests.cs" />
     <Compile Include="Tests\HotkeyConfigTests.cs" />
-    <Compile Include="Tests\ProfileManagerInMemoryTests.cs" />
+    <Compile Include="Tests\ProfileManagerTests.cs" />
     <Compile Include="Tests\ProfileTests.cs" />
-    <Compile Include="Tests\SourceIdNormalizationTests.cs" />
+    <Compile Include="Tests\ScriptHelperTests.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

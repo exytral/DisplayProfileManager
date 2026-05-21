@@ -25,6 +25,9 @@ namespace DisplayProfileManager.Core
         [JsonProperty("lastModifiedDate")]
         public DateTime LastModifiedDate { get; set; } = DateTime.Now;
 
+        [JsonProperty("schemaVersion")]
+        public int SchemaVersion { get; set; } = 0;
+
         [JsonProperty("displaySettings")]
         public List<DisplaySetting> DisplaySettings { get; set; } = new List<DisplaySetting>();
 
@@ -78,6 +81,7 @@ namespace DisplayProfileManager.Core
 
     public class DisplaySetting
     {
+        // Identity
         [JsonProperty("deviceName")]
         public string DeviceName { get; set; } = string.Empty;
 
@@ -86,42 +90,6 @@ namespace DisplayProfileManager.Core
 
         [JsonProperty("readableDeviceName")]
         public string ReadableDeviceName { get; set; } = string.Empty;
-
-        [JsonProperty("width")]
-        public int Width { get; set; }
-
-        [JsonProperty("height")]
-        public int Height { get; set; }
-
-        [JsonProperty("frequency")]
-        public int Frequency { get; set; } = 60;
-
-        [JsonProperty("dpiScaling")]
-        public uint DpiScaling { get; set; } = 100;
-
-        [JsonProperty("isPrimary")]
-        public bool IsPrimary { get; set; } = false;
-
-        [JsonProperty("adapterId")]
-        public string AdapterId { get; set; } = string.Empty;
-
-        [JsonProperty("sourceId")]
-        public uint SourceId { get; set; } = 0;
-
-        [JsonProperty("isEnabled")]
-        public bool IsEnabled { get; set; } = true;
-
-        [JsonProperty("pathIndex")]
-        public uint PathIndex { get; set; } = 0;
-
-        [JsonProperty("targetId")]
-        public uint TargetId { get; set; } = 0;
-
-        [JsonProperty("displayPositionX")]
-        public int DisplayPositionX { get; set; } = 0;
-
-        [JsonProperty("displayPositionY")]
-        public int DisplayPositionY { get; set; } = 0;
 
         [JsonProperty("manufacturerName")]
         public string ManufacturerName { get; set; } = string.Empty;
@@ -132,14 +100,47 @@ namespace DisplayProfileManager.Core
         [JsonProperty("serialNumberID")]
         public string SerialNumberID { get; set; } = string.Empty;
 
-        [JsonProperty("availableResolutions")]
-        public List<string> AvailableResolutions { get; set; } = new List<string>();
+        [JsonProperty("adapterId")]
+        public string AdapterId { get; set; } = string.Empty;
 
-        [JsonProperty("availableDpiScaling")]
-        public List<uint> AvailableDpiScaling { get; set; } = new List<uint>();
+        [JsonProperty("targetId")]
+        public uint TargetId { get; set; } = 0;
 
-        [JsonProperty("availableRefreshRates")]
-        public Dictionary<string, List<int>> AvailableRefreshRates { get; set; } = new Dictionary<string, List<int>>();
+        [JsonProperty("sourceId")]
+        public uint SourceId { get; set; } = 0;
+
+        [JsonProperty("cloneGroupId")]
+        public string CloneGroupId { get; set; } = string.Empty;
+
+        [JsonProperty("pathIndex")]
+        public uint PathIndex { get; set; } = 0;
+
+        // State
+        [JsonProperty("isEnabled")]
+        public bool IsEnabled { get; set; } = true;
+
+        [JsonProperty("isPrimary")]
+        public bool IsPrimary { get; set; } = false;
+
+        // Layout
+        [JsonProperty("displayPositionX")]
+        public int DisplayPositionX { get; set; } = 0;
+
+        [JsonProperty("displayPositionY")]
+        public int DisplayPositionY { get; set; } = 0;
+
+        // Active configuration
+        [JsonProperty("width")]
+        public int Width { get; set; }
+
+        [JsonProperty("height")]
+        public int Height { get; set; }
+
+        [JsonProperty("frequency")]
+        public int Frequency { get; set; } = 60;
+
+        [JsonProperty("rotation")]
+        public int Rotation { get; set; } = 1;
 
         [JsonProperty("isHdrSupported")]
         public bool IsHdrSupported { get; set; } = false;
@@ -147,11 +148,25 @@ namespace DisplayProfileManager.Core
         [JsonProperty("isHdrEnabled")]
         public bool IsHdrEnabled { get; set; } = false;
 
-        [JsonProperty("rotation")]
-        public int Rotation { get; set; } = 1; // Default to IDENTITY (1)
+        [JsonProperty("dpiScaling")]
+        public uint DpiScaling { get; set; } = 100;
 
-        [JsonProperty("cloneGroupId")]
-        public string CloneGroupId { get; set; } = string.Empty;
+        // Native
+        [JsonProperty("nativeWidth")]
+        public int NativeWidth { get; set; } = 0;
+
+        [JsonProperty("nativeHeight")]
+        public int NativeHeight { get; set; } = 0;
+
+        // Capabilities
+        [JsonProperty("availableResolutions")]
+        public List<string> AvailableResolutions { get; set; } = new List<string>();
+
+        [JsonProperty("availableRefreshRates")]
+        public Dictionary<string, List<int>> AvailableRefreshRates { get; set; } = new Dictionary<string, List<int>>();
+
+        [JsonProperty("availableDpiScaling")]
+        public List<uint> AvailableDpiScaling { get; set; } = new List<uint>();
 
         public DisplaySetting()
         {

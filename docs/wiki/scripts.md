@@ -8,14 +8,21 @@ Each profile can run one or more scripts automatically when the profile is appli
 
 | Type | How it runs |
 |---|---|
+| `.exe` | Converted to a `.lnk` shortcut on import, launched via Windows Shell — see below |
 | `.ps1` | PowerShell — launched with `-ExecutionPolicy Bypass` |
 | `.bat`/`.cmd` | Batch — launched via `cmd.exe /c` |
+| `.vbs` | VBScript — launched via `cscript.exe /nologo` |
+| `.js` | JScript — launched via `cscript.exe /nologo` |
 | `.py` | Python — launched via `python.exe` on `PATH` |
-| `.exe` | Converted to a `.lnk` shortcut on import, launched via Windows Shell — see below |
+| `.ahk` | AutoHotkey — launched via `autohotkey.exe` on `PATH` |
 
 ### A note on `.exe` files
 
 DPM does not launch `.exe` files directly. When you import an executable, DPM automatically creates a `.lnk` shortcut for it in the scripts folder and executes via the Windows Shell. This avoids COM reference issues with direct process launch. The shortcut is created transparently — you don't need to do anything differently. Arguments are still passed through normally.
+
+### A note on `.py` and `.ahk` files
+
+Python and AutoHotkey must be installed and available on your system `PATH`. If the interpreter isn't found, the script will silently fail — DPM logs the error but does not surface it in the UI—whether a script actually does anything is the user's responsibility.
 
 ---
 
@@ -49,10 +56,12 @@ The **Enable** toggle in the Scripts section header controls whether any scripts
 
 Arguments are appended after the script when DPM launches it:
 
+- `.exe`/`.lnk`: executed via Windows Shell with args passed through
 - `.ps1`: `powershell.exe -ExecutionPolicy Bypass -File "script.ps1" <args>`
 - `.bat`/`.cmd`: `cmd.exe /c "script.bat" <args>`
+- `.vbs`/`.js`: `cscript.exe /nologo "script.vbs" <args>`
 - `.py`: `python.exe "script.py" <args>`
-- `.exe`/`.lnk`: executed via Windows Shell with args passed through
+- `.ahk`: `autohotkey.exe "script.ahk" <args>`
 
 ---
 

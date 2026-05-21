@@ -24,7 +24,7 @@ This is a fork based on [zac15987/DisplayProfileManager](https://github.com/zac1
 **Automation**
 - ⌨️ **Global hotkeys** — assign a keyboard shortcut to any profile for quick switching
 - 🔊 **Audio device switching** — automatically switch default playback and recording devices with each profile
-- 📜 **Script execution** — run `.ps1`, `.py`, `.bat`, or `.exe` scripts automatically on profile apply
+- 📜 **Script execution** — run `.exe`, `.ps1`, `.bat`, `.vbs`, `.js`, `.py`, or `.ahk` scripts automatically on profile apply
 - 💻 **CLI support** — apply profiles, switch themes, and trigger refreshes from scripts or external tools
 - 🚀 **Auto-start with Windows** — Registry mode (no admin) or Task Scheduler mode (faster, one-time admin setup)
 
@@ -70,6 +70,7 @@ This is a fork based on [zac15987/DisplayProfileManager](https://github.com/zac1
 - [Themes & DPM Theme Builder](./docs/wiki/themes.md) — built-in themes, importing, generating custom themes
 - [CLI Reference](./docs/wiki/cli.md) — all flags and usage examples
 - [Reporting Issues](./docs/wiki/bug_report.md) — what to include when filing a bug report
+
 ---
 
 ## 🛠️ Development

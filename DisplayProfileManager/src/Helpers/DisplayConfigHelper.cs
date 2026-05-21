@@ -381,27 +381,38 @@ namespace DisplayProfileManager.Helpers
 
         public class DisplayConfigInfo
         {
+            // Identity
             public string DeviceName { get; set; } = string.Empty;
             public string FriendlyName { get; set; } = string.Empty;
+            public LUID AdapterId { get; set; }
+            public uint TargetId { get; set; }
+            public uint RawTargetId { get; set; }
+            public uint SourceId { get; set; }
+            public uint PathIndex { get; set; }
+            public DisplayConfigVideoOutputTechnology OutputTechnology { get; set; }
+
+            // State
             public bool IsEnabled { get; set; }
             public bool IsAvailable { get; set; }
+            public bool IsPrimary { get; set; }
+
+            // Layout
+            public int DisplayPositionX { get; set; }
+            public int DisplayPositionY { get; set; }
+
+            // Active configuration
             public int Width { get; set; }
             public int Height { get; set; }
             public double RefreshRate { get; set; }
-            public LUID AdapterId { get; set; }
-            public uint SourceId { get; set; }
-            public uint TargetId { get; set; }
-            public uint RawTargetId { get; set; }
-            public uint PathIndex { get; set; }
-            public DisplayConfigVideoOutputTechnology OutputTechnology { get; set; }
-            public int DisplayPositionX { get; set; }
-            public int DisplayPositionY { get; set; }
-            public bool IsPrimary { get; set; }
+            public DISPLAYCONFIG_ROTATION Rotation { get; set; } = DISPLAYCONFIG_ROTATION.DISPLAYCONFIG_ROTATION_IDENTITY;
             public bool IsHdrSupported { get; set; } = false;
             public bool IsHdrEnabled { get; set; } = false;
             public DISPLAYCONFIG_COLOR_ENCODING ColorEncoding { get; set; } = DISPLAYCONFIG_COLOR_ENCODING.DISPLAYCONFIG_COLOR_ENCODING_RGB;
             public uint BitsPerColorChannel { get; set; } = 8;
-            public DISPLAYCONFIG_ROTATION Rotation { get; set; } = DISPLAYCONFIG_ROTATION.DISPLAYCONFIG_ROTATION_IDENTITY;
+
+            // Native
+            public int NativeWidth { get; set; } = 0;
+            public int NativeHeight { get; set; } = 0;
         }
 
         #endregion
@@ -558,10 +569,21 @@ namespace DisplayProfileManager.Helpers
                         var targetMode = modes[path.targetInfo.modeInfoIdx];
                         if (targetMode.infoType == DisplayConfigModeInfoType.DISPLAYCONFIG_MODE_INFO_TYPE_TARGET)
                         {
-                            var refreshRate = targetMode.modeInfo.targetMode.targetVideoSignalInfo.vSyncFreq;
-                            if (refreshRate.Denominator != 0)
+                            var sig = targetMode.modeInfo.targetMode.targetVideoSignalInfo;
+
+                            logger.Debug($"GetDisplayConfigs: {displayConfig.DeviceName} activeSize={sig.activeSize.cx}x{sig.activeSize.cy}");
+
+                            // activeSize reflects EDID preferred timing — used to distinguish native from DCI resolutions
+                            if (sig.activeSize.cx > 0 && sig.activeSize.cy > 0)
                             {
-                                double hz = (double)refreshRate.Numerator / refreshRate.Denominator;
+                                displayConfig.NativeWidth = (int)sig.activeSize.cx;
+                                displayConfig.NativeHeight = (int)sig.activeSize.cy;
+                                logger.Debug($"GetDisplayConfigs: assigned NativeWidth={displayConfig.NativeWidth} to {displayConfig.DeviceName}");
+                            }
+
+                            if (sig.vSyncFreq.Denominator != 0)
+                            {
+                                double hz = (double)sig.vSyncFreq.Numerator / sig.vSyncFreq.Denominator;
                                 displayConfig.RefreshRate = Math.Round(hz, 2);
                             }
                         }
