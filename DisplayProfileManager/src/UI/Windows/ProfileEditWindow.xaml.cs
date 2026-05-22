@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -26,6 +27,7 @@ namespace DisplayProfileManager.UI.Windows
         private ObservableCollection<AudioHelper.AudioDeviceInfo> _playbackDevices;
         private ObservableCollection<AudioHelper.AudioDeviceInfo> _captureDevices;
         private ObservableCollection<dynamic> _scriptList = new ObservableCollection<dynamic>();
+        private CancellationTokenSource _audioLoadCts;
 
         public ProfileEditWindow(Profile profileToEdit = null)
         {
@@ -598,6 +600,10 @@ namespace DisplayProfileManager.UI.Windows
 
         private async Task LoadAudioDevices(bool reInitialize)
         {
+            _audioLoadCts?.Cancel();
+            _audioLoadCts = new CancellationTokenSource();
+            var token = _audioLoadCts.Token;
+
             try
             {
                 _playbackDevices.Clear();
@@ -607,8 +613,11 @@ namespace DisplayProfileManager.UI.Windows
                     AudioHelper.ReInitializeAudioController();
 
                 // Device discovery off the UI thread — WithController + WMI can block for seconds
-                var playbackDevices = await System.Threading.Tasks.Task.Run(() => AudioHelper.GetPlaybackDevices());
-                var captureDevices = await System.Threading.Tasks.Task.Run(() => AudioHelper.GetCaptureDevices());
+                var playbackDevices = await Task.Run(() => AudioHelper.GetPlaybackDevices(), token);
+                token.ThrowIfCancellationRequested();
+
+                var captureDevices = await Task.Run(() => AudioHelper.GetCaptureDevices(), token);
+                token.ThrowIfCancellationRequested();
 
                 foreach (var device in playbackDevices)
                     _playbackDevices.Add(device);
@@ -650,6 +659,10 @@ namespace DisplayProfileManager.UI.Windows
                     await SelectDefaultPlaybackDeviceAsync();
                     await SelectDefaultCaptureDeviceAsync();
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                logger.Debug("Audio device load cancelled.");
             }
             catch (Exception ex)
             {
@@ -912,7 +925,8 @@ namespace DisplayProfileManager.UI.Windows
 
         protected override void OnClosed(EventArgs e)
         {
-            // Hotkey restoration
+            _audioLoadCts?.Cancel();
+
             try
             {
                 var app = Application.Current as App;
