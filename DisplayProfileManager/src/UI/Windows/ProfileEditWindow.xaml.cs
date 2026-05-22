@@ -161,7 +161,7 @@ namespace DisplayProfileManager.UI.Windows
             CheckForHotkeyConflicts();
 
             // Audio
-            await LoadAudioDevices(false);
+            Task audio = LoadAudioDevices();
 
             // Scripting state
             EnableScriptsCheckBox.IsChecked = _profile.EnableScripts;
@@ -598,7 +598,7 @@ namespace DisplayProfileManager.UI.Windows
             }
         }
 
-        private async Task LoadAudioDevices(bool reInitialize)
+        private async Task LoadAudioDevices()
         {
             _audioLoadCts?.Cancel();
             _audioLoadCts = new CancellationTokenSource();
@@ -608,9 +608,6 @@ namespace DisplayProfileManager.UI.Windows
             {
                 _playbackDevices.Clear();
                 _captureDevices.Clear();
-
-                if (reInitialize)
-                    AudioHelper.ReInitializeAudioController();
 
                 // Device discovery off the UI thread — WithController + WMI can block for seconds
                 var playbackDevices = await Task.Run(() => AudioHelper.GetPlaybackDevices(), token);
@@ -706,7 +703,7 @@ namespace DisplayProfileManager.UI.Windows
             try
             {
                 StatusTextBlock.Text = "Detecting current audio devices...";
-                await LoadAudioDevices(true);
+                await LoadAudioDevices();
                 StatusTextBlock.Text = "Current audio devices detected";
             }
             catch (Exception ex)
@@ -1303,6 +1300,8 @@ namespace DisplayProfileManager.UI.Windows
                 Style = (Style)Application.Current.Resources["PrimaryTextBoxStyle"],
                 IsReadOnly = true
             };
+            _deviceTextBox.SetResourceReference(BackgroundProperty, "TextBoxBackgroundBrush");
+            _deviceTextBox.SetResourceReference(ForegroundProperty, "TertiaryTextBrush");
             PopulateDeviceComboBox();
             devicePanel.Children.Add(_deviceTextBox);
             Grid.SetColumn(devicePanel, 0);

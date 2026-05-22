@@ -76,13 +76,16 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
+; ---- Files to Clean ----
+[InstallDelete]
+Type: files; Name: "{app}\AudioSwitcher.AudioApi.dll"
+Type: files; Name: "{app}\AudioSwitcher.AudioApi.CoreAudio.dll"
+
 ; ---- Files to Package ----
 [Files]
 Source: "{#MyBuildFolder}\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#MyBuildFolder}\{#MyAppExeName}.config"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#MyBuildFolder}\Newtonsoft.Json.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#MyBuildFolder}\AudioSwitcher.AudioApi.CoreAudio.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#MyBuildFolder}\AudioSwitcher.AudioApi.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#MyBuildFolder}\NLog.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#MyBuildFolder}\NLog.config"; DestDir: "{app}"; Flags: ignoreversion
 

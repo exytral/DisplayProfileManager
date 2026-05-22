@@ -527,8 +527,6 @@ namespace DisplayProfileManager.UI.Windows
                 {
                     new { Name = AboutHelper.Libraries.NLogName, Version = AboutHelper.Libraries.NLogVersion, License = AboutHelper.Libraries.NLogLicense, Url = AboutHelper.Libraries.NLogUrl, Description = "Logging framework" },
                     new { Name = AboutHelper.Libraries.NewtonsoftName, Version = AboutHelper.Libraries.NewtonsoftVersion, License = AboutHelper.Libraries.NewtonsoftLicense, Url = AboutHelper.Libraries.NewtonsoftUrl, Description = "JSON serialization" },
-                    new { Name = AboutHelper.Libraries.AudioSwitcherName, Version = AboutHelper.Libraries.AudioSwitcherVersion, License = AboutHelper.Libraries.AudioSwitcherLicense, Url = AboutHelper.Libraries.AudioSwitcherUrl, Description = "Audio device management" },
-                    new { Name = AboutHelper.Libraries.AudioSwitcherCoreAudioName, Version = AboutHelper.Libraries.AudioSwitcherCoreAudioVersion, License = AboutHelper.Libraries.AudioSwitcherCoreAudioLicense, Url = AboutHelper.Libraries.AudioSwitcherCoreAudioUrl, Description = "Windows Core Audio API" }
                 };
 
                 foreach (var library in libraries)
@@ -591,7 +589,7 @@ namespace DisplayProfileManager.UI.Windows
                         Name        = AboutHelper.Contributors.Zac15987Name,
                         Url         = AboutHelper.Contributors.Zac15987Url,
                         Description = AboutHelper.Contributors.Zac15987Desc,
-                        SubText     = "(audio switching requested by @Catriks & @Alienmario; hotkeys by @anodynos; monitor disable/enable by @xtrilla)"
+                        SubText     = "(community requests: audio switching by @Catriks & @Alienmario; hotkeys by @anodynos; monitor disable/enable by @xtrilla)"
                     },
                     new
                     {

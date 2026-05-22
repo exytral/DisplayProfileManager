@@ -4,6 +4,30 @@ All notable changes to this project are documented here.
 Technical entries are intended for developers and contributors.
 For user-facing release notes, see the [GitHub Releases](https://github.com/Exytral/DisplayProfileManager/releases) page.
 
+---
+
+<a id="2.0.3"></a>
+## [2.0.3] - 2026-05-22
+
+_[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManager/releases/tag/2.0.3)_
+
+### refactor — audio
+
+- **`AudioHelper` rewritten as a direct COM wrapper** — `AudioSwitcher.AudioApi` and `AudioSwitcher.AudioApi.CoreAudio` are replaced with a thin P/Invoke layer targeting Windows `IMMDeviceEnumerator` and `IPolicyConfig` directly. `CoreAudioController` construction took multiple seconds and was required on every profile apply and editor open (device enumeration for the dropdown). The new implementation constructs and releases a bare COM object per operation in single-digit milliseconds. No persistent subscription, no background threads, no third-party library overhead.
+- **`AudioSwitcher` dependencies removed** — `AudioSwitcher.AudioApi.dll` and `AudioSwitcher.AudioApi.CoreAudio.dll` stripped from project compilation, installer, and portable archives.
+- **Startup audio initialization removed** — `InitializeAudio()` call removed from app startup; `Dispose()` and `ReInitializeAudioController()` stubs removed. Audio operations are self-contained per call with no global lifecycle.
+
+### fix — profile editor
+
+- **Monitor name text box styled consistently with script names** — `_deviceTextBox` now uses `TextBoxBackgroundBrush` and `TertiaryTextBrush` resource references, matching the read-only display style applied to script file names.
+- **Audio device loading no longer blocks editor** — `LoadAudioDevices` is now fire-and-forget at editor startup; the window opens immediately and the device dropdown populates asynchronously.
+
+### misc
+
+- **Dependency updates** — NLog updated to 6.1.3; Newtonsoft.Json updated to 13.0.4.
+
+---
+
 <a id="2.0.2"></a>
 ## [2.0.2] - 2026-05-21
 
@@ -11,7 +35,7 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 
 ### fix — audio
 
-- **`AudioHelper` transient controller** — `CoreAudioController` is now constructed per audio operation and disposed immediately after, eliminating the persistent WASAPI `IMMNotificationClient` subscription that drove ~210 RPC calls/sec and ~21 kernel security token allocations/sec at idle. See [issue #10](https://github.com/zac15987/DisplayProfileManager/issues/10).
+- ~~**`AudioHelper` transient controller** — `CoreAudioController` is now constructed per audio operation and disposed immediately after, eliminating the persistent WASAPI `IMMNotificationClient` subscription that drove \~210 RPC calls/sec and \~21 kernel security token allocations/sec at idle. See [issue #10](https://github.com/zac15987/DisplayProfileManager/issues/10)~~ — Rewritten in [2.0.3](#2.0.3)
 
 ### fix — reliability
 
@@ -20,11 +44,11 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 - **Synchronous settings save on exit** — `OnExit` now uses `.GetAwaiter().GetResult()` instead of `Task.Run(...).Wait(2s)`, closing the silent data-loss path where a slow disk on logout could exceed the timeout and abandon the save.
 - **Hotkey counter clamp** — `_profileEditWindowCount` now uses `Math.Max(0, count - 1)` and checks `== 0` instead of `<= 0`, preventing permanent hotkey deactivation if a `ProfileEditWindow` constructor fails after `Window_Loaded` fires.
 - **Async void hardening** — `ShowNotification`/`ShowBalloonTip` calls in `async void` handlers (`ApplyProfileViaHotkey`, `OnProfileMenuItemClick`, `OnRefreshClick`) are now wrapped in a nested `try/catch` to prevent process crashes if the tray icon is disposed during shutdown.
+- **Audio load cancelled on editor close** — `LoadAudioDevices` now uses a `CancellationTokenSource` cancelled in `OnClosed`, preventing orphaned `Task.Run` continuations from running after the window is disposed.
 
 ### fix — logs
 
 - **Log retention fixed** — `NLog.config` now uses `maxArchiveDays="30"` instead of `maxArchiveFiles="30"`. The previous setting only capped the archive subfolder; daily log files in the root accumulated indefinitely.
-- **WMI and display config queries reduced to 1 per editor open** — `LoadDisplaySettings` now fetches `GetMonitorIDsFromWmiMonitorID` and `GetDisplayConfigs` once and passes the results to each `DisplaySettingControl`, replacing the previous per-display queries.
 
 ### feat — scripts
 
@@ -54,6 +78,11 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 
 - **`.lnk` files already in sandbox no longer duplicated** — the early-return sandbox check now uses `DereferenceLinks = false` on the file picker so `.lnk` paths are not resolved to their targets before the directory comparison.
 
+### refactor — profile editor
+
+- **WMI and display config queries reduced from 2N to 1 per open** — `LoadDisplaySettings` now fetches `GetMonitorIDsFromWmiMonitorID` once and passes the result to each `DisplaySettingControl`. For profiles without a populated `NativeWidth`/`NativeHeight`, one additional `GetDisplayConfigs` call is made — still constant regardless of display count.
+- **Audio device loading moved off UI thread** — `LoadAudioDevices` now runs device discovery via `Task.Run`, preventing WASAPI controller construction from blocking the window on open.
+
 ### refactor — tests
 
 - **Test files reorganised** — `SourceIdNormalizationTests.cs` split into `DisplayConfigNormalizationTests.cs` (SourceId normalization and `BuildSourceIdMap`) and `ProfileTests.cs` (`ApplyProfileScriptLogicTests` moved here as it tests `Profile` model behavior). `ProfileManagerInMemoryTests.cs` renamed to `ProfileManagerTests.cs`. `ScriptHelperTests.cs` added as a new file.
@@ -71,6 +100,8 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 - **File picker extended** — filter now explicitly includes `.py` and `.exe` alongside previously supported types
 - **Sandbox import and shortcut virtualization** — `.exe` files now correctly copy to the scripts sandbox and are automatically converted to `.lnk` shortcuts via late-bound `WScript.Shell`, fixing failures in the import pipeline
 - **Filename tokenization with spaces** — script paths containing spaces no longer split incorrectly during import or configuration serialization
+
+---
 
 <a id="2.0.0"></a>
 ## [2.0.0] - 2026-05-08

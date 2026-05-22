@@ -98,24 +98,20 @@ MIT + Commons Clause — see [LICENSE](LICENSE) for details. Third-party license
 
 ## 🙏 Acknowledgments
 
-- [NLog](https://nlog-project.org/) (v6.0.4) — logging
 - [Newtonsoft.Json](https://www.newtonsoft.com/json) — JSON serialization
-- [AudioSwitcher.AudioApi](https://github.com/xenolightning/AudioSwitcher) — audio device management
+- [NLog](https://nlog-project.org/) — logging
 - [windows-DPI-scaling-sample](https://github.com/lihas/windows-DPI-scaling-sample) — DPI scaling foundation
-- [tinted-theming/tinted-themes](https://github.com/tinted-theming/tinted-themes) — theme database for DPM Theme Builder
+- [tinted-themes](https://github.com/tinted-theming/tinted-themes) — theme database for DPM Theme Builder
 - [Claude Code](https://claude.ai/code) — built in collaboration with Anthropic's Claude Code
 
 ### 🤝 Contributors
 
-**This fork**
-- [@exytral](https://github.com/exytral)
-
 **Upstream**
-- [@zac15987](https://github.com/zac15987) (original project: display profiles, themes, system tray, auto-start, global hotkeys, audio device switching — [v1.3.0](https://github.com/zac15987/DisplayProfileManager/releases/tag/v1.3.0))
+- [@zac15987](https://github.com/zac15987) (original project: display profiles, themes, system tray, auto-start, global hotkeys, initial audio device switching support — [v1.3.0](https://github.com/zac15987/DisplayProfileManager/releases/tag/v1.3.0))
 - [@jarandal](https://github.com/jarandal) (initial HDR support, screen rotation — [PR #8](https://github.com/zac15987/DisplayProfileManager/pull/8))
 - [@jonathanasdf](https://github.com/jonathanasdf) (initial clone display support — [PR #14](https://github.com/zac15987/DisplayProfileManager/pull/14))
 - [@rvahilario](https://github.com/rvahilario) (partial clone fixes, clone UI, test infrastructure — [PR #23](https://github.com/zac15987/DisplayProfileManager/pull/23))
-- [@xtrilla](https://github.com/xtrilla) (audio resource leak fix, safe file saves, crash fixes — [fork](https://github.com/xtrilla/DisplayProfileManager))
+- [@xtrilla](https://github.com/xtrilla) (safe file saves — [fork](https://github.com/xtrilla/DisplayProfileManager))
 
 **Community**
 - [@Catriks](https://github.com/Catriks) — requested audio device switching ([#1](https://github.com/zac15987/DisplayProfileManager/issues/1))

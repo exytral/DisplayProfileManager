@@ -44,8 +44,7 @@ Listed roughly in order of invocation during `ApplyProfileAsync`:
 - **ProfileManager** — Thread-safe singleton for profile CRUD and application. Stores individual `.dpm` files in `%AppData%\DisplayProfileManager\Profiles\`. Core method: `ApplyProfileAsync(Profile)` returns `ProfileApplyResult`. Orchestrates the full apply sequence: topology → defer → layout → HDR → DPI → audio → scripts. Also handles schema migration via `MigrateProfileAsync` on load.
 - **DisplayConfigHelper** — Primary Windows Display Configuration API wrapper. All topology and layout changes go through here. Implements `ApplyDisplayTopology`, `DeferDisplayLayoutAsync`, `ApplyDisplayLayout`, `ApplyDisplayConfig`, `ApplyHdrSettings`, `VerifyDisplayConfiguration`, `ValidateCloneGroups`. See **Display Configuration Engine** below.
 - **DpiHelper** — System-wide DPI scaling via P/Invoke, adapted from the windows-DPI-scaling-sample project. Called after layout is committed.
-- **AudioHelper** — Audio device management using AudioSwitcher.AudioApi for playback/recording device switching. Called after DPI.
-- **ScriptManager** — Thread-safe singleton for script management. Sandboxed scripts folder at `%AppData%\DisplayProfileManager\Scripts\`. All scripts are copied into this folder on import — arbitrary file paths outside this folder are not supported. Exposes `ExecuteScript`, `AddScript`, `RemoveScript`, `SortScripts`, `ImportScriptAsync`. Called last in the apply sequence.
+- **AudioHelper** — Direct native COM/WASAPI integration for low-overhead audio profile configuration and endpoint switching.- **ScriptManager** — Thread-safe singleton for script management. Sandboxed scripts folder at `%AppData%\DisplayProfileManager\Scripts\`. All scripts are copied into this folder on import — arbitrary file paths outside this folder are not supported. Exposes `ExecuteScript`, `AddScript`, `RemoveScript`, `SortScripts`, `ImportScriptAsync`. Called last in the apply sequence.
 - **SettingsManager** — Thread-safe singleton for app settings. Manages auto-start mode (Registry or Task Scheduler), default profile, current theme, and other persisted preferences.
 - **ThemeHelper** — Theme loading, registration, and switching. Manages built-in themes and user themes from `%AppData%\DisplayProfileManager\Themes\`. Exposes `AvailableThemes` (live list) and `RefreshThemes` (public, rescans and reapplies).
 - **DisplayGroupHelper** (`DisplayGroupHelper.cs`) — Provides display grouping logic for the profile editor UI, handling clone group member aggregation and display of shared settings.
@@ -253,7 +252,6 @@ Each `DisplaySetting` entry (one per physical monitor) includes:
 - **.NET Framework 4.8**: WPF support
 - **Newtonsoft.Json 13.0.3**: JSON serialization for profiles and settings
 - **NLog 6.0.4**: Logging framework with daily file rotation
-- **AudioSwitcher.AudioApi 3.0.0 / AudioSwitcher.AudioApi.CoreAudio 3.0.3**: Audio device management
 - **packages.config**: Traditional NuGet package management (not PackageReference) — legacy `.csproj` format
 
 ## Platform Requirements
@@ -315,8 +313,8 @@ DisplayProfileManager/
 │   ├── DisplayGroupHelper.cs   Clone group display grouping for the profile editor UI
 │   ├── DisplayHelper.cs        Legacy API wrapper; used only for IsMonitorConnected
 │   ├── DpiHelper.cs            System-wide DPI scaling via P/Invoke
-│   ├── AudioHelper.cs          AudioSwitcher wrapper for playback/recording switching
-│   ├── ScriptHelper.cs         Script execution — process launch for .ps1, .bat, .lnk, .vbs, .js, .py, .ahk
+│   ├── AudioHelper.cs          Native Windows WASAPI/COM interface mapping for audio switching
+│   ├── ScriptHelper.cs         Script execution — process launch for .lnk, .ps1, .bat, .vbs, .js, .py, .ahk
 │   ├── GlobalHotkeyHelper.cs   RegisterHotKey / UnregisterHotKey management
 │   ├── AutoStartHelper.cs      Registry and Task Scheduler auto-start modes
 │   ├── ThemeHelper.cs          Theme registration, switching, folder scanning

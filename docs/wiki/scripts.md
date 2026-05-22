@@ -18,7 +18,7 @@ Each profile can run one or more scripts automatically when the profile is appli
 
 ### A note on `.exe` files
 
-DPM does not launch `.exe` files directly. When you import an executable, DPM automatically creates a `.lnk` shortcut for it in the scripts folder and executes via the Windows Shell. This avoids COM reference issues with direct process launch. The shortcut is created transparently — you don't need to do anything differently. Arguments are still passed through normally.
+DPM does not launch `.exe` files directly. When you import an executable, DPM automatically creates a `.lnk` shortcut for it in the scripts folder and executes via the Windows Shell. This avoids COM reference issues with direct process launch, with arguments still passed through normally.
 
 ### A note on `.py` and `.ahk` files
 

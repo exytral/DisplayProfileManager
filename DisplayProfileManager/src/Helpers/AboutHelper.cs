@@ -36,31 +36,21 @@ namespace DisplayProfileManager.Helpers
         public static class Libraries
         {
             public const string NLogName = "NLog";
-            public const string NLogVersion = "6.0.4";
+            public const string NLogVersion = "6.1.3";
             public const string NLogLicense = "BSD-3-Clause";
             public const string NLogUrl = "https://nlog-project.org/";
 
             public const string NewtonsoftName = "Newtonsoft.Json";
-            public const string NewtonsoftVersion = "13.0.3";
+            public const string NewtonsoftVersion = "13.0.4";
             public const string NewtonsoftLicense = "MIT";
             public const string NewtonsoftUrl = "https://www.newtonsoft.com/json";
-
-            public const string AudioSwitcherName = "AudioSwitcher.AudioApi";
-            public const string AudioSwitcherVersion = "3.0.0";
-            public const string AudioSwitcherLicense = "Ms-PL";
-            public const string AudioSwitcherUrl = "https://github.com/xenolightning/AudioSwitcher";
-
-            public const string AudioSwitcherCoreAudioName = "AudioSwitcher.AudioApi.CoreAudio";
-            public const string AudioSwitcherCoreAudioVersion = "3.0.3";
-            public const string AudioSwitcherCoreAudioLicense = "Ms-PL";
-            public const string AudioSwitcherCoreAudioUrl = "https://github.com/xenolightning/AudioSwitcher";
         }
 
         public static class Contributors
         {
             public const string Zac15987Name = "@zac15987";
             public const string Zac15987Url = "https://github.com/zac15987";
-            public const string Zac15987Desc = "Original project — profiles, system tray, themes, hotkeys, audio switching, EDID monitor identification, auto-start, and more";
+            public const string Zac15987Desc = "Original project — display profiles, themes, system tray, auto-start, global hotkeys, initial audio device switching support";
 
             public const string JarandalName = "@jarandal";
             public const string JarandalUrl = "https://github.com/jarandal";
@@ -80,17 +70,18 @@ namespace DisplayProfileManager.Helpers
             public const string XtrillaName = "@xtrilla";
             public const string XtrillaUrl = "https://github.com/xtrilla";
             public const string XtrillaRepoUrl = "https://github.com/xtrilla/DisplayProfileManager";
-            public const string XtrillaDesc = "Audio resource leak fix, safe file saves, crash fixes (fork)";
+            public const string XtrillaDesc = "Safe file saves (fork)";
 
             public const string ExytralName = "@exytral";
             public const string ExytralUrl = "https://github.com/exytral";
             public const string ExytralRepoUrl = "https://github.com/exytral/DisplayProfileManager";
-            public const string ExytralDesc = "Display engine rewrite, full clone display support, scripts, CLI, theme system overhaul, and UI refresh";
+            public const string ExytralDesc = "Display engine and audio rewrite, full clone display support, scripts, CLI, theme system overhaul, and UI refresh";
 
             // Community requesters — credited inline in zac15987's contributor entry
             public const string CatriksUrl = "https://github.com/Catriks";
             public const string AlienmarioUrl = "https://github.com/Alienmario";
             public const string AnodynosUrl = "https://github.com/anodynos";
+            //public const string XtrillaUrl = "https://github.com/xtrilla";
         }
     }
 }
