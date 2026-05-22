@@ -24,10 +24,10 @@ namespace DisplayProfileManager.UI.Windows
         private Profile _profile;
         private bool _isEditMode;
         private List<DisplaySettingControl> _displayControls;
+        private CancellationTokenSource _audioLoadCts;
         private ObservableCollection<AudioHelper.AudioDeviceInfo> _playbackDevices;
         private ObservableCollection<AudioHelper.AudioDeviceInfo> _captureDevices;
         private ObservableCollection<dynamic> _scriptList = new ObservableCollection<dynamic>();
-        private CancellationTokenSource _audioLoadCts;
 
         public ProfileEditWindow(Profile profileToEdit = null)
         {
