@@ -787,7 +787,7 @@ namespace DisplayProfileManager
                 {
                     try
                     {
-                        _settingsManager.SaveSettingsAsync().GetAwaiter().GetResult();
+                        Task.Run(() => _settingsManager.SaveSettingsAsync()).GetAwaiter().GetResult();
                     }
                     catch (Exception ex)
                     {

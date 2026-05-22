@@ -100,6 +100,16 @@ namespace DisplayProfileManager.Core
         //    }
         //}
 
+        private static void AtomicWriteAllText(string path, string content)
+        {
+            var tmp = path + ".tmp";
+            File.WriteAllText(tmp, content);
+            if (File.Exists(path))
+                File.Replace(tmp, path, null);
+            else
+                File.Move(tmp, path);
+        }
+
         public async Task<bool> LoadProfilesAsync()
         {
             try
@@ -824,84 +834,6 @@ namespace DisplayProfileManager.Core
             }
         }
 
-        public List<Profile> GetProfilesWithHotkeys()
-        {
-            return _profiles.Where(p => p.HotkeyConfig != null &&
-                                       p.HotkeyConfig.IsEnabled &&
-                                       p.HotkeyConfig.Key != System.Windows.Input.Key.None).ToList();
-        }
-
-        public List<Profile> GetAllProfilesWithHotkeys()
-        {
-            return _profiles.Where(p => p.HotkeyConfig != null &&
-                                       p.HotkeyConfig.Key != System.Windows.Input.Key.None).ToList();
-        }
-
-        public Profile GetProfileByHotkey(HotkeyConfig hotkey)
-        {
-            if (hotkey?.Key == System.Windows.Input.Key.None)
-                return null;
-
-            return _profiles.FirstOrDefault(p => p.HotkeyConfig != null &&
-                                                p.HotkeyConfig.IsEnabled &&
-                                                p.HotkeyConfig.Equals(hotkey));
-        }
-
-        public bool HasHotkeyConflict(string profileId, HotkeyConfig hotkey)
-        {
-            if (hotkey?.Key == System.Windows.Input.Key.None)
-                return false;
-
-            return _profiles.Any(p => p.Id != profileId &&
-                                     p.HotkeyConfig != null &&
-                                     p.HotkeyConfig.Key != System.Windows.Input.Key.None &&
-                                     p.HotkeyConfig.Equals(hotkey));
-        }
-
-        public Profile FindConflictingProfile(string excludeProfileId, HotkeyConfig hotkey)
-        {
-            if (hotkey?.Key == System.Windows.Input.Key.None)
-                return null;
-
-            return _profiles.FirstOrDefault(p => p.Id != excludeProfileId &&
-                                                p.HotkeyConfig != null &&
-                                                p.HotkeyConfig.Key != System.Windows.Input.Key.None &&
-                                                p.HotkeyConfig.Equals(hotkey));
-        }
-
-        public async Task<bool> ClearHotkeyAsync(string profileId)
-        {
-            try
-            {
-                var profile = GetProfile(profileId);
-                if (profile?.HotkeyConfig != null)
-                {
-                    profile.HotkeyConfig = new HotkeyConfig();
-                    return await UpdateProfileAsync(profile);
-                }
-                return true;
-            }
-            catch (Exception ex)
-            {
-                logger.Error(ex, $"Error clearing hotkey for profile {profileId}");
-                return false;
-            }
-        }
-
-        public Dictionary<string, HotkeyConfig> GetAllHotkeys()
-        {
-            var hotkeys = new Dictionary<string, HotkeyConfig>();
-
-            foreach (var profile in _profiles.Where(p => p.HotkeyConfig != null &&
-                                                        p.HotkeyConfig.IsEnabled &&
-                                                        p.HotkeyConfig.Key != System.Windows.Input.Key.None))
-            {
-                hotkeys[profile.Id] = profile.HotkeyConfig;
-            }
-
-            return hotkeys;
-        }
-
         public Profile DuplicateProfile(string profileId)
         {
             var sourceProfile = GetProfile(profileId);
@@ -989,17 +921,84 @@ namespace DisplayProfileManager.Core
             return null;
         }
 
-        private readonly SettingsManager _settingsManager = SettingsManager.Instance;
-
-        // Writes to a .tmp sibling first, then replaces atomically via File.Replace (NTFS-atomic).
-        private static void AtomicWriteAllText(string path, string content)
+        public List<Profile> GetProfilesWithHotkeys()
         {
-            var tmp = path + ".tmp";
-            File.WriteAllText(tmp, content);
-            if (File.Exists(path))
-                File.Replace(tmp, path, null);
-            else
-                File.Move(tmp, path);
+            return _profiles.Where(p => p.HotkeyConfig != null &&
+                                       p.HotkeyConfig.IsEnabled &&
+                                       p.HotkeyConfig.Key != System.Windows.Input.Key.None).ToList();
         }
+
+        public List<Profile> GetAllProfilesWithHotkeys()
+        {
+            return _profiles.Where(p => p.HotkeyConfig != null &&
+                                       p.HotkeyConfig.Key != System.Windows.Input.Key.None).ToList();
+        }
+
+        public Profile GetProfileByHotkey(HotkeyConfig hotkey)
+        {
+            if (hotkey?.Key == System.Windows.Input.Key.None)
+                return null;
+
+            return _profiles.FirstOrDefault(p => p.HotkeyConfig != null &&
+                                                p.HotkeyConfig.IsEnabled &&
+                                                p.HotkeyConfig.Equals(hotkey));
+        }
+
+        public bool HasHotkeyConflict(string profileId, HotkeyConfig hotkey)
+        {
+            if (hotkey?.Key == System.Windows.Input.Key.None)
+                return false;
+
+            return _profiles.Any(p => p.Id != profileId &&
+                                     p.HotkeyConfig != null &&
+                                     p.HotkeyConfig.Key != System.Windows.Input.Key.None &&
+                                     p.HotkeyConfig.Equals(hotkey));
+        }
+
+        public Profile FindConflictingProfile(string excludeProfileId, HotkeyConfig hotkey)
+        {
+            if (hotkey?.Key == System.Windows.Input.Key.None)
+                return null;
+
+            return _profiles.FirstOrDefault(p => p.Id != excludeProfileId &&
+                                                p.HotkeyConfig != null &&
+                                                p.HotkeyConfig.Key != System.Windows.Input.Key.None &&
+                                                p.HotkeyConfig.Equals(hotkey));
+        }
+
+        public async Task<bool> ClearHotkeyAsync(string profileId)
+        {
+            try
+            {
+                var profile = GetProfile(profileId);
+                if (profile?.HotkeyConfig != null)
+                {
+                    profile.HotkeyConfig = new HotkeyConfig();
+                    return await UpdateProfileAsync(profile);
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex, $"Error clearing hotkey for profile {profileId}");
+                return false;
+            }
+        }
+
+        public Dictionary<string, HotkeyConfig> GetAllHotkeys()
+        {
+            var hotkeys = new Dictionary<string, HotkeyConfig>();
+
+            foreach (var profile in _profiles.Where(p => p.HotkeyConfig != null &&
+                                                        p.HotkeyConfig.IsEnabled &&
+                                                        p.HotkeyConfig.Key != System.Windows.Input.Key.None))
+            {
+                hotkeys[profile.Id] = profile.HotkeyConfig;
+            }
+
+            return hotkeys;
+        }
+
+        private readonly SettingsManager _settingsManager = SettingsManager.Instance;
     }
 }
