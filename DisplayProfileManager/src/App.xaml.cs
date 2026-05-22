@@ -269,7 +269,7 @@ namespace DisplayProfileManager
             try
             {
                 client = new System.IO.Pipes.NamedPipeClientStream(".", "DPM_ProfilePipe", System.IO.Pipes.PipeDirection.Out);
-                
+
                 await client.ConnectAsync(100);
                 using (System.IO.StreamWriter writer = new System.IO.StreamWriter(client))
                 {
@@ -655,13 +655,14 @@ namespace DisplayProfileManager
         {
             try
             {
-                _profileEditWindowCount--;
+                // Clamp at 0 — if Window_Loaded incremented but the constructor failed before
+                // the Closed handler was hooked, the count drifts and hotkeys stop working permanently.
+                _profileEditWindowCount = Math.Max(0, _profileEditWindowCount - 1);
                 logger.Debug($"ProfileEditWindow closed. Count: {_profileEditWindowCount}");
 
                 // Only re-enable when all ProfileEditWindows are closed
-                if (_profileEditWindowCount <= 0 && _hotkeysDisabledForEditing)
+                if (_profileEditWindowCount == 0 && _hotkeysDisabledForEditing)
                 {
-                    _profileEditWindowCount = 0; // Ensure it doesn't go negative
                     _hotkeysDisabledForEditing = false;
                     RegisterAllProfileHotkeys();
                     logger.Info("Re-enabled profile hotkeys after editing");
@@ -707,9 +708,13 @@ namespace DisplayProfileManager
             catch (Exception ex)
             {
                 logger.Error(ex, $"Error applying profile {profileId} via hotkey");
-                _trayIcon?.ShowNotification("Display Profile Manager",
-                    "Error applying profile via hotkey",
-                    System.Windows.Forms.ToolTipIcon.Error);
+                try
+                {
+                    _trayIcon?.ShowNotification("Display Profile Manager",
+                        "Error applying profile via hotkey",
+                        System.Windows.Forms.ToolTipIcon.Error);
+                }
+                catch { /* swallow: tray icon disposed or unavailable */ }
             }
         }
 
@@ -780,17 +785,14 @@ namespace DisplayProfileManager
 
                 if (_settingsManager != null)
                 {
-                    Task.Run(async () =>
+                    try
                     {
-                        try
-                        {
-                            await _settingsManager.SaveSettingsAsync();
-                        }
-                        catch (Exception ex)
-                        {
-                            logger.Error(ex, "Error saving settings on exit");
-                        }
-                    }).Wait(TimeSpan.FromSeconds(2));
+                        _settingsManager.SaveSettingsAsync().GetAwaiter().GetResult();
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.Error(ex, "Error saving settings on exit");
+                    }
                 }
             }
             catch (Exception ex)

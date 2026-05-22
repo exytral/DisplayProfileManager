@@ -75,18 +75,22 @@ namespace DisplayProfileManager.Helpers
             public const string RvahilarioName = "@rvahilario";
             public const string RvahilarioUrl = "https://github.com/rvahilario";
             public const string RvahilarioPrUrl = "https://github.com/zac15987/DisplayProfileManager/pull/23";
-            public const string RvahilarioDesc = "Initial engine fixes, UI integration, and test infrastructure (PR #23)";
+            public const string RvahilarioDesc = "Partial clone fixes, clone UI, and test infrastructure (PR #23)";
+
+            public const string XtrillaName = "@xtrilla";
+            public const string XtrillaUrl = "https://github.com/xtrilla";
+            public const string XtrillaRepoUrl = "https://github.com/xtrilla/DisplayProfileManager";
+            public const string XtrillaDesc = "Audio resource leak fix, safe file saves, crash fixes (fork)";
 
             public const string ExytralName = "@exytral";
             public const string ExytralUrl = "https://github.com/exytral";
             public const string ExytralRepoUrl = "https://github.com/exytral/DisplayProfileManager";
-            public const string ExytralDesc = "Display engine rewrite, full clone display support, scripts, CLI, theme system overhaul, and UI refresh (2.0.0)";
+            public const string ExytralDesc = "Display engine rewrite, full clone display support, scripts, CLI, theme system overhaul, and UI refresh";
 
             // Community requesters — credited inline in zac15987's contributor entry
             public const string CatriksUrl = "https://github.com/Catriks";
             public const string AlienmarioUrl = "https://github.com/Alienmario";
             public const string AnodynosUrl = "https://github.com/anodynos";
-            public const string XtrillaUrl = "https://github.com/xtrilla";
         }
     }
 }

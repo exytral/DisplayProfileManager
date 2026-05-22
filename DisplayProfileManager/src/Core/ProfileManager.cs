@@ -211,7 +211,7 @@ namespace DisplayProfileManager.Core
             {
                 var filePath = GetProfileFilePath(profile.Id);
                 var json = JsonConvert.SerializeObject(profile, Formatting.Indented);
-                await Task.Run(() => File.WriteAllText(filePath, json));
+                await Task.Run(() => AtomicWriteAllText(filePath, json));
                 return true;
             }
             catch (Exception ex)
@@ -990,5 +990,16 @@ namespace DisplayProfileManager.Core
         }
 
         private readonly SettingsManager _settingsManager = SettingsManager.Instance;
+
+        // Writes to a .tmp sibling first, then replaces atomically via File.Replace (NTFS-atomic).
+        private static void AtomicWriteAllText(string path, string content)
+        {
+            var tmp = path + ".tmp";
+            File.WriteAllText(tmp, content);
+            if (File.Exists(path))
+                File.Replace(tmp, path, null);
+            else
+                File.Move(tmp, path);
+        }
     }
 }

@@ -35,7 +35,6 @@ namespace DisplayProfileManager.Helpers
                         : IsAutoStartEnabledTaskScheduler();
                 }
 
-                // Check both methods
                 return IsAutoStartEnabledRegistry() || IsAutoStartEnabledTaskScheduler();
             }
             catch (Exception ex)
@@ -67,7 +66,6 @@ namespace DisplayProfileManager.Helpers
                 bool registryResult = true;
                 bool taskSchedulerResult = true;
 
-                // Disable BOTH methods to ensure clean state
                 if (IsAutoStartEnabledRegistry())
                 {
                     registryResult = DisableAutoStartRegistry();
@@ -174,7 +172,6 @@ namespace DisplayProfileManager.Helpers
                 // Build the command with optional --tray argument
                 var command = startInTray ? $"\"{executablePath}\" --tray" : $"\"{executablePath}\"";
 
-                // Write to registry
                 using (var key = Registry.CurrentUser.OpenSubKey(RegistryKeyPath, true))
                 {
                     if (key != null)
@@ -297,7 +294,7 @@ namespace DisplayProfileManager.Helpers
         {
             try
             {
-                var process = new Process
+                using (var process = new Process
                 {
                     StartInfo = new ProcessStartInfo
                     {
@@ -308,17 +305,16 @@ namespace DisplayProfileManager.Helpers
                         RedirectStandardError = true,
                         CreateNoWindow = true
                     }
-                };
+                })
+                {
+                    process.Start();
+                    var output = process.StandardOutput.ReadToEnd();
+                    process.WaitForExit();
 
-                process.Start();
-                var output = process.StandardOutput.ReadToEnd();
-                process.WaitForExit();
-
-                bool isEnabled = process.ExitCode == 0 && output.Contains(TaskName);
-
-                logger.Debug($"Task Scheduler auto-start {(isEnabled ? "found" : "not found")}");
-
-                return isEnabled;
+                    bool isEnabled = process.ExitCode == 0 && output.Contains(TaskName);
+                    logger.Debug($"Task Scheduler auto-start {(isEnabled ? "found" : "not found")}");
+                    return isEnabled;
+                }
             }
             catch (Exception ex)
             {
@@ -344,7 +340,6 @@ namespace DisplayProfileManager.Helpers
                     return false;
                 }
 
-                // Generate XML for the task
                 var xmlContent = GenerateTaskXml(executablePath, startInTray);
                 var tempXmlPath = Path.Combine(Path.GetTempPath(), "DisplayProfileManager_Task.xml");
 
@@ -352,33 +347,31 @@ namespace DisplayProfileManager.Helpers
                 {
                     File.WriteAllText(tempXmlPath, xmlContent, Encoding.Unicode);
 
-                    bool isAdmin = IsRunningAsAdmin();
-                    Process process;
-
-                    process = new Process
+                    using (var process = new Process
                     {
                         StartInfo = new ProcessStartInfo
                         {
                             FileName = "schtasks.exe",
                             Arguments = $"/Create /TN \"{FullTaskPath}\" /XML \"{tempXmlPath}\" /F",
                             UseShellExecute = true,
-                            Verb = "runas", // This triggers UAC prompt
-                            CreateNoWindow = false // Must be false when using ShellExecute
+                            Verb = "runas",
+                            CreateNoWindow = false
                         }
-                    };
-
-                    process.Start();
-                    process.WaitForExit();
-
-                    if (process.ExitCode == 0)
+                    })
                     {
-                        logger.Info("Successfully created Task Scheduler auto-start (elevated)");
-                        return true;
-                    }
-                    else
-                    {
-                        logger.Error($"Failed to create Task Scheduler auto-start (elevated). Exit code: {process.ExitCode}");
-                        return false;
+                        process.Start();
+                        process.WaitForExit();
+
+                        if (process.ExitCode == 0)
+                        {
+                            logger.Info("Successfully created Task Scheduler auto-start (elevated)");
+                            return true;
+                        }
+                        else
+                        {
+                            logger.Error($"Failed to create Task Scheduler auto-start (elevated). Exit code: {process.ExitCode}");
+                            return false;
+                        }
                     }
                 }
                 finally
@@ -400,35 +393,32 @@ namespace DisplayProfileManager.Helpers
         {
             try
             {
-                bool isAdmin = IsRunningAsAdmin();
-                Process process;
-
-                process = new Process
+                using (var process = new Process
                 {
                     StartInfo = new ProcessStartInfo
                     {
                         FileName = "schtasks.exe",
                         Arguments = $"/Delete /TN \"{FullTaskPath}\" /F",
                         UseShellExecute = true,
-                        Verb = "runas", // This triggers UAC prompt
+                        Verb = "runas",
                         CreateNoWindow = false
                     }
-                };
-
-                process.Start();
-                process.WaitForExit();
-
-                // When elevated, we can't easily check if task didn't exist
-                // Exit code 0 means success or task didn't exist
-                if (process.ExitCode == 0)
+                })
                 {
-                    logger.Info("Successfully deleted Task Scheduler auto-start (elevated)");
-                    return true;
-                }
-                else
-                {
-                    logger.Error($"Failed to delete Task Scheduler auto-start (elevated). Exit code: {process.ExitCode}");
-                    return false;
+                    process.Start();
+                    process.WaitForExit();
+
+                    // Exit code 0 means success or task didn't exist
+                    if (process.ExitCode == 0)
+                    {
+                        logger.Info("Successfully deleted Task Scheduler auto-start (elevated)");
+                        return true;
+                    }
+                    else
+                    {
+                        logger.Error($"Failed to delete Task Scheduler auto-start (elevated). Exit code: {process.ExitCode}");
+                        return false;
+                    }
                 }
             }
             catch (Exception ex)
@@ -445,7 +435,7 @@ namespace DisplayProfileManager.Helpers
                 if (!IsAutoStartEnabledTaskScheduler())
                     return false;
 
-                var process = new Process
+                using (var process = new Process
                 {
                     StartInfo = new ProcessStartInfo
                     {
@@ -456,18 +446,18 @@ namespace DisplayProfileManager.Helpers
                         RedirectStandardError = true,
                         CreateNoWindow = true
                     }
-                };
-
-                process.Start();
-                var output = process.StandardOutput.ReadToEnd();
-                process.WaitForExit();
-
-                if (process.ExitCode == 0)
+                })
                 {
-                    return output.Contains("Enabled") && !output.Contains("Disabled");
-                }
+                    process.Start();
+                    var output = process.StandardOutput.ReadToEnd();
+                    process.WaitForExit();
 
-                return false;
+                    if (process.ExitCode == 0)
+                    {
+                        return output.Contains("Enabled") && !output.Contains("Disabled");
+                    }
+                    return false;
+                }
             }
             catch (Exception ex)
             {
@@ -483,7 +473,7 @@ namespace DisplayProfileManager.Helpers
                 if (!IsAutoStartEnabledTaskScheduler())
                     return string.Empty;
 
-                var process = new Process
+                using (var process = new Process
                 {
                     StartInfo = new ProcessStartInfo
                     {
@@ -494,29 +484,29 @@ namespace DisplayProfileManager.Helpers
                         RedirectStandardError = true,
                         CreateNoWindow = true
                     }
-                };
-
-                process.Start();
-                var output = process.StandardOutput.ReadToEnd();
-                process.WaitForExit();
-
-                if (process.ExitCode == 0)
+                })
                 {
-                    var lines = output.Split('\n');
-                    foreach (var line in lines)
+                    process.Start();
+                    var output = process.StandardOutput.ReadToEnd();
+                    process.WaitForExit();
+
+                    if (process.ExitCode == 0)
                     {
-                        if (line.Contains("Task To Run:"))
+                        var lines = output.Split('\n');
+                        foreach (var line in lines)
                         {
-                            var parts = line.Split(':');
-                            if (parts.Length > 1)
+                            if (line.Contains("Task To Run:"))
                             {
-                                return parts[1].Trim();
+                                var parts = line.Split(':');
+                                if (parts.Length > 1)
+                                {
+                                    return parts[1].Trim();
+                                }
                             }
                         }
                     }
+                    return string.Empty;
                 }
-
-                return string.Empty;
             }
             catch (Exception ex)
             {
@@ -539,7 +529,7 @@ namespace DisplayProfileManager.Helpers
             {
                 try
                 {
-                    var process = new Process
+                    using (var process = new Process
                     {
                         StartInfo = new ProcessStartInfo
                         {
@@ -550,27 +540,28 @@ namespace DisplayProfileManager.Helpers
                             RedirectStandardError = true,
                             CreateNoWindow = true
                         }
-                    };
-
-                    process.Start();
-                    var output = process.StandardOutput.ReadToEnd();
-                    process.WaitForExit();
-
-                    if (process.ExitCode == 0)
+                    })
                     {
-                        var lines = output.Split('\n');
-                        foreach (var line in lines)
+                        process.Start();
+                        var output = process.StandardOutput.ReadToEnd();
+                        process.WaitForExit();
+
+                        if (process.ExitCode == 0)
                         {
-                            if (line.Contains("Status:"))
+                            var lines = output.Split('\n');
+                            foreach (var line in lines)
                             {
-                                info.TaskStatus = line.Split(':')[1].Trim();
-                            }
-                            else if (line.Contains("Last Run Time:"))
-                            {
-                                var timeStr = line.Substring(line.IndexOf(':') + 1).Trim();
-                                if (DateTime.TryParse(timeStr, out var lastRun))
+                                if (line.Contains("Status:"))
                                 {
-                                    info.LastRunTime = lastRun;
+                                    info.TaskStatus = line.Split(':')[1].Trim();
+                                }
+                                else if (line.Contains("Last Run Time:"))
+                                {
+                                    var timeStr = line.Substring(line.IndexOf(':') + 1).Trim();
+                                    if (DateTime.TryParse(timeStr, out var lastRun))
+                                    {
+                                        info.LastRunTime = lastRun;
+                                    }
                                 }
                             }
                         }

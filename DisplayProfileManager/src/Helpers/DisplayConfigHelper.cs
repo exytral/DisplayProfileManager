@@ -81,8 +81,8 @@ namespace DisplayProfileManager.Helpers
             SDC_TOPOLOGY_CLONE = 0x00000002,
             SDC_TOPOLOGY_EXTEND = 0x00000004,
             SDC_TOPOLOGY_EXTERNAL = 0x00000008,
-            SDC_TOPOLOGY_SUPPLIED = 0x00000010,  // Caller provides path data, Windows queries database for modes
-            SDC_USE_SUPPLIED_DISPLAY_CONFIG = 0x00000020,  // Caller provides complete paths and modes
+            SDC_TOPOLOGY_SUPPLIED = 0x00000010,
+            SDC_USE_SUPPLIED_DISPLAY_CONFIG = 0x00000020,
             SDC_VALIDATE = 0x00000040,
             SDC_APPLY = 0x00000080,
             SDC_NO_OPTIMIZATION = 0x00000100,
@@ -167,7 +167,7 @@ namespace DisplayProfileManager.Helpers
         {
             public LUID adapterId;
             public uint id;
-            public uint modeInfoIdx;  // Encodes CloneGroupId (lower 16 bits)
+            public uint modeInfoIdx; // Encodes CloneGroupId (lower 16 bits)
             public uint statusFlags;
 
             // Clears source mode index and sets clone group; required for SDC_TOPOLOGY_SUPPLIED

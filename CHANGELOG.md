@@ -7,6 +7,21 @@ For user-facing release notes, see the [GitHub Releases](https://github.com/Exyt
 <a id="2.0.2"></a>
 ## [2.0.2] - 2026-05-21
 
+_[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManager/releases/tag/2.0.2) — incorporating [fixes](https://github.com/xtrilla/DisplayProfileManager) by [xtrilla](https://github.com/xtrilla)_
+
+### fix — audio
+
+- **`AudioHelper` transient controller** — `CoreAudioController` is now constructed per audio operation and disposed immediately after, eliminating the persistent WASAPI `IMMNotificationClient` subscription that drove ~210 RPC calls/sec and ~21 kernel security token allocations/sec at idle. See [issue #10](https://github.com/zac15987/DisplayProfileManager/issues/10).
+
+### fix — reliability
+
+- **Atomic profile saves** — `SaveProfileAsync` now writes to a `.tmp` sibling then replaces atomically via `File.Replace` (NTFS-atomic), closing the zero-byte corruption path that `File.WriteAllText`'s truncate-then-write left open.
+- **Atomic settings save** — same pattern applied to `SettingsManager.SaveSettingsAsync`.
+- **Synchronous settings save on exit** — `OnExit` now uses `.GetAwaiter().GetResult()` instead of `Task.Run(...).Wait(2s)`, closing the silent data-loss path where a slow disk on logout could exceed the timeout and abandon the save.
+- **Hotkey counter clamp** — `_profileEditWindowCount` now uses `Math.Max(0, count - 1)` and checks `== 0` instead of `<= 0`, preventing permanent hotkey deactivation if a `ProfileEditWindow` constructor fails after `Window_Loaded` fires.
+- **Async void hardening** — `ShowNotification`/`ShowBalloonTip` calls in `async void` handlers (`ApplyProfileViaHotkey`, `OnProfileMenuItemClick`, `OnRefreshClick`) are now wrapped in a nested `try/catch` to prevent process crashes if the tray icon is disposed during shutdown.
+- **Log retention fixed** — `NLog.config` now uses `maxArchiveDays="30"` instead of `maxArchiveFiles="30"`. The previous setting only capped the archive subfolder; daily log files in the root accumulated indefinitely.
+
 ### feat — scripts
 
 - **`.vbs`, `.js`, `.ahk` script support** — VBScript and JScript run via `cscript.exe /nologo`; AutoHotkey runs via `autohotkey.exe`. File picker updated to include all new types.
@@ -45,6 +60,8 @@ For user-facing release notes, see the [GitHub Releases](https://github.com/Exyt
 <a id="2.0.1"></a>
 ## [2.0.1] - 2026-05-09
 
+_[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManager/releases/tag/2.0.1)_
+
 ### fix — script import
 
 - **File picker extended** — filter now explicitly includes `.py` and `.exe` alongside previously supported types
@@ -54,13 +71,13 @@ For user-facing release notes, see the [GitHub Releases](https://github.com/Exyt
 <a id="2.0.0"></a>
 ## [2.0.0] - 2026-05-08
 
-_[Fork](https://github.com/exytral/DisplayProfileManager) by [exytral](https://github.com/Exytral) — incorporating [PR #23](https://github.com/zac15987/DisplayProfileManager/pull/23) by [rvahilario](https://github.com/rvahilario) and [PR #14](https://github.com/zac15987/DisplayProfileManager/pull/14) by [jonathanasdf](https://github.com/jonathanasdf)_
+_[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManager/releases/tag/2.0.0) — incorporating [PR #23](https://github.com/zac15987/DisplayProfileManager/pull/23) by [rvahilario](https://github.com/rvahilario) and [PR #14](https://github.com/zac15987/DisplayProfileManager/pull/14) by [jonathanasdf](https://github.com/jonathanasdf)_
 
 ### fix — display engine
 
-- **Complete display engine rewrite** — `ApplyDisplayTopology`+`ApplyDisplayLayout`+`ApplyDisplayConfig`+`DeferDisplayLayoutAsync` replace existing logic from [1.3.0](#1.3.0)/[1.3.5](#1.3.5)/[1.4.0](#1.4.0) with true, robust atomic application. Topology (enable/disable/clone grouping via `SDC_TOPOLOGY_SUPPLIED`) is now cleanly separated from layout (resolution, position, rotation, refresh via `SDC_USE_SUPPLIED_DISPLAY_CONFIG`). Both are applied atomically within their respective phases rather than through multiple post-call corrections (see **Removed erroneous `SetDisplayConfig` and `ChangeDisplaySettingsEx` calls** below).
+- **Complete display engine rewrite** — `ApplyDisplayTopology`+`ApplyDisplayLayout`+`ApplyDisplayConfig`+`DeferDisplayLayoutAsync` replace existing logic from [v1.3.0](#v1.3.0)/[v1.3.5](#v1.3.5)/[v1.4.0](#v1.4.0) with true, robust atomic application. Topology (enable/disable/clone grouping via `SDC_TOPOLOGY_SUPPLIED`) is now cleanly separated from layout (resolution, position, rotation, refresh via `SDC_USE_SUPPLIED_DISPLAY_CONFIG`). Both are applied atomically within their respective phases rather than through multiple post-call corrections (see **Removed erroneous `SetDisplayConfig` and `ChangeDisplaySettingsEx` calls** below).
 
-- **`DeferDisplayLayoutAsync` replaces staged application mode** — polls every expected display for live path and valid dimensions (or until 10s timeout). The staged application design from [1.3.0](#1.3.0) applied settings in two phases: first configure currently-active displays, apply an arbitrary delay, then configure everything. The delay sat between the active and inactive display configuration steps — failing to instead wait for inactive displays to wake from deep sleep (making the approach ineffective). The implementation also used `Thread.Sleep` (blocking) throughout, not `Task.Delay`, so the delay was synchronous regardless. `DeferDisplayLayoutAsync` polls the actual live display state and proceeds only when displays confirm ready.
+- **`DeferDisplayLayoutAsync` replaces staged application mode** — polls every expected display for live path and valid dimensions (or until 10s timeout). The staged application design from [v1.3.0](#v1.3.0) applied settings in two phases: first configure currently-active displays, apply an arbitrary delay, then configure everything. The delay sat between the active and inactive display configuration steps — failing to instead wait for inactive displays to wake from deep sleep (making the approach ineffective). The implementation also used `Thread.Sleep` (blocking) throughout, not `Task.Delay`, so the delay was synchronous regardless. `DeferDisplayLayoutAsync` polls the actual live display state and proceeds only when displays confirm ready.
 
 - **SourceId normalization** — when a saved profile contains monitors that are disabled (or simply not in the current session), the remaining active displays may have non-contiguous `SourceId` values (e.g. 0, 2, 4). `SetDisplayConfig` rejects gaps, causing apply to sometimes fail. Active displays now receive contiguous IDs (0, 1, 2...) via `BuildSourceIdMap` before submission. Previously, single-monitor configs worked by coincidence because it happened to always be assigned to `SourceId 0` regardless. In most test cases, multi-monitor configs with disabled displays sometimes succeeded and sometimes failed depending on which monitor was saved as primary and how Windows had assigned IDs.
 
@@ -76,13 +93,13 @@ _[Fork](https://github.com/exytral/DisplayProfileManager) by [exytral](https://g
 
 - **Staged application mode removed** — see **`DeferDisplayLayoutAsync`** above.
 
-- **`SDC_TOPOLOGY_SUPPLIED` correctly re-added to `SetDisplayConfigFlags` enum** — required for proper clone group topology application, this flag was present in [1.3.5](#1.3.5) ([PR #14](https://github.com/zac15987/DisplayProfileManager/pull/14)), removed in [1.4.0](#1.4.0) ([PR #23](https://github.com/zac15987/DisplayProfileManager/pull/23)), and is restored in 2.0.0.
+- **`SDC_TOPOLOGY_SUPPLIED` correctly re-added to `SetDisplayConfigFlags` enum** — required for proper clone group topology application, this flag was present in [v1.3.5](#v1.3.5) ([PR #14](https://github.com/zac15987/DisplayProfileManager/pull/14)), removed in [v1.4.0](#v1.4.0) ([PR #23](https://github.com/zac15987/DisplayProfileManager/pull/23)), and is restored in 2.0.0.
 
-- **`VerifyDisplayConfiguration`** — in [1.4.0](#1.4.0) ([PR #23](https://github.com/zac15987/DisplayProfileManager/pull/23)), `VerifyDisplayConfiguration` was called in `ProfileManager` after the apply sequence as a non-blocking diagnostic (preceded by a `Thread.Sleep(500)`). It has been moved into `ApplyDisplayLayout` where it gates the success return: if `SetDisplayConfig` returns non-zero, the result is cross-checked against a live query. If the configuration matches anyway (Windows sometimes returns non-fatal codes on valid configs), the call succeeds. Note: `VerifyDisplayConfiguration` checks enabled/disabled state and clone group SourceId sharing — it does not check HDR state, so HDR failures are reported separately.
+- **`VerifyDisplayConfiguration`** — in [v1.4.0](#v1.4.0) ([PR #23](https://github.com/zac15987/DisplayProfileManager/pull/23)), `VerifyDisplayConfiguration` was called in `ProfileManager` after the apply sequence as a non-blocking diagnostic (preceded by a `Thread.Sleep(500)`). It has been moved into `ApplyDisplayLayout` where it gates the success return: if `SetDisplayConfig` returns non-zero, the result is cross-checked against a live query. If the configuration matches anyway (Windows sometimes returns non-fatal codes on valid configs), the call succeeds. Note: `VerifyDisplayConfiguration` checks enabled/disabled state and clone group SourceId sharing — it does not check HDR state, so HDR failures are reported separately.
 
 ### fix — clone
 
-- **Clone creation for non-primary displays** — `ApplyDisplayTopology`/`ApplyDisplayLayout` now correctly assigns a shared `SourceId` to all members of a clone group. In [1.4.0](#1.4.0), `EnableDisplays` reassigned `SourceId`s sequentially per display without checking whether two displays belonged to the same clone group. Displays that should have shared a `SourceId` received distinct ones, so the clone relationship was never established. Only the primary display (`SourceId 0`) could be cloned by coincidence, since it was always assigned `SourceId 0` regardless.
+- **Clone creation for non-primary displays** — `ApplyDisplayTopology`/`ApplyDisplayLayout` now correctly assigns a shared `SourceId` to all members of a clone group. In [v1.4.0](#v1.4.0), `EnableDisplays` reassigned `SourceId`s sequentially per display without checking whether two displays belonged to the same clone group. Displays that should have shared a `SourceId` received distinct ones, so the clone relationship was never established. Only the primary display (`SourceId 0`) could be cloned by coincidence, since it was always assigned `SourceId 0` regardless.
 
 - **`BreakClone` preserves per-member settings** — when a clone group was broken, non-first members retained the representative's Resolution and Frequency instead of recovering to their own stored values. Fixed by pre-seeding per-member parameters in `BreakClone` and updating `GetDisplaySettings` to use stored per-member values when `CloneGroupId` is cleared, preventing the shared UI values from being stamped back onto all members during profile rebuild.
 
@@ -100,11 +117,11 @@ _[Fork](https://github.com/exytral/DisplayProfileManager) by [exytral](https://g
 
 ### feat — CLI (full rewrite)
 
-The original CLI from [1.0.0](#1.0.0) supported only `--tray` (start minimized). [PR #23](https://github.com/zac15987/DisplayProfileManager/pull/23) by [jonathanasdf](https://github.com/jonathanasdf) introduced `--dev` mode so that an external build script could launch a second instance alongside a running one for development. The CLI has been fully rewritten around a command queue architecture.
+The original CLI from [v1.0.0](#v1.0.0) supported only `--tray` (start minimized). [PR #23](https://github.com/zac15987/DisplayProfileManager/pull/23) by [jonathanasdf](https://github.com/jonathanasdf) introduced `--dev` mode so that an external build script could launch a second instance alongside a running one for development. The CLI has been fully rewritten around a command queue architecture.
 
 - **Command queue** — multiple commands can be issued in a single invocation and are executed in order.
 - **Fuzzy flag matching** — `--profile`, `--p`, `-p`, `pro` etc. all resolve to the same command. Flags are matched by prefix against their full name.
-- **`--tray`** — start minimized to tray (carried from [1.0.0](#1.0.0).
+- **`--tray`** — start minimized to tray (carried from [v1.0.0](#v1.0.0).
 - **`--dev`** — bypass single-instance enforcement; allows a second instance to run alongside a running one (carried from [PR #23](https://github.com/zac15987/DisplayProfileManager/pull/23)).
 - **`--refresh`/`--reload`/`-r`** — rescans the profiles and themes folder and reapplies the current theme, equivalent to pressing the Refresh button in the UI. Does not re-apply the active display profile. Designed to support external tools (such as DPM Theme Builder) that modify theme files and need to signal the running instance to pick up changes.
 - **`--theme`  /` -t` + "name"** — apply a named theme. With no argument, resolves and refreshes the currently active theme from settings.
@@ -116,7 +133,7 @@ The original CLI from [1.0.0](#1.0.0) supported only `--tray` (start minimized).
 
 ### feat — custom themes
 
-The initial WPF ResourceDictionary-based theme engine system was introduced in [1.0.0](#1.0.0) with Light, Dark, and System options. 2.0.0 significantly expands it.
+The initial WPF ResourceDictionary-based theme engine system was introduced in [v1.0.0](#v1.0.0) with Light, Dark, and System options. 2.0.0 significantly expands it.
 
 - **Theming engine rebuilt** — control styles (TextBox, ComboBox, ScrollBar, ComboBoxItem, etc.) now live in a shared `Base.xaml`; individual theme files contain only brush and color definitions. Base `Color` keys (`BackgroundColor`, `SurfaceColor`, `BorderColor`, `HoverColor`, `AccentColor`) are defined per theme; most brushes derive from these, reducing per-theme boilerplate while allowing granular brush-level overrides.
 - **Live theme list** — `ThemeHelper.AvailableThemes` is dynamically built from both built-in themes and the user themes folder. The settings dropdown populates from this list at runtime rather than from a hardcoded enum.
@@ -169,8 +186,8 @@ Refreshed the UI to a more minimal, interface — removing redundant labels, hid
 
 ---
 
-<a id="1.4.0"></a>
-## [1.4.0] - 2026-03-15 (Beta)
+<a id="v1.4.0"></a>
+## [v1.4.0] - 2026-03-15 (Beta)
 
 _[Fork](https://github.com/rvahilario/DisplayProfileManager/tree/fix/clone-display-bugs) by [rvahilario](https://github.com/rvahilario) — incorporating [PR #14](https://github.com/zac15987/DisplayProfileManager/pull/14) by [jonathanasdf](https://github.com/jonathanasdf)_
 
@@ -202,8 +219,8 @@ _Note: clone creation for non-primary displays remained broken — `EnableDispla
 
 ---
 
-<a id="1.3.5"></a>
-## [1.3.5] - 2025-11-21 (Alpha)
+<a id="v1.3.5"></a>
+## [v1.3.5] - 2025-11-21 (Alpha)
 
 _[zac15987/DisplayProfileManager](https://github.com/zac15987/DisplayProfileManager) — [PR #14](https://github.com/zac15987/DisplayProfileManager/pull/14) by [jonathanasdf](https://github.com/jonathanasdf)_
 
@@ -218,12 +235,12 @@ _[zac15987/DisplayProfileManager](https://github.com/zac15987/DisplayProfileMana
 - Phase 1/Phase 2 apply pattern — topology first (`SDC_TOPOLOGY_SUPPLIED`, null modes), then full config (`SDC_USE_SUPPLIED_DISPLAY_CONFIG` with modes)
 - Clone group UI in `ProfileEditWindow` — Clone dropdown button, Break Clone button, member name stacking, link icon
 
-_Note: clone creation only worked when the primary display was part of the group — source mode consumption iterated per-display instead of per-SourceId. `SourceModeInfoIdx` setter overwrote entire `modeInfoIdx`. HDR used wrong `TargetId`. Resolved in [1.4.0](#1.4.0), but `TargetId` remains stripped_
+_Note: clone creation only worked when the primary display was part of the group — source mode consumption iterated per-display instead of per-SourceId. `SourceModeInfoIdx` setter overwrote entire `modeInfoIdx`. HDR used wrong `TargetId`. Resolved in [v1.4.0](#v1.4.0), but `TargetId` remains stripped_
 
 ---
 
-<a id="1.3.0"></a>
-## [1.3.0] - 2025-10-14
+<a id="v1.3.0"></a>
+## [v1.3.0] - 2025-10-14
 
 _[zac15987/DisplayProfileManager](https://github.com/zac15987/DisplayProfileManager/releases/tag/v1.3.0) — [PR #8](https://github.com/zac15987/DisplayProfileManager/pull/8) by [jarandal](https://github.com/jarandal)_
 
@@ -238,8 +255,8 @@ _Note: HDR broken — `DisplayConfigSetDeviceInfo` was passed the stripped base 
 
 ---
 
-<a id="1.2.0"></a>
-## [1.2.0] - 2025-10-09
+<a id="v1.2.0"></a>
+## [v1.2.0] - 2025-10-09
 
 _[zac15987/DisplayProfileManager](https://github.com/zac15987/DisplayProfileManager/releases/tag/v1.2.0)_
 
@@ -247,8 +264,8 @@ _[zac15987/DisplayProfileManager](https://github.com/zac15987/DisplayProfileMana
 
 - EDID-based monitor identification (ManufacturerName, ProductCodeID, SerialNumberID via `WmiMonitorID`) — profiles now correctly identify monitors even when Windows reassigns device names after hardware changes
 - Display position (X, Y) stored and restored per profile
-- Monitor enable/disable per profile — unincluded monitors explicitly disabled on apply; ~~undefined monitors repositioned to rightmost position prevent overlap~~ — changed to disabling undefined monitors in [1.3.5](#1.3.5)/[2.0.0](#2.0.0)
-- ~~_Automatic rollback on topology failure — captures state before apply, restores on `SetDisplayConfig` failure with user notification_~~ — retired, `ApplyDisplayTopology` was rewritten and augmented to become much more robust in [1.3.5](#1.3.5)/[1.4.0](#1.4.0) + [2.0.0](#2.0.0)
+- Monitor enable/disable per profile — unincluded monitors explicitly disabled on apply; ~~undefined monitors repositioned to rightmost position prevent overlap~~ — changed to disabling undefined monitors in [v1.3.5](#v1.3.5)/[2.0.0](#2.0.0)
+- ~~_Automatic rollback on topology failure — captures state before apply, restores on `SetDisplayConfig` failure with user notification_~~ — retired, `ApplyDisplayTopology` was rewritten and augmented to become much more robust in [v1.3.5](#v1.3.5)/[v1.4.0](#v1.4.0) + [2.0.0](#2.0.0)
 - Monitor identification overlay — numbered overlays on each display for 3 seconds, triggered from profile editor
 - Profile duplication support in UI
 - Dual auto-start modes: Registry (no admin) and Task Scheduler (faster, requires admin for initial setup only). App no longer requires admin by default
@@ -267,16 +284,16 @@ _[zac15987/DisplayProfileManager](https://github.com/zac15987/DisplayProfileMana
 
 ### refactor
 
-- `QueryDisplayConfig` replaces legacy `ChangeDisplaySettings` API — correctly reports all displays including clones. [1.0.0](#1.0.0)–[1.1.0](#1.1.0) used the legacy API, which could not reliably detect clone topology ~~(legacy `ChangeDisplaySettings` API still used to set resolution)~~ — Removed in [1.3.5](#1.3.5)
+- `QueryDisplayConfig` replaces legacy `ChangeDisplaySettings` API — correctly reports all displays including clones. [v1.0.0](#v1.0.0)–[v1.1.0](#v1.1.0) used the legacy API, which could not reliably detect clone topology ~~(legacy `ChangeDisplaySettings` API still used to set resolution)~~ — Removed in [v1.3.5](#v1.3.5)
 - DPI scaling simplified — uses stored adapter IDs directly
 - Extensive cleanup: removed WMI correlation code, Levenshtein matching, registry fallbacks, unused P/Invoke declarations
-- ~~Print Screen hotkey and low-level keyboard hook~~ — Removed in [1.3.0](#1.3.0)
+- ~~Print Screen hotkey and low-level keyboard hook~~ — Removed in [v1.3.0](#v1.3.0)
 - Audio system initialized at app startup via explicit `InitializeAudio()`
 
 ---
 
-<a id="1.1.0"></a>
-## [1.1.0] - 2025-09-10
+<a id="v1.1.0"></a>
+## [v1.1.0] - 2025-09-10
 
 _[zac15987/DisplayProfileManager](https://github.com/zac15987/DisplayProfileManager/releases/tag/v1.1.0)_
 
@@ -288,6 +305,7 @@ _[zac15987/DisplayProfileManager](https://github.com/zac15987/DisplayProfileMana
 - Audio device switching per profile — playback and capture device selection via AudioSwitcher, Bluetooth device support
 - Per-profile audio apply flags
 - `AudioController` re-initialization for device refresh
+- ~~`InitializeAudio()` called at app startup~~ — created a long-lived `CoreAudioController` that subscribed to the WASAPI `IMMNotificationClient` firehose for the session lifetime. Resolved in [2.0.2](#2.0.2) — see [issue #10](https://github.com/zac15987/DisplayProfileManager/issues/10).
 - `AboutHelper` — centralized version/settings path management, community acknowledgments in Settings
 - Semantic versioning with beta tag support via `AssemblyInformationalVersion`
 - Inno Setup installer (x64, x86, ARM64)
@@ -308,8 +326,8 @@ _[zac15987/DisplayProfileManager](https://github.com/zac15987/DisplayProfileMana
 
 ---
 
-<a id="1.0.0"></a>
-## [1.0.0] - 2025
+<a id="v1.0.0"></a>
+## [v1.0.0] - 2025
 
 _[zac15987/DisplayProfileManager](https://github.com/zac15987/DisplayProfileManager/releases/tag/v1.0.0)_
 
@@ -329,6 +347,6 @@ _[zac15987/DisplayProfileManager](https://github.com/zac15987/DisplayProfileMana
 - Windows 11 Snap Layouts support via `WM_NCHITTEST`
 - Custom native-style window chrome across all windows
 - Single instance enforcement via named mutex
-- ~~Print Screen detection for profile switching~~ — Removed in [1.2.0](#1.2.0)
+- ~~Print Screen detection for profile switching~~ — Removed in [v1.2.0](#v1.2.0)
 - Per-monitor DPI awareness (V2) via manifest
-- Note: used legacy `ChangeDisplaySettings` API — replaced by `QueryDisplayConfig` in [1.2.0](#1.2.0)
+- Note: used legacy `ChangeDisplaySettings` API — replaced by `QueryDisplayConfig` in [v1.2.0](#v1.2.0)

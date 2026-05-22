@@ -164,7 +164,7 @@ namespace DisplayProfileManager.UI
             _contextMenu.Items.Add(settingsItem);
 
             _contextMenu.Items.Add(new ToolStripSeparator());
-            
+
             var exitItem = new ToolStripMenuItem("Exit");
             exitItem.Click += OnExitClick;
             _contextMenu.Items.Add(exitItem);
@@ -197,8 +197,14 @@ namespace DisplayProfileManager.UI
                 }
                 catch (Exception ex)
                 {
-                    _notifyIcon.ShowBalloonTip(5000, "Display Profile Manager",
-                        $"Error applying profile: {ex.Message}", ToolTipIcon.Error);
+                    // async void: guard ShowBalloonTip — tray icon may be disposed during shutdown.
+                    logger.Error(ex, $"Error applying profile via tray");
+                    try
+                    {
+                        _notifyIcon?.ShowBalloonTip(5000, "Display Profile Manager",
+                            $"Error applying profile: {ex.Message}", ToolTipIcon.Error);
+                    }
+                    catch { /* swallow: tray icon disposed or unavailable */ }
                 }
             }
         }
@@ -224,8 +230,12 @@ namespace DisplayProfileManager.UI
             }
             catch (Exception ex)
             {
-                _notifyIcon.ShowBalloonTip(5000, "Display Profile Manager",
-                    $"Error refreshing profiles: {ex.Message}", ToolTipIcon.Error);
+                try
+                {
+                    _notifyIcon?.ShowBalloonTip(5000, "Display Profile Manager",
+                        $"Error refreshing profiles: {ex.Message}", ToolTipIcon.Error);
+                }
+                catch { /* swallow: tray icon disposed or unavailable */ }
             }
         }
 
@@ -233,7 +243,7 @@ namespace DisplayProfileManager.UI
         {
             ShowSettingsWindow?.Invoke(this, EventArgs.Empty);
         }
-        
+
         private void OnExitClick(object sender, EventArgs e)
         {
             ExitApplication?.Invoke(this, EventArgs.Empty);

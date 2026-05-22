@@ -105,10 +105,20 @@ MIT + Commons Clause — see [LICENSE](LICENSE) for details. Third-party license
 - [tinted-theming/tinted-themes](https://github.com/tinted-theming/tinted-themes) — theme database for DPM Theme Builder
 - [Claude Code](https://claude.ai/code) — built in collaboration with Anthropic's Claude Code
 
-### Contributors
+### 🤝 Contributors
 
-**This fork** — [@exytral](https://github.com/exytral)
+**This fork**
+- [@exytral](https://github.com/exytral)
 
-**Upstream** — [@zac15987](https://github.com/zac15987) (original project), [@jarandal](https://github.com/jarandal) ([PR #8](https://github.com/zac15987/DisplayProfileManager/pull/8)), [@jonathanasdf](https://github.com/jonathanasdf) ([PR #14](https://github.com/zac15987/DisplayProfileManager/pull/14)), [@rvahilario](https://github.com/rvahilario) ([PR #23](https://github.com/zac15987/DisplayProfileManager/pull/23))
+**Upstream**
+- [@zac15987](https://github.com/zac15987) (original project: display profiles, themes, system tray, auto-start, global hotkeys, audio device switching — [v1.3.0](https://github.com/zac15987/DisplayProfileManager/releases/tag/v1.3.0))
+- [@jarandal](https://github.com/jarandal) (initial HDR support, screen rotation — [PR #8](https://github.com/zac15987/DisplayProfileManager/pull/8))
+- [@jonathanasdf](https://github.com/jonathanasdf) (initial clone display support — [PR #14](https://github.com/zac15987/DisplayProfileManager/pull/14))
+- [@rvahilario](https://github.com/rvahilario) (partial clone fixes, clone UI, test infrastructure — [PR #23](https://github.com/zac15987/DisplayProfileManager/pull/23))
+- [@xtrilla](https://github.com/xtrilla) (audio resource leak fix, safe file saves, crash fixes — [fork](https://github.com/xtrilla/DisplayProfileManager))
 
-Community: [@Catriks](https://github.com/Catriks), [@Alienmario](https://github.com/Alienmario), [@anodynos](https://github.com/anodynos), [@xtrilla](https://github.com/xtrilla)
+**Community**
+- [@Catriks](https://github.com/Catriks) — requested audio device switching ([#1](https://github.com/zac15987/DisplayProfileManager/issues/1))
+- [@Alienmario](https://github.com/Alienmario) — suggested audio improvements and reported multi-monitor switching issues ([#1](https://github.com/zac15987/DisplayProfileManager/issues/1), [#5](https://github.com/zac15987/DisplayProfileManager/issues/5))
+- [@anodynos](https://github.com/anodynos) — suggested global hotkeys for profile switching ([#2](https://github.com/zac15987/DisplayProfileManager/issues/2))
+- [@xtrilla](https://github.com/xtrilla) — requested monitor enable/disable ([#4](https://github.com/zac15987/DisplayProfileManager/issues/4))
