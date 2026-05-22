@@ -616,6 +616,13 @@ namespace DisplayProfileManager.UI.Windows
                     },
                     new
                     {
+                        Name        = AboutHelper.Contributors.XtrillaName,
+                        Url         = AboutHelper.Contributors.XtrillaUrl,
+                        Description = AboutHelper.Contributors.XtrillaDesc,
+                        SubText     = (string)null
+                    },
+                    new
+                    {
                         Name        = AboutHelper.Contributors.ExytralName,
                         Url         = AboutHelper.Contributors.ExytralUrl,
                         Description = AboutHelper.Contributors.ExytralDesc,
