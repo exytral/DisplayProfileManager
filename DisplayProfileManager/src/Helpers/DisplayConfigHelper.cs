@@ -571,14 +571,10 @@ namespace DisplayProfileManager.Helpers
                         {
                             var sig = targetMode.modeInfo.targetMode.targetVideoSignalInfo;
 
-                            logger.Debug($"GetDisplayConfigs: {displayConfig.DeviceName} activeSize={sig.activeSize.cx}x{sig.activeSize.cy}");
-
-                            // activeSize reflects EDID preferred timing — used to distinguish native from DCI resolutions
                             if (sig.activeSize.cx > 0 && sig.activeSize.cy > 0)
                             {
                                 displayConfig.NativeWidth = (int)sig.activeSize.cx;
                                 displayConfig.NativeHeight = (int)sig.activeSize.cy;
-                                logger.Debug($"GetDisplayConfigs: assigned NativeWidth={displayConfig.NativeWidth} to {displayConfig.DeviceName}");
                             }
 
                             if (sig.vSyncFreq.Denominator != 0)
