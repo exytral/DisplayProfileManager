@@ -189,9 +189,9 @@ namespace DisplayProfileManager.Core
             return $"{DeviceName}: {GetResolutionString()}, DPI: {GetDpiString()}, {hdrStatus} [{enabledStatus}]";
         }
 
-        public void UpdateDeviceNameFromWMI(List<DisplayHelper.MonitorIdInfo> monitorIds = null)
+        public void UpdateDeviceNameFromWMI(List<DisplayHelper.MonitorIdInfo> monitorIds = null, List<DisplayConfigHelper.DisplayConfigInfo> displayConfigs = null)
         {
-            string resolvedDeviceName = DisplayHelper.GetDeviceNameFromWMIMonitorID(ManufacturerName, ProductCodeID, SerialNumberID, monitorIds);
+            string resolvedDeviceName = DisplayHelper.GetDeviceNameFromWMIMonitorID(ManufacturerName, ProductCodeID, SerialNumberID, monitorIds, displayConfigs);
             if (string.IsNullOrEmpty(resolvedDeviceName))
             {
                 resolvedDeviceName = DeviceName;

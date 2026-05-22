@@ -20,7 +20,11 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 - **Synchronous settings save on exit** — `OnExit` now uses `.GetAwaiter().GetResult()` instead of `Task.Run(...).Wait(2s)`, closing the silent data-loss path where a slow disk on logout could exceed the timeout and abandon the save.
 - **Hotkey counter clamp** — `_profileEditWindowCount` now uses `Math.Max(0, count - 1)` and checks `== 0` instead of `<= 0`, preventing permanent hotkey deactivation if a `ProfileEditWindow` constructor fails after `Window_Loaded` fires.
 - **Async void hardening** — `ShowNotification`/`ShowBalloonTip` calls in `async void` handlers (`ApplyProfileViaHotkey`, `OnProfileMenuItemClick`, `OnRefreshClick`) are now wrapped in a nested `try/catch` to prevent process crashes if the tray icon is disposed during shutdown.
+
+### fix — logs
+
 - **Log retention fixed** — `NLog.config` now uses `maxArchiveDays="30"` instead of `maxArchiveFiles="30"`. The previous setting only capped the archive subfolder; daily log files in the root accumulated indefinitely.
+- **WMI and display config queries reduced to 1 per editor open** — `LoadDisplaySettings` now fetches `GetMonitorIDsFromWmiMonitorID` and `GetDisplayConfigs` once and passes the results to each `DisplaySettingControl`, replacing the previous per-display queries.
 
 ### feat — scripts
 

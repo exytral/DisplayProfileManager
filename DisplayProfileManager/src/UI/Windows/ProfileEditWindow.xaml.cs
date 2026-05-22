@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -92,7 +93,10 @@ namespace DisplayProfileManager.UI.Windows
                 logger.Info($"Loading {settings.Count} displays with {cloneGroupCount} clone group(s)");
             }
 
-            // Control generation
+            // Query WMI once for all controls rather than once per display
+            var monitorIds = DisplayHelper.GetMonitorIDsFromWmiMonitorID();
+            var displayConfigs = DisplayConfigHelper.GetDisplayConfigs();
+
             int monitorIndex = 1;
             foreach (var group in displayGroups)
             {
@@ -100,7 +104,8 @@ namespace DisplayProfileManager.UI.Windows
                     group.RepresentativeSetting,
                     monitorIndex,
                     isCloneGroup: group.IsCloneGroup,
-                    cloneGroupMembers: group.AllMembers);
+                    cloneGroupMembers: group.AllMembers,
+                    monitorIds: monitorIds);
                 monitorIndex++;
             }
 
@@ -129,7 +134,7 @@ namespace DisplayProfileManager.UI.Windows
             }
         }
 
-        private void PopulateFields()
+        private async void PopulateFields()
         {
             // Basic info
             ProfileNameTextBox.Text = _profile.Name;
@@ -154,7 +159,7 @@ namespace DisplayProfileManager.UI.Windows
             CheckForHotkeyConflicts();
 
             // Audio
-            LoadAudioDevices(false);
+            await LoadAudioDevices(false);
 
             // Scripting state
             EnableScriptsCheckBox.IsChecked = _profile.EnableScripts;
@@ -172,7 +177,6 @@ namespace DisplayProfileManager.UI.Windows
                 {
                     var (pathOrName, args) = ScriptHelper.ParseScriptString(scriptString);
 
-                    // Path resolution
                     string fullPath = System.IO.Path.IsPathRooted(pathOrName)
                         ? pathOrName
                         : System.IO.Path.Combine(scriptsFolder, pathOrName);
@@ -233,23 +237,19 @@ namespace DisplayProfileManager.UI.Windows
         }
 
         private void AddDisplaySettingControl(DisplaySetting setting, int monitorIndex = 0,
-            bool isCloneGroup = false, List<DisplaySetting> cloneGroupMembers = null)
+            bool isCloneGroup = false, List<DisplaySetting> cloneGroupMembers = null,
+            List<DisplayHelper.MonitorIdInfo> monitorIds = null)
         {
-            // Container cleanup
             if (DisplaySettingsPanel.Children.Count == 1 &&
                 DisplaySettingsPanel.Children[0] is TextBlock)
             {
                 DisplaySettingsPanel.Children.Clear();
             }
 
-            // Index tracking
             if (monitorIndex == 0)
-            {
                 monitorIndex = _displayControls.Count + 1;
-            }
 
-            // Control initialization
-            var control = new DisplaySettingControl(setting, monitorIndex, isCloneGroup, cloneGroupMembers);
+            var control = new DisplaySettingControl(setting, monitorIndex, isCloneGroup, cloneGroupMembers, monitorIds);
             control.OnCloneGroupChanged = RebuildDisplayControls;
             _displayControls.Add(control);
             DisplaySettingsPanel.Children.Add(control);
@@ -596,84 +596,59 @@ namespace DisplayProfileManager.UI.Windows
             }
         }
 
-        private void LoadAudioDevices(bool reInitialize)
+        private async Task LoadAudioDevices(bool reInitialize)
         {
             try
             {
-                // Collection reset
                 _playbackDevices.Clear();
                 _captureDevices.Clear();
 
                 if (reInitialize)
-                {
                     AudioHelper.ReInitializeAudioController();
-                }
 
-                // Playback device discovery
-                var playbackDevices = AudioHelper.GetPlaybackDevices();
+                // Device discovery off the UI thread — WithController + WMI can block for seconds
+                var playbackDevices = await System.Threading.Tasks.Task.Run(() => AudioHelper.GetPlaybackDevices());
+                var captureDevices = await System.Threading.Tasks.Task.Run(() => AudioHelper.GetCaptureDevices());
+
                 foreach (var device in playbackDevices)
-                {
                     _playbackDevices.Add(device);
-                }
 
-                // Capture device discovery
-                var captureDevices = AudioHelper.GetCaptureDevices();
                 foreach (var device in captureDevices)
-                {
                     _captureDevices.Add(device);
-                }
 
-                // Selection logic
                 if (_isEditMode && _profile.AudioSettings != null)
                 {
-                    // UI state sync
                     ApplyOutputDeviceCheckBox.IsChecked = _profile.AudioSettings.ApplyPlaybackDevice;
                     ApplyInputDeviceCheckBox.IsChecked = _profile.AudioSettings.ApplyCaptureDevice;
-
                     OutputDeviceComboBox.IsEnabled = _profile.AudioSettings.ApplyPlaybackDevice;
                     InputDeviceComboBox.IsEnabled = _profile.AudioSettings.ApplyCaptureDevice;
 
-                    // Saved playback restoration
                     if (!string.IsNullOrEmpty(_profile.AudioSettings.DefaultPlaybackDeviceId))
                     {
                         var savedPlayback = _playbackDevices.FirstOrDefault(d => d.Id == _profile.AudioSettings.DefaultPlaybackDeviceId);
-                        if (savedPlayback != null)
-                        {
-                            OutputDeviceComboBox.SelectedItem = savedPlayback;
-                        }
-                        else
-                        {
-                            SelectDefaultPlaybackDevice();
-                        }
+                        if (savedPlayback != null) OutputDeviceComboBox.SelectedItem = savedPlayback;
+                        else await SelectDefaultPlaybackDeviceAsync();
                     }
                     else
                     {
-                        SelectDefaultPlaybackDevice();
+                        await SelectDefaultPlaybackDeviceAsync();
                     }
 
-                    // Saved capture restoration
                     if (!string.IsNullOrEmpty(_profile.AudioSettings.DefaultCaptureDeviceId))
                     {
                         var savedCapture = _captureDevices.FirstOrDefault(d => d.Id == _profile.AudioSettings.DefaultCaptureDeviceId);
-                        if (savedCapture != null)
-                        {
-                            InputDeviceComboBox.SelectedItem = savedCapture;
-                        }
-                        else
-                        {
-                            SelectDefaultCaptureDevice();
-                        }
+                        if (savedCapture != null) InputDeviceComboBox.SelectedItem = savedCapture;
+                        else await SelectDefaultCaptureDeviceAsync();
                     }
                     else
                     {
-                        SelectDefaultCaptureDevice();
+                        await SelectDefaultCaptureDeviceAsync();
                     }
                 }
                 else
                 {
-                    // New profile defaults
-                    SelectDefaultPlaybackDevice();
-                    SelectDefaultCaptureDevice();
+                    await SelectDefaultPlaybackDeviceAsync();
+                    await SelectDefaultCaptureDeviceAsync();
                 }
             }
             catch (Exception ex)
@@ -683,20 +658,14 @@ namespace DisplayProfileManager.UI.Windows
             }
         }
 
-        private void SelectDefaultPlaybackDevice()
+        private async Task SelectDefaultPlaybackDeviceAsync()
         {
-            var defaultPlayback = AudioHelper.GetDefaultPlaybackDevice();
+            var defaultPlayback = await Task.Run(() => AudioHelper.GetDefaultPlaybackDevice());
             if (defaultPlayback != null)
             {
                 var deviceInList = _playbackDevices.FirstOrDefault(d => d.Id == defaultPlayback.Id);
-                if (deviceInList != null)
-                {
-                    OutputDeviceComboBox.SelectedItem = deviceInList;
-                }
-                else if (_playbackDevices.Count > 0)
-                {
-                    OutputDeviceComboBox.SelectedIndex = 0;
-                }
+                if (deviceInList != null) OutputDeviceComboBox.SelectedItem = deviceInList;
+                else if (_playbackDevices.Count > 0) OutputDeviceComboBox.SelectedIndex = 0;
             }
             else if (_playbackDevices.Count > 0)
             {
@@ -704,20 +673,14 @@ namespace DisplayProfileManager.UI.Windows
             }
         }
 
-        private void SelectDefaultCaptureDevice()
+        private async Task SelectDefaultCaptureDeviceAsync()
         {
-            var defaultCapture = AudioHelper.GetDefaultCaptureDevice();
+            var defaultCapture = await Task.Run(() => AudioHelper.GetDefaultCaptureDevice());
             if (defaultCapture != null)
             {
                 var deviceInList = _captureDevices.FirstOrDefault(d => d.Id == defaultCapture.Id);
-                if (deviceInList != null)
-                {
-                    InputDeviceComboBox.SelectedItem = deviceInList;
-                }
-                else if (_captureDevices.Count > 0)
-                {
-                    InputDeviceComboBox.SelectedIndex = 0;
-                }
+                if (deviceInList != null) InputDeviceComboBox.SelectedItem = deviceInList;
+                else if (_captureDevices.Count > 0) InputDeviceComboBox.SelectedIndex = 0;
             }
             else if (_captureDevices.Count > 0)
             {
@@ -725,14 +688,12 @@ namespace DisplayProfileManager.UI.Windows
             }
         }
 
-        private void DetectAudioButton_Click(object sender, RoutedEventArgs e)
+        private async void DetectAudioButton_Click(object sender, RoutedEventArgs e)
         {
             try
             {
                 StatusTextBlock.Text = "Detecting current audio devices...";
-
-                LoadAudioDevices(true);
-
+                await LoadAudioDevices(true);
                 StatusTextBlock.Text = "Current audio devices detected";
             }
             catch (Exception ex)
@@ -973,50 +934,6 @@ namespace DisplayProfileManager.UI.Windows
         private int _monitorIndex;
         private TextBox _deviceTextBox;
 
-        private static Style BuildSecondaryButtonStyle()
-        {
-            // Theme resource retrieval
-            var bg = (Brush)Application.Current.Resources["SecondaryButtonBackgroundBrush"];
-            var fg = (Brush)Application.Current.Resources["SecondaryButtonForegroundBrush"];
-            var hoverBg = (Brush)Application.Current.Resources["SecondaryButtonHoverBackgroundBrush"];
-            var pressedBg = (Brush)Application.Current.Resources["SecondaryButtonPressedBackgroundBrush"];
-
-            // Visual tree construction
-            var borderFactory = new FrameworkElementFactory(typeof(Border));
-            borderFactory.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(Button.BackgroundProperty));
-            borderFactory.SetValue(Border.CornerRadiusProperty, new CornerRadius(4));
-            borderFactory.SetValue(Border.BorderThicknessProperty, new TemplateBindingExtension(Button.BorderThicknessProperty));
-            borderFactory.SetValue(Border.PaddingProperty, new TemplateBindingExtension(Button.PaddingProperty));
-
-            var contentFactory = new FrameworkElementFactory(typeof(ContentPresenter));
-            contentFactory.SetValue(ContentPresenter.HorizontalAlignmentProperty, HorizontalAlignment.Center);
-            contentFactory.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
-            borderFactory.AppendChild(contentFactory);
-
-            // State triggers
-            var template = new ControlTemplate(typeof(Button)) { VisualTree = borderFactory };
-
-            var hoverTrigger = new Trigger { Property = Button.IsMouseOverProperty, Value = true };
-            hoverTrigger.Setters.Add(new Setter(Button.BackgroundProperty, hoverBg));
-            template.Triggers.Add(hoverTrigger);
-
-            var pressedTrigger = new Trigger { Property = Button.IsPressedProperty, Value = true };
-            pressedTrigger.Setters.Add(new Setter(Button.BackgroundProperty, pressedBg));
-            template.Triggers.Add(pressedTrigger);
-
-            // Style composition
-            var style = new Style(typeof(Button));
-            style.Setters.Add(new Setter(Button.TemplateProperty, template));
-            style.Setters.Add(new Setter(Button.BackgroundProperty, bg));
-            style.Setters.Add(new Setter(Button.ForegroundProperty, fg));
-            style.Setters.Add(new Setter(Button.BorderThicknessProperty, new Thickness(0)));
-            style.Setters.Add(new Setter(Button.PaddingProperty, new Thickness(8, 6, 8, 6)));
-            style.Setters.Add(new Setter(Button.FontSizeProperty, 14.0));
-            style.Setters.Add(new Setter(Button.FontWeightProperty, FontWeights.Medium));
-            style.Setters.Add(new Setter(Button.CursorProperty, Cursors.Hand));
-            return style;
-        }
-
         private static Style BuildPrimaryButtonStyle()
         {
             // Theme resource retrieval
@@ -1056,6 +973,50 @@ namespace DisplayProfileManager.UI.Windows
             style.Setters.Add(new Setter(Button.BorderThicknessProperty, new Thickness(0)));
             style.Setters.Add(new Setter(Button.PaddingProperty, new Thickness(10, 6, 10, 6)));
             style.Setters.Add(new Setter(Button.FontSizeProperty, 13.0));
+            style.Setters.Add(new Setter(Button.FontWeightProperty, FontWeights.Medium));
+            style.Setters.Add(new Setter(Button.CursorProperty, Cursors.Hand));
+            return style;
+        }
+
+        private static Style BuildSecondaryButtonStyle()
+        {
+            // Theme resource retrieval
+            var bg = (Brush)Application.Current.Resources["SecondaryButtonBackgroundBrush"];
+            var fg = (Brush)Application.Current.Resources["SecondaryButtonForegroundBrush"];
+            var hoverBg = (Brush)Application.Current.Resources["SecondaryButtonHoverBackgroundBrush"];
+            var pressedBg = (Brush)Application.Current.Resources["SecondaryButtonPressedBackgroundBrush"];
+
+            // Visual tree construction
+            var borderFactory = new FrameworkElementFactory(typeof(Border));
+            borderFactory.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(Button.BackgroundProperty));
+            borderFactory.SetValue(Border.CornerRadiusProperty, new CornerRadius(4));
+            borderFactory.SetValue(Border.BorderThicknessProperty, new TemplateBindingExtension(Button.BorderThicknessProperty));
+            borderFactory.SetValue(Border.PaddingProperty, new TemplateBindingExtension(Button.PaddingProperty));
+
+            var contentFactory = new FrameworkElementFactory(typeof(ContentPresenter));
+            contentFactory.SetValue(ContentPresenter.HorizontalAlignmentProperty, HorizontalAlignment.Center);
+            contentFactory.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
+            borderFactory.AppendChild(contentFactory);
+
+            // State triggers
+            var template = new ControlTemplate(typeof(Button)) { VisualTree = borderFactory };
+
+            var hoverTrigger = new Trigger { Property = Button.IsMouseOverProperty, Value = true };
+            hoverTrigger.Setters.Add(new Setter(Button.BackgroundProperty, hoverBg));
+            template.Triggers.Add(hoverTrigger);
+
+            var pressedTrigger = new Trigger { Property = Button.IsPressedProperty, Value = true };
+            pressedTrigger.Setters.Add(new Setter(Button.BackgroundProperty, pressedBg));
+            template.Triggers.Add(pressedTrigger);
+
+            // Style composition
+            var style = new Style(typeof(Button));
+            style.Setters.Add(new Setter(Button.TemplateProperty, template));
+            style.Setters.Add(new Setter(Button.BackgroundProperty, bg));
+            style.Setters.Add(new Setter(Button.ForegroundProperty, fg));
+            style.Setters.Add(new Setter(Button.BorderThicknessProperty, new Thickness(0)));
+            style.Setters.Add(new Setter(Button.PaddingProperty, new Thickness(8, 6, 8, 6)));
+            style.Setters.Add(new Setter(Button.FontSizeProperty, 14.0));
             style.Setters.Add(new Setter(Button.FontWeightProperty, FontWeights.Medium));
             style.Setters.Add(new Setter(Button.CursorProperty, Cursors.Hand));
             return style;
@@ -1112,12 +1073,14 @@ namespace DisplayProfileManager.UI.Windows
         private bool _isCloneGroup;
 
         public DisplaySettingControl(DisplaySetting setting, int monitorIndex = 1,
-            bool isCloneGroup = false, List<DisplaySetting> cloneGroupMembers = null)
+            bool isCloneGroup = false, List<DisplaySetting> cloneGroupMembers = null,
+            List<DisplayHelper.MonitorIdInfo> monitorIds = null,
+            List<DisplayConfigHelper.DisplayConfigInfo> displayConfigs = null)
         {
-            // WMI resolution
-            setting.UpdateDeviceNameFromWMI();
+            // Skip WMI resolution if identity and native resolution are already populated
+            if (string.IsNullOrEmpty(setting.DeviceName) || setting.NativeWidth == 0 || setting.NativeHeight == 0)
+                setting.UpdateDeviceNameFromWMI(monitorIds, displayConfigs);
 
-            // State initialization
             _setting = setting;
             _monitorIndex = monitorIndex;
             _isCloneGroup = isCloneGroup;

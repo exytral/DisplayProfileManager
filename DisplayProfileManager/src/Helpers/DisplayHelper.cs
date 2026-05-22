@@ -459,7 +459,7 @@ namespace DisplayProfileManager.Helpers
             return BitConverter.ToString(bytes, 0, len).Replace("-", "");
         }
 
-        public static string GetDeviceNameFromWMIMonitorID(string manufacturerName, string productCodeID, string serialNumberID, List<MonitorIdInfo> monitorIds = null)
+        public static string GetDeviceNameFromWMIMonitorID(string manufacturerName, string productCodeID, string serialNumberID, List<MonitorIdInfo> monitorIds = null, List<DisplayConfigHelper.DisplayConfigInfo> displayConfigs = null)
         {
             if (string.IsNullOrEmpty(manufacturerName) ||
                 string.IsNullOrEmpty(productCodeID) ||
@@ -493,7 +493,7 @@ namespace DisplayProfileManager.Helpers
                 return string.Empty;
             }
 
-            var displayConfigs = DisplayConfigHelper.GetDisplayConfigs();
+            displayConfigs = displayConfigs ?? DisplayConfigHelper.GetDisplayConfigs();
             foreach (var display in displayConfigs)
             {
                 if (targetInstanceName.Contains($"UID{display.TargetId}"))
