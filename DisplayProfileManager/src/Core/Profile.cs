@@ -177,7 +177,7 @@ namespace DisplayProfileManager.Core
 
         public string GetResolutionString()
         {
-            return $"{Width}x{Height} @ {Frequency}Hz";
+            return $"{Width}×{Height} @ {Frequency}Hz";
         }
 
         public string GetDpiString()
