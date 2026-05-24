@@ -6,6 +6,17 @@ For user-facing release notes, see the [GitHub Releases](https://github.com/Exyt
 
 ---
 
+<a id="2.0.5"></a>
+## [2.0.5] - 2026-05-24
+
+_[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManager/releases/tag/2.0.5)_
+
+### fix — CLI
+
+- **`--headless` with no argument falls back to saved profile** — `isHeadless` now participates in the startup profile resolution block alongside `isProfile`. Previously, `-h` with no argument and no running instance would skip `GetCurrentProfileId()` (only `isProfile` was checked) and fall through to full UI initialization instead of resolving and applying the saved profile headlessly.
+
+---
+
 <a id="2.0.4"></a>
 ## [2.0.4] - 2026-05-23
 

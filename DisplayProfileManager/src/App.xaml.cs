@@ -162,7 +162,7 @@ namespace DisplayProfileManager
             }
 
             // Resolve current profile if reapply was requested locally
-            if (isProfile && string.IsNullOrEmpty(profile))
+            if ((isProfile || isHeadless) && string.IsNullOrEmpty(profile))
             {
                 await _settingsManager.LoadSettingsAsync();
                 profile = _settingsManager.GetCurrentProfileId();
