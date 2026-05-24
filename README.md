@@ -99,23 +99,24 @@ MIT + Commons Clause — see [LICENSE](LICENSE) for details. Third-party license
 
 ## 🙏 Acknowledgments
 
-- [Newtonsoft.Json](https://www.newtonsoft.com/json) (BSD-3-Clause) — JSON serialization
-- [NLog](https://nlog-project.org/) (MIT) — logging
+- [Newtonsoft.Json](https://www.newtonsoft.com/json) (MIT BSD-3-Clause) — JSON serialization
+- [NLog](https://nlog-project.org/) (MIT) — Logging
 - [windows-DPI-scaling-sample](https://github.com/lihas/windows-DPI-scaling-sample) (Unlicense) — DPI scaling foundation
-- [tinted-themes](https://github.com/tinted-theming/tinted-themes) (MIT) — theme database for DPM Theme Builder
-- [Claude Code](https://claude.ai/code) — built in collaboration with Anthropic's Claude Code
+- [tinted-themes](https://github.com/tinted-theming/tinted-themes) (MIT) — Theme database for DPM Theme Builder
+- [Claude Code](https://claude.ai/code) — Built in collaboration with Anthropic's Claude Code
 
 ### 🤝 Contributors
 
 **Upstream**
-- [@zac15987](https://github.com/zac15987) (original project: display profiles, themes, system tray, auto-start, global hotkeys, initial audio device switching support — [v1.3.0](https://github.com/zac15987/DisplayProfileManager/releases/tag/v1.3.0))
-- [@jarandal](https://github.com/jarandal) (initial HDR support, screen rotation — [PR #8](https://github.com/zac15987/DisplayProfileManager/pull/8))
-- [@jonathanasdf](https://github.com/jonathanasdf) (initial clone display support — [PR #14](https://github.com/zac15987/DisplayProfileManager/pull/14))
-- [@rvahilario](https://github.com/rvahilario) (partial clone fixes, clone UI, test infrastructure — [PR #23](https://github.com/zac15987/DisplayProfileManager/pull/23))
-- [@xtrilla](https://github.com/xtrilla) (safe file saves — [fork](https://github.com/xtrilla/DisplayProfileManager))
+- [@zac15987](https://github.com/zac15987) ([Original project](https://github.com/zac15987/DisplayProfileManager/releases)) — Display profiles, themes, system tray, auto-start, global hotkeys, initial audio device switching support
+- [@jarandal](https://github.com/jarandal) ([PR #8](https://github.com/zac15987/DisplayProfileManager/pull/8)) — Initial HDR support, screen rotation
+- [@jonathanasdf](https://github.com/jonathanasdf) ([PR #14](https://github.com/zac15987/DisplayProfileManager/pull/14)) — Initial clone display support
+- [@rvahilario](https://github.com/rvahilario) ([PR #23](https://github.com/zac15987/DisplayProfileManager/pull/23)) — Partial clone fixes, clone UI, test infrastructure
+- [@xtrilla](https://github.com/xtrilla) ([fork](https://github.com/xtrilla/DisplayProfileManager)) — Safe file saves
 
 **Community**
-- [@Catriks](https://github.com/Catriks) — requested audio device switching ([#1](https://github.com/zac15987/DisplayProfileManager/issues/1))
-- [@Alienmario](https://github.com/Alienmario) — suggested audio improvements and reported multi-monitor switching issues ([#1](https://github.com/zac15987/DisplayProfileManager/issues/1), [#5](https://github.com/zac15987/DisplayProfileManager/issues/5))
-- [@anodynos](https://github.com/anodynos) — suggested global hotkeys for profile switching ([#2](https://github.com/zac15987/DisplayProfileManager/issues/2))
-- [@xtrilla](https://github.com/xtrilla) — requested monitor enable/disable ([#4](https://github.com/zac15987/DisplayProfileManager/issues/4))
+- [@Catriks](https://github.com/Catriks) ([#1](https://github.com/zac15987/DisplayProfileManager/issues/1)) — Requested audio device switching
+- [@Alienmario](https://github.com/Alienmario) ([#1](https://github.com/zac15987/DisplayProfileManager/issues/1), [#5](https://github.com/zac15987/DisplayProfileManager/issues/5)) — Suggested audio improvements and reported multi-monitor switching issues
+- [@anodynos](https://github.com/anodynos) ([#2](https://github.com/zac15987/DisplayProfileManager/issues/2)) — Suggested global hotkeys for profile switching
+- [@xtrilla](https://github.com/xtrilla) ([#4](https://github.com/zac15987/DisplayProfileManager/issues/4)) — Requested monitor enable/disable
+- [@ffgtthr](https://github.com/ffgtthr) ([#2](https://github.com/zac15987/DisplayProfileManager/issues/2)) — Custom profile icons
