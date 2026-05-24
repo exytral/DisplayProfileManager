@@ -8,7 +8,7 @@ Profiles store a complete snapshot of your display setup — monitor layout, res
 
 On first launch, DPM saves your current display configuration as the **Default** profile. To create additional profiles, click **Create** in the main window. The profile editor opens immediately — give the profile a name, configure its settings, then click **Save**.
 
-To snapshot your current display configuration automatically, click **Detect Current** inside the editor. To capture your current audio devices, click **Detect Current Audio** in the Audio Settings section.
+To snapshot your current display configuration automatically, click **Load** inside the editor. To capture your current audio devices, click **Detect Current Audio** in the Audio Settings section.
 
 **Duplicating a profile** — select a profile in the main window, then click **Duplicate** in the toolbar. The editor opens immediately with a copy. Rename and adjust before saving.
 
@@ -28,7 +28,7 @@ The profile editor shows one panel per detected monitor under **Display Settings
 - **Rotation** — 0°, 90°, 180°, 270°
 - **DPI Scaling** — percentage scale applied for this display
 
-Click **Identify** to briefly overlay each physical screen with its number. Click **Detect Current** at any time to overwrite all stored display settings with your live configuration.
+Click **Identify** to briefly overlay each physical screen with its number. Click **Load** at any time to overwrite all stored display settings with your live configuration.
 
 ![Profile Editor](../img/profile-editor.png)
 
@@ -80,6 +80,16 @@ Assign a keyboard shortcut to any profile so you can switch without UI interacti
 3. Save the profile.
 
 Hotkeys are system-wide and active as long as DPM is running. They are temporarily disabled while any profile editor window is open. All configured hotkeys are visible under **Settings → Global Hotkeys**.
+
+---
+
+## Profile icons
+
+Each profile can have a custom icon — a `.ico` file that appears in the profile list, the details panel, and the system tray when that profile is active.
+
+To assign an icon, open the profile editor. The **Icon** row sits between the name/hotkey section and Display Settings. Click **Import** to select a `.ico` file — it's copied into DPM's icons folder automatically. Previously imported icons appear in a scrollable grid below. Click one to select it and click **Clear** to remove the icon assignment without deleting the file.
+
+When a profile with a custom icon is applied, the system tray icon updates to reflect it. If the icon file is missing or fails to load, the default app icon is used as a fallback.
 
 ---
 

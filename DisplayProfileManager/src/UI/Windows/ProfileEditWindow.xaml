@@ -7,11 +7,11 @@
         xmlns:converters="clr-namespace:DisplayProfileManager.UI.Converters"
         xmlns:controls="clr-namespace:DisplayProfileManager.UI.Controls"
         mc:Ignorable="d"
-        Title="Profile Editor" Width="900" Height="600"
+        Title="Profile Editor" Width="900" Height="650" MinWidth="760" MinHeight="580"
         WindowStartupLocation="CenterOwner" ResizeMode="CanResize"
         WindowStyle="SingleBorderWindow"
         Loaded="Window_Loaded">
-    
+
     <WindowChrome.WindowChrome>
         <WindowChrome 
             CaptionHeight="32"
@@ -20,7 +20,7 @@
             GlassFrameThickness="0,32,0,0"
             UseAeroCaptionButtons="True" />
     </WindowChrome.WindowChrome>
-    
+
     <Window.Resources>
         <Style x:Key="PrimaryButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="{DynamicResource ButtonBackgroundBrush}"/>
@@ -66,7 +66,18 @@
             </Style.Triggers>
         </Style>
 
-
+        <Style x:Key="DangerButtonStyle" TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+            <Setter Property="Background" Value="{DynamicResource DangerButtonBackgroundBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource ButtonForegroundBrush}"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource DangerButtonHoverBackgroundBrush}"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource DangerButtonHoverBackgroundBrush}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
 
         <Style x:Key="PrimaryTextBlockStyle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="14"/>
@@ -136,7 +147,7 @@
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            
+
             <!-- Dynamic title based on edit mode -->
             <TextBlock Grid.Column="0" Name="TitleBarTextBlock" Text="Profile Editor"
                        VerticalAlignment="Center"
@@ -144,7 +155,7 @@
                        FontFamily="Segoe UI"
                        FontSize="12"
                        Foreground="{DynamicResource TitleBarTextBrush}"/>
-            
+
             <!-- Window Control Buttons -->
             <StackPanel Grid.Column="1" Orientation="Horizontal">
                 <!-- Minimize Button -->
@@ -154,7 +165,7 @@
                         Click="MinimizeButton_Click"
                         WindowChrome.IsHitTestVisibleInChrome="True"
                         ToolTip="Minimize"/>
-                
+
                 <!-- Close Button -->
                 <Button Name="CloseButton"
                         Content="&#xE8BB;"
@@ -168,11 +179,12 @@
         <!-- Main Content Area -->
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,16,0" Margin="16,16,0,0">
             <StackPanel>
-                <TextBlock Text="Profile Information"
+                <TextBlock Text="Profile"
                            Style="{StaticResource LabelTextBlockStyle}"
                            FontSize="24"
                            Margin="0,0,0,12"/>
 
+                <!-- Profile Information Section -->
                 <Grid Margin="0,0,0,16">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -180,80 +192,185 @@
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
-                    <StackPanel Grid.Column="0">
-                        <TextBlock Text="Profile Name*" Style="{StaticResource LabelTextBlockStyle}"/>
-                        <TextBox Name="ProfileNameTextBox" 
+                    <Grid Grid.Column="0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="8"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="12"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="4"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="4"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Name -->
+                        <Grid Grid.Row="0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="Name*"
+                                       Style="{StaticResource LabelTextBlockStyle}"
+                                       Margin="0,0,8,0"
+                                       VerticalAlignment="Center"/>
+                            <CheckBox Grid.Column="1"
+                                      Name="DefaultProfileCheckBox"
+                                      Content="Default"
+                                      FontSize="14"
+                                      Padding="6,0,0,0"
+                                      VerticalAlignment="Center"
+                                      VerticalContentAlignment="Center"
+                                      Foreground="{DynamicResource PrimaryTextBrush}"/>
+                        </Grid>
+
+                        <TextBox Grid.Row="2"
+                                 Name="ProfileNameTextBox"
                                  Style="{StaticResource PrimaryTextBoxStyle}"
-                                 MaxLength="50"/>
-                    </StackPanel>
+                                 MaxLength="60"/>
 
-                    <StackPanel Grid.Column="2">
-                        <TextBlock Text="Profile Options" Style="{StaticResource LabelTextBlockStyle}"/>
-                        <CheckBox Name="DefaultProfileCheckBox"
-                                  Content="Default"
-                                  FontSize="14"
-                                  VerticalAlignment="Center"
-                                  Padding="6,0,0,0"
-                                  Margin="0,0,0,8"
-                                  Foreground="{DynamicResource PrimaryTextBrush}"/>
-                    </StackPanel>
-                </Grid>
-
-                <StackPanel Margin="0,0,0,24">
-                    <TextBlock Text="Description" Style="{StaticResource LabelTextBlockStyle}"/>
-                    <TextBox Name="ProfileDescriptionTextBox"
-                             Style="{StaticResource PrimaryTextBoxStyle}"
-                             Height="60"
-                             TextWrapping="Wrap"
-                             VerticalScrollBarVisibility="Auto"
-                             AcceptsReturn="True"/>
-                </StackPanel>
-
-                <!-- Global Hotkey Section -->
-                <StackPanel Margin="0,0,0,24">
-                    <Grid>
-                        <StackPanel Orientation="Horizontal" Grid.Row="2">
-                            <TextBlock Text="Global Hotkey"
+                        <!-- Global Hotkey -->
+                        <Grid Grid.Row="4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="Global Hotkey"
                                        VerticalAlignment="Center"
                                        Margin="0,0,8,0"
-                                       Style="{StaticResource LabelTextBlockStyle}"/>
-                            <CheckBox Name="EnableHotkeyCheckBox"
+                                       Style="{StaticResource LabelTextBlockStyle}"
+                                       FontSize="14"/>
+                            <CheckBox Grid.Column="1"
+                                      Name="EnableHotkeyCheckBox"
                                       Content="Enable"
                                       FontSize="14"
                                       Padding="6,0,0,0"
                                       VerticalAlignment="Center"
+                                      VerticalContentAlignment="Center"
                                       Foreground="{DynamicResource PrimaryTextBrush}"
                                       Checked="EnableHotkeyCheckBox_Checked"
                                       Unchecked="EnableHotkeyCheckBox_Unchecked"/>
-                        </StackPanel>
-                        <TextBlock Text="Press ESC to clear"
-                                   FontSize="11"
-                                   Opacity="0.7"
-                                   HorizontalAlignment="Right"
-                                   Foreground="{DynamicResource TertiaryTextBrush}"/>
-                    </Grid>
+                            <Button Grid.Column="3"
+                                    Name="ClearHotkeyButton"
+                                    Content="Clear"
+                                    Style="{StaticResource DangerButtonStyle}"
+                                    Padding="6,3"
+                                    FontSize="12"
+                                    Click="ClearHotkeyButton_Click"
+                                    ToolTip="Clear hotkey"/>
+                        </Grid>
 
-                    <Grid Margin="0,4,0,0">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
-
-                        <controls:HotkeyEditorControl x:Name="HotkeyEditor"
-                                                      Grid.Row="0"
+                        <controls:HotkeyEditorControl Grid.Row="6"
+                                                      x:Name="HotkeyEditor"
                                                       HotkeyChanged="HotkeyEditor_HotkeyChanged"/>
-
-                        <TextBlock x:Name="ConflictWarning"
-                                   Grid.Row="1"
+                        <TextBlock Grid.Row="8"
+                                   x:Name="ConflictWarning"
                                    Text="⚠ Already assigned to another profile"
                                    Foreground="#FF6B35"
                                    Visibility="Collapsed"
-                                   Margin="0,4,0,0"
                                    FontSize="12"/>
-
                     </Grid>
-                </StackPanel>
+
+                    <!-- Description -->
+                    <Grid Grid.Column="2">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="5"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0"
+                                   Text="Description"
+                                   Margin="0,0,8,0"
+                                   Style="{StaticResource LabelTextBlockStyle}"/>
+                        <TextBox Grid.Row="2"
+                                 MaxHeight="104"
+                                 Name="ProfileDescriptionTextBox"
+                                 Style="{StaticResource PrimaryTextBoxStyle}"
+                                 TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto"
+                                 AcceptsReturn="True"/>
+                    </Grid>
+                </Grid>
+
+                <!-- Icon  -->
+                <Grid Margin="0,0,0,16">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="4"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0"
+                                   Text="Icon"
+                                   Style="{StaticResource LabelTextBlockStyle}"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,6,0"/>
+                        <Border Grid.Column="1"
+                                Width="24"
+                                Height="24"
+                                Background="{DynamicResource TextBoxBackgroundBrush}"
+                                BorderBrush="{DynamicResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Margin="0,0,6,0">
+                            <Image Name="IconPreviewImage"
+                                   Width="16"
+                                   Height="16"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   RenderOptions.BitmapScalingMode="HighQuality"/>
+                        </Border>
+                        <TextBlock Grid.Column="2"
+                                   Name="IconFilenameTextBlock"
+                                   Text="No icon"
+                                   Style="{StaticResource PrimaryTextBlockStyle}"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource TertiaryTextBrush}"
+                                   VerticalAlignment="Center"/>
+                        <StackPanel Grid.Column="3" Orientation="Horizontal">
+                            <Button Name="ImportIconButton"
+                                    Content="Import"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Padding="6,3"
+                                    FontSize="12"
+                                    Margin="0,0,6,0"
+                                    VerticalAlignment="Center"
+                                    Click="ImportIconButton_Click"
+                                    ToolTip="Import a .ico file"/>
+                            <Button Name="ClearIconButton"
+                                    Content="Clear"
+                                    Style="{StaticResource DangerButtonStyle}"
+                                    Padding="6,3"
+                                    FontSize="12"
+                                    VerticalAlignment="Center"
+                                    Click="ClearIconButton_Click"
+                                    ToolTip="Revert to no icon"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <ScrollViewer Grid.Row="2"
+                                  MaxHeight="156"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  Background="{DynamicResource TextBoxBackgroundBrush}"
+                                  Padding="14,8,0,8">
+                        <WrapPanel Name="BuiltinIconsPanel"/>
+                    </ScrollViewer>
+                </Grid>
 
                 <!-- Display Settings Section -->
                 <Grid Margin="0,0,0,16">
@@ -262,27 +379,36 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
-                    <TextBlock Grid.Column="0" Text="Display Settings"
+                    <TextBlock Grid.Column="0"
+                               Text="Displays"
                                Style="{StaticResource LabelTextBlockStyle}"
-                               FontSize="24" VerticalAlignment="Center"/>
+                               FontSize="24"
+                               VerticalAlignment="Center"/>
 
                     <StackPanel Grid.Column="1" Orientation="Horizontal">
-                        <Button Name="DetectDisplaysButton"
-                                Content="Detect Current"
-                                Style="{StaticResource SecondaryButtonStyle}"
-                                Margin="0,0,8,0"
-                                Click="DetectDisplaysButton_Click"/>
                         <Button Name="IdentifyDisplaysButton"
                                 Content="Identify"
                                 Style="{StaticResource SecondaryButtonStyle}"
+                                Margin="0,0,8,0"
                                 Click="IdentifyDisplaysButton_Click"
                                 ToolTip="Show monitor numbers on each display"/>
+                        <Button Name="LoadDisplaysButton"
+                                Content="Load"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                Width="60"
+                                Click="LoadDisplaysButton_Click"
+                                ToolTip="Load display settings to current state"/>
                     </StackPanel>
                 </Grid>
 
-                <Border Background="{DynamicResource ContentBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4" MinHeight="200" Padding="16">
+                <Border Background="{DynamicResource ContentBackgroundBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        MinHeight="200"
+                        Padding="16">
                     <StackPanel Name="DisplaySettingsPanel">
-                        <TextBlock Text="No display settings configured. Click 'Detect Current' to auto-populate from current desktop configuration."
+                        <TextBlock Text="No display settings configured. Click 'Load' to auto-populate from current desktop configuration."
                                    Style="{StaticResource PrimaryTextBlockStyle}"
                                    Foreground="{DynamicResource TertiaryTextBrush}"
                                    TextAlignment="Center"
@@ -292,27 +418,33 @@
                 </Border>
 
                 <!-- Audio Settings Section -->
-                <Grid Margin="0,24,0,16">
+                <Grid Margin="0,16,0,16">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
                     <TextBlock Grid.Column="0"
-                               Text="Audio Settings"
+                               Text="Audio"
                                Style="{StaticResource LabelTextBlockStyle}"
                                FontSize="24"
                                VerticalAlignment="Center"/>
 
                     <Button Grid.Column="1"
-                            Name="DetectAudioButton"
-                            Content="Detect Current Audio"
+                            Name="LoadAudioButton"
+                            Content="Load"
                             Style="{StaticResource SecondaryButtonStyle}"
-                            Click="DetectAudioButton_Click"/>
+                            Width="60"
+                            Click="LoadAudioButton_Click"
+                            ToolTip="Load audio settings from current state"/>
                 </Grid>
 
 
-                <Border Background="{DynamicResource ContentBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4" Padding="16">
+                <Border Background="{DynamicResource ContentBackgroundBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        Padding="16">
                     <Grid Grid.IsSharedSizeScope="True">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -324,29 +456,23 @@
                         <Grid Grid.Row="0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" SharedSizeGroup="AudioLabelGroup"/>
-                                <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
 
-                            <TextBlock Grid.Column="0"
-                                       Text="Output"
-                                       Style="{StaticResource LabelTextBlockStyle}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,8,0"/>
-
-                            <CheckBox Grid.Column="1"
+                            <CheckBox Grid.Column="0"
                                       Name="ApplyOutputDeviceCheckBox"
-                                      Content="Apply"
+                                      Content="Apply Output"
                                       FontSize="14"
                                       Padding="6,0,0,0"
                                       Margin="0,0,10,0"
                                       VerticalAlignment="Center"
+                                      VerticalContentAlignment="Center"
                                       Foreground="{DynamicResource PrimaryTextBrush}"
                                       ToolTip="If checked, this profile will change the output device"
                                       Checked="ApplyOutputDeviceCheckBox_Checked"
                                       Unchecked="ApplyOutputDeviceCheckBox_Unchecked"/>
 
-                            <ComboBox Grid.Column="2" Name="OutputDeviceComboBox"
+                            <ComboBox Grid.Column="1" Name="OutputDeviceComboBox"
                                       Style="{StaticResource PrimaryComboBoxStyle}"
                                       Height="32"
                                       IsEnabled="False"
@@ -373,29 +499,23 @@
                         <Grid Grid.Row="2">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" SharedSizeGroup="AudioLabelGroup"/>
-                                <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
 
-                            <TextBlock Grid.Column="0"
-                                       Text="Input"
-                                       Style="{StaticResource LabelTextBlockStyle}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,8,0"/>
-
-                            <CheckBox Grid.Column="1"
+                            <CheckBox Grid.Column="0"
                                       Name="ApplyInputDeviceCheckBox"
-                                      Content="Apply"
+                                      Content="Apply Input"
                                       FontSize="14"
                                       Padding="6,0,0,0"
                                       Margin="0,0,8,0"
                                       VerticalAlignment="Center"
+                                      VerticalContentAlignment="Center"
                                       Foreground="{DynamicResource PrimaryTextBrush}"
                                       ToolTip="If checked, this profile will change the input device"
                                       Checked="ApplyInputDeviceCheckBox_Checked"
                                       Unchecked="ApplyInputDeviceCheckBox_Unchecked"/>
 
-                            <ComboBox Grid.Column="2" Name="InputDeviceComboBox"
+                            <ComboBox Grid.Column="1" Name="InputDeviceComboBox"
                                       Style="{StaticResource PrimaryComboBoxStyle}"
                                       Height="32"
                                       IsEnabled="False"
@@ -419,35 +539,50 @@
                         </Grid>
                     </Grid>
                 </Border>
-                
-                    <!-- Scripts Section -->
-                    <Grid Margin="0,24,0,16">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="Scripts"
-                                           Style="{StaticResource LabelTextBlockStyle}"
-                                           FontSize="24"
-                                           Margin="0,0,8,0"/>
-                                <CheckBox Name="EnableScriptsCheckBox"
-                                          Content="Enable"
-                                          FontSize="14"
-                                          Padding="6,0,0,0"
-                                          Margin="0,0,10,0"
-                                          VerticalAlignment="Center"
-                                          Foreground="{DynamicResource PrimaryTextBrush}"
-                                          Checked="EnableScriptsCheckBox_Checked"
-                                          Unchecked="EnableScriptsCheckBox_Unchecked"/>
-                        </StackPanel>
-                            <Button Grid.Column="1"
-                                    Name="AddScriptButton"
-                                    Content="Import"
-                                    Style="{StaticResource SecondaryButtonStyle}"
-                                    Click="AddScriptButton_Click"/>
-                    </Grid>
-                <Border Background="{DynamicResource ContentBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4" Padding="16">
+
+                <!-- Scripts Section -->
+                <Grid Margin="0,16,0,16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Scripts"
+                                   Style="{StaticResource LabelTextBlockStyle}"
+                                   FontSize="24"
+                                   Margin="0,0,8,0"
+                                   VerticalAlignment="Center"/>
+                        <CheckBox Name="EnableScriptsCheckBox"
+                                  Content="Enable"
+                                  FontSize="14"
+                                  Padding="6,0,0,0"
+                                  Margin="0,6,8,0"
+                                  VerticalAlignment="Center"
+                                  VerticalContentAlignment="Center"
+                                  Foreground="{DynamicResource PrimaryTextBrush}"
+                                  Checked="EnableScriptsCheckBox_Checked"
+                                  Unchecked="EnableScriptsCheckBox_Unchecked"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                        <Button Name="AddScriptButton"
+                                Content="Import"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                Width="60"
+                                Margin="0,0,8,0"
+                                Click="AddScriptButton_Click"/>
+                        <Button Name="ClearAllScriptsButton"
+                                Content="Clear"
+                                Style="{StaticResource DangerButtonStyle}"
+                                Width="60"
+                                Click="ClearAllScriptsButton_Click"
+                                ToolTip="Mark all scripts for deletion"/>
+                    </StackPanel>
+                </Grid>
+                <Border Background="{DynamicResource ContentBackgroundBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        Padding="16,12,16,16">
                     <StackPanel>
                         <ItemsControl Name="ScriptsItemsControl"
                             VirtualizingStackPanel.IsVirtualizing="True"
@@ -456,20 +591,20 @@
                                 <DataTemplate>
                                     <Grid Name="ScriptRow">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="2*"/>
-                                            <!-- File -->
                                             <ColumnDefinition Width="*"/>
+                                            <!-- File -->
+                                            <ColumnDefinition Width="2*"/>
                                             <!-- Arguments -->
                                             <ColumnDefinition Width="Auto"/>
                                             <!-- Delete -->
                                         </Grid.ColumnDefinitions>
 
                                         <!-- File Path (Read-Only) -->
-                                        <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                        <StackPanel Grid.Column="0" Margin="0,0,16,0">
                                             <TextBlock Text="File"
                                                        Style="{StaticResource LabelTextBlockStyle}"
                                                        FontSize="12"
-                                                       Margin="0,0,0,4"/>
+                                                       Margin="0,4"/>
                                             <TextBox x:Name="FileBox"
                                                      Text="{Binding FileName, Mode=OneWay}"
                                                      IsReadOnly="True"
@@ -480,11 +615,11 @@
 
                                         <!-- Arguments (Editable) -->
                                         <StackPanel Grid.Column="1"
-                                                    Margin="0,0,8,0">
+                                                    Margin="0,0,16,0">
                                             <TextBlock Text="Arguments"
                                                        Style="{StaticResource LabelTextBlockStyle}"
                                                        FontSize="12"
-                                                       Margin="0,0,0,4"/>
+                                                       Margin="0,4"/>
                                             <TextBox x:Name="ArgsBox"
                                                      Text="{Binding Arguments, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                      Style="{StaticResource PrimaryTextBoxStyle}"/>
@@ -497,7 +632,8 @@
                                                 FontFamily="Segoe MDL2 Assets"
                                                 Style="{StaticResource SecondaryButtonStyle}"
                                                 VerticalAlignment="Bottom"
-                                                Height="32"
+                                                Width="36"
+                                                Height="36"
                                                 Click="RemoveScriptButton_Click"/>
                                     </Grid>
                                     <DataTemplate.Triggers>
@@ -515,13 +651,19 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                        <TextBlock Name="NoScriptsTextBlock" Text="No scripts linked to this profile." Style="{StaticResource PrimaryTextBlockStyle}" HorizontalAlignment="Center" Visibility="Collapsed"/>
+                        <TextBlock Name="NoScriptsTextBlock"
+                                   Text="No scripts linked to this profile."
+                                   Style="{StaticResource PrimaryTextBlockStyle}"
+                                   HorizontalAlignment="Center"
+                                   Visibility="Collapsed"/>
                     </StackPanel>
                 </Border>
             </StackPanel>
         </ScrollViewer>
 
-        <Border Grid.Row="2" Background="{DynamicResource WindowBackgroundBrush}" Padding="24,16">
+        <Border Grid.Row="2"
+                Background="{DynamicResource WindowBackgroundBrush}"
+                Padding="24,16">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -532,20 +674,21 @@
                            Name="StatusTextBlock"
                            Text="Ready"
                            Style="{StaticResource PrimaryTextBlockStyle}"
-                           FontSize="12" Foreground="{DynamicResource TertiaryTextBrush}"
+                           FontSize="12"
+                           Foreground="{DynamicResource TertiaryTextBrush}"
                            VerticalAlignment="Center"/>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal">
                     <Button Name="CancelButton"
                             Content="Cancel"
                             Style="{StaticResource SecondaryButtonStyle}"
-                            Width="80"
+                            Width="60"
                             Margin="0,0,8,0"
                             Click="CancelButton_Click"/>
                     <Button Name="SaveButton"
                             Content="Save"
                             Style="{StaticResource PrimaryButtonStyle}"
-                            Width="80"
+                            Width="60"
                             Click="SaveButton_Click"/>
                 </StackPanel>
             </Grid>

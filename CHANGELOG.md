@@ -6,12 +6,63 @@ For user-facing release notes, see the [GitHub Releases](https://github.com/Exyt
 
 ---
 
+<a id="2.0.4"></a>
+## [2.0.4] - 2026-05-23
+
+_[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManager/releases/tag/2.0.4)_
+
+### feat — custom profile icons
+
+- **`icon` field on `Profile`** — bare filename relative to `%AppData%\DisplayProfileManager\Icons\`, or `null` for no custom icon.
+- **Tray icon reflects active profile** — `TrayIcon` resolves `profile.Icon` via `IconHelper` and replaces `_notifyIcon.Icon` on each apply. Falls back to the default app icon (cached at init) if loading fails.
+- **Profile list inline icon** — `16×16` icon appears right of the profile name, left of Default/Active badges. Collapses to zero width when `Icon` is null via `DataTrigger`. Bound via `ProfileIconConverter`.
+- **Details panel inline icon** — `18×18` icon appears right of the profile name in the details panel when a custom icon is set.
+- **Profile editor icon picker** — full-width row between name/hotkey and Display Settings. Left: label, `32×32` preview, filename. Right: Import / Clear (danger). Import opens file picker filtered to `.ico`; copies into sandbox via `IconHelper.ImportIconAsync`. Scrollable `41×41` toggle grid below shows all icons in the sandbox; clicking selects, clicking again deselects. Clear removes the icon without deleting the file.
+- **`IconHelper`** — new helper (`Helpers/IconHelper.cs`) owning the Icons sandbox: `GetIconsFolderPath`, `ResolveIconPath` (path traversal rejection), `LoadIcon`, `LoadImageSource` (with `size` parameter and in-process `ConcurrentDictionary` cache keyed by `filename|size|lastWriteUtcTicks`), `ImportIconAsync`, `GetAvailableIcons`. Cache entries auto-evict when the source file is modified externally.
+- **`ProfileIconConverter`** — converter (`UI/Converters/ProfileIconConverter.cs`) mapping bare filename → `ImageSource` for list card binding.
+- **`ProfileViewModel.Icon`** — pass-through to `Profile.Icon`; required for list card DataTemplate binding.
+
+### feat — profile schema
+
+- **Schema version 2** — `CurrentSchemaVersion` bumped from 1 to 2. Version 1→2 migration is a no-op (`icon` defaults to `null`); version is bumped and re-saved. `DuplicateProfile` copies `Icon` from the source.
+
+### fix — UI alignment
+
+- **Checkbox and RadioButton template** — `Base.xaml` now provides implicit `CheckBox` and `RadioButton` styles with custom `Grid`-based templates. WPF's default `BulletDecorator` template ignores `VerticalContentAlignment`; the new template binds the bullet's `VerticalAlignment` directly to `VerticalContentAlignment`, fixing misalignment across all windows (MainWindow inline checkboxes, ProfileEditWindow, SettingsWindow, DisplaySettingControl).
+
+### fix — details panel
+
+- **Consistent section spacing** — all section headers in the details panel now share the same `16px` combined margin.
+- **Display section renamed** — "Display Settings:" → "Display:", "Audio Settings:" → "Audio:" for brevity, matching the profile editor header style.
+- **Disabled audio devices** — "Output: Not Applied" / "Input: Not Applied" rendered in `TertiaryTextBrush` (grayed) with no device name shown; enabled devices show name in `SecondaryTextBrush`.
+
+### fix — profile editor
+
+- **Monitor header** — simplified "Monitor N — Display Name" to "Display Name".
+- **Detect Current** buttons — simplified label to **Load**, added tooltips
+- **Checkboxes inline with monitor name** — Enable/Primary/HDR checkboxes now sit in the same header row as the monitor name for both single-display controls and clone group controls, removing the separate checkbox row below the name.
+- **HDR field order** — HDR now appears above DPI Scaling in both the details panel and profile editor.
+- **DPI Scaling label** — shortened to "DPI" in the details panel.
+- **Clear All Scripts button** — added alongside Import in the Scripts section header. Marks all non-deleted scripts `IsDeleted = true` in one click; individual restore still works per-row via the toggle delete button.
+- **ProfileEditWindow spawns over MainWindow** — `Window_Loaded` now sets size and position to match the owner window at open time.
+
+### misc
+
+- **Profile list item gap removed** — `ListBoxItem` margin reduced from `0,1` to `0`, eliminating the 2px gap that caused jitter when the Apply button appeared and description text reflowed.
+- **Profile name length limit** — `MaxLength` on the name `TextBox` increased from `50` to `60`. Names above 63 characters cause tray menu truncation; 60 is the enforced UI ceiling with headroom below the known breakpoint.
+- **Refresh removed from tray** — the Refresh entry has been removed from the system tray context menu.
+- **Contributor links** — contributor entries in Settings → About now include a linked `(PR #N)`, `(Fork)`, or `(Original project)` label between the name and description. `AboutHelper.Contributors` updated with link label and URL constants for each entry.
+- **Dependency updates** — NLog updated to 6.1.3; Newtonsoft.Json updated to 13.0.4.
+- **General refinement** — comment density reduced, UI consistency improvements. `DPMThemeBuilder.pyw` preview window updated.
+
+---
+
 <a id="2.0.3"></a>
 ## [2.0.3] - 2026-05-22
 
 _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManager/releases/tag/2.0.3)_
 
-### refactor — audio
+### fix — audio
 
 - **`AudioHelper` rewritten as a direct COM wrapper** — `AudioSwitcher.AudioApi` and `AudioSwitcher.AudioApi.CoreAudio` are replaced with a thin P/Invoke layer targeting Windows `IMMDeviceEnumerator` and `IPolicyConfig` directly. `CoreAudioController` construction took multiple seconds and was required on every profile apply and editor open (device enumeration for the dropdown). The new implementation constructs and releases a bare COM object per operation in single-digit milliseconds. No persistent subscription, no background threads, no third-party library overhead.
 - **`AudioSwitcher` dependencies removed** — `AudioSwitcher.AudioApi.dll` and `AudioSwitcher.AudioApi.CoreAudio.dll` stripped from project compilation, installer, and portable archives.
@@ -24,7 +75,7 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 
 ### misc
 
-- **Dependency updates** — NLog updated to 6.1.3; Newtonsoft.Json updated to 13.0.4.
+- ~~**Dependency updates** — NLog updated to 6.1.3; Newtonsoft.Json updated to 13.0.4.~~ Only updated in `packages.config`, resolved in [2.0.4](#2.0.4)
 
 ---
 
@@ -156,7 +207,7 @@ The original CLI from [v1.0.0](#v1.0.0) supported only `--tray` (start minimized
 
 - **Command queue** — multiple commands can be issued in a single invocation and are executed in order.
 - **Fuzzy flag matching** — `--profile`, `--p`, `-p`, `pro` etc. all resolve to the same command. Flags are matched by prefix against their full name.
-- **`--tray`** — start minimized to tray (carried from [v1.0.0](#v1.0.0).
+- **`--tray`** — start minimized to tray (carried from [v1.0.0](#v1.0.0)).
 - **`--dev`** — bypass single-instance enforcement; allows a second instance to run alongside a running one (carried from [PR #23](https://github.com/zac15987/DisplayProfileManager/pull/23)).
 - **`--refresh`/`--reload`/`-r`** — rescans the profiles and themes folder and reapplies the current theme, equivalent to pressing the Refresh button in the UI. Does not re-apply the active display profile. Designed to support external tools (such as DPM Theme Builder) that modify theme files and need to signal the running instance to pick up changes.
 - **`--theme`  /` -t` + "name"** — apply a named theme. With no argument, resolves and refreshes the currently active theme from settings.
@@ -246,7 +297,7 @@ _Note: clone creation for non-primary displays remained broken — `EnableDispla
 - **`DisplayGroupingHelper` inner class** _([PR #23](https://github.com/zac15987/DisplayProfileManager/pull/23))_ — groups displays in the editor UI (extracted to its own file in [2.0.0](#2.0.0))
 - **HDR enable/disable per display** — via `DisplayConfigSetDeviceInfo`; broken due to incorrect `TargetId` — see note below
 - **~~Staged application mode~~** — applied settings in two phases with a configurable blocking delay as a workaround for displays not receiving settings during deep sleep. The delay was a fixed `Thread.Sleep` and was non-deterministic in practice. Removed in [2.0.0](#2.0.0)
-- **Initial `SetDisplayConfig`-based apply** — an attempt was made to move toward atomic display configuration via `SetDisplayConfig`. Separate post-calls for resolution and primary display were still required due to malformed path/mode construction. Fully resolved in [2.0.0](#2.0.0)
+- **Initial `SetDisplayConfig`-based apply** — an attempt was made to move toward atomic display configuration via `SetDisplayConfig`. Separate post-calls for resolution and primary display were still required due to malformed path/mode construction. Resolved in [2.0.0](#2.0.0)
 
 ### tests
 

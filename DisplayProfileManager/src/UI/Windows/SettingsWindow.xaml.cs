@@ -584,54 +584,65 @@ namespace DisplayProfileManager.UI.Windows
 
                 var contributors = new[]
                 {
-                    new
-                    {
-                        Name        = AboutHelper.Contributors.Zac15987Name,
-                        Url         = AboutHelper.Contributors.Zac15987Url,
-                        Description = AboutHelper.Contributors.Zac15987Desc,
-                        SubText     = "(community requests: audio switching by @Catriks & @Alienmario; hotkeys by @anodynos; monitor disable/enable by @xtrilla)"
-                    },
-                    new
-                    {
-                        Name        = AboutHelper.Contributors.JarandalName,
-                        Url         = AboutHelper.Contributors.JarandalUrl,
-                        Description = AboutHelper.Contributors.JarandalDesc,
-                        SubText     = (string)null
-                    },
-                    new
-                    {
-                        Name        = AboutHelper.Contributors.JonathanasdfName,
-                        Url         = AboutHelper.Contributors.JonathanasdfUrl,
-                        Description = AboutHelper.Contributors.JonathanasdfDesc,
-                        SubText     = (string)null
-                    },
-                    new
-                    {
-                        Name        = AboutHelper.Contributors.RvahilarioName,
-                        Url         = AboutHelper.Contributors.RvahilarioUrl,
-                        Description = AboutHelper.Contributors.RvahilarioDesc,
-                        SubText     = (string)null
-                    },
-                    new
-                    {
-                        Name        = AboutHelper.Contributors.XtrillaName,
-                        Url         = AboutHelper.Contributors.XtrillaUrl,
-                        Description = AboutHelper.Contributors.XtrillaDesc,
-                        SubText     = (string)null
-                    },
-                    new
-                    {
-                        Name        = AboutHelper.Contributors.ExytralName,
-                        Url         = AboutHelper.Contributors.ExytralUrl,
-                        Description = AboutHelper.Contributors.ExytralDesc,
-                        SubText     = (string)null
-                    },
-                };
+            new
+            {
+                Name        = AboutHelper.Contributors.Zac15987Name,
+                Url         = AboutHelper.Contributors.Zac15987Url,
+                LinkLabel   = AboutHelper.Contributors.Zac15987LinkLabel,
+                LinkUrl     = AboutHelper.Contributors.Zac15987LinkUrl,
+                Description = AboutHelper.Contributors.Zac15987Desc,
+                SubText     = "(community requests: audio switching by @Catriks & @Alienmario; hotkeys by @anodynos; monitor disable/enable by @xtrilla)"
+            },
+            new
+            {
+                Name        = AboutHelper.Contributors.JarandalName,
+                Url         = AboutHelper.Contributors.JarandalUrl,
+                LinkLabel   = AboutHelper.Contributors.JarandalLinkLabel,
+                LinkUrl     = AboutHelper.Contributors.JarandalLinkUrl,
+                Description = AboutHelper.Contributors.JarandalDesc,
+                SubText     = (string)null
+            },
+            new
+            {
+                Name        = AboutHelper.Contributors.JonathanasdfName,
+                Url         = AboutHelper.Contributors.JonathanasdfUrl,
+                LinkLabel   = AboutHelper.Contributors.JonathanasdfLinkLabel,
+                LinkUrl     = AboutHelper.Contributors.JonathanasdfLinkUrl,
+                Description = AboutHelper.Contributors.JonathanasdfDesc,
+                SubText     = (string)null
+            },
+            new
+            {
+                Name        = AboutHelper.Contributors.RvahilarioName,
+                Url         = AboutHelper.Contributors.RvahilarioUrl,
+                LinkLabel   = AboutHelper.Contributors.RvahilarioLinkLabel,
+                LinkUrl     = AboutHelper.Contributors.RvahilarioLinkUrl,
+                Description = AboutHelper.Contributors.RvahilarioDesc,
+                SubText     = (string)null
+            },
+            new
+            {
+                Name        = AboutHelper.Contributors.XtrillaName,
+                Url         = AboutHelper.Contributors.XtrillaUrl,
+                LinkLabel   = AboutHelper.Contributors.XtrillaLinkLabel,
+                LinkUrl     = AboutHelper.Contributors.XtrillaLinkUrl,
+                Description = AboutHelper.Contributors.XtrillaDesc,
+                SubText     = (string)null
+            },
+            new
+            {
+                Name        = AboutHelper.Contributors.ExytralName,
+                Url         = AboutHelper.Contributors.ExytralUrl,
+                LinkLabel   = (string)null,
+                LinkUrl     = (string)null,
+                Description = AboutHelper.Contributors.ExytralDesc,
+                SubText     = "(community requests: custom profile icons by @ffgtthr)"
+            },
+        };
 
                 foreach (var contributor in contributors)
                 {
                     var entryPanel = new StackPanel { Margin = new Thickness(0, 2, 0, 2) };
-
                     var linePanel = new StackPanel { Orientation = Orientation.Horizontal };
 
                     linePanel.Children.Add(new TextBlock
@@ -642,20 +653,44 @@ namespace DisplayProfileManager.UI.Windows
                         Foreground = (Brush)FindResource("TertiaryTextBrush")
                     });
 
-                    var link = new System.Windows.Documents.Hyperlink(
+                    // Name hyperlink
+                    var nameLink = new System.Windows.Documents.Hyperlink(
                         new System.Windows.Documents.Run(contributor.Name))
                     {
                         NavigateUri = new Uri(contributor.Url),
                         Foreground = (Brush)FindResource("LinkBrush")
                     };
-                    link.RequestNavigate += Hyperlink_RequestNavigate;
+                    nameLink.RequestNavigate += Hyperlink_RequestNavigate;
 
-                    linePanel.Children.Add(new TextBlock(link)
+                    linePanel.Children.Add(new TextBlock(nameLink)
                     {
                         Style = (Style)FindResource("PrimaryTextBlockStyle"),
                         FontSize = 12,
                         Foreground = (Brush)FindResource("TertiaryTextBrush")
                     });
+
+                    // Label hyperlink
+                    if (!string.IsNullOrEmpty(contributor.LinkLabel))
+                    {
+                        var refLink = new System.Windows.Documents.Hyperlink(
+                            new System.Windows.Documents.Run(contributor.LinkLabel))
+                        {
+                            NavigateUri = new Uri(contributor.LinkUrl),
+                            Foreground = (Brush)FindResource("LinkBrush")
+                        };
+                        refLink.RequestNavigate += Hyperlink_RequestNavigate;
+
+                        var refBlock = new TextBlock
+                        {
+                            Style = (Style)FindResource("PrimaryTextBlockStyle"),
+                            FontSize = 12,
+                            Foreground = (Brush)FindResource("TertiaryTextBrush")
+                        };
+                        refBlock.Inlines.Add(new System.Windows.Documents.Run(" ("));
+                        refBlock.Inlines.Add(refLink);
+                        refBlock.Inlines.Add(new System.Windows.Documents.Run(")"));
+                        linePanel.Children.Add(refBlock);
+                    }
 
                     linePanel.Children.Add(new TextBlock
                     {

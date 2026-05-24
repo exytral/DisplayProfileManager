@@ -474,9 +474,7 @@ namespace DisplayProfileManager.Helpers
                         continue;
                     }
 
-                    // Extract base TargetId - Windows encodes SourceId in high bytes when in clone mode
-                    // e.g., 0x03001100 = (SourceId 3 << 24) | BaseTargetId 0x1100
-                    // We need the base TargetId (lower 16 bits) for stable identification
+                    // Extract base TargetId (lower 16 bits) for stable identification - Windows encodes SourceId in high bytes when in clone mode
                     uint baseTargetId = path.targetInfo.id & 0xFFFF;
 
                     var displayConfig = new DisplayConfigInfo
@@ -533,9 +531,9 @@ namespace DisplayProfileManager.Helpers
                         bool isEnabled = (flags & DISPLAYCONFIG_ADVANCED_COLOR_INFO_FLAGS.AdvancedColorEnabled) != 0;
                         bool isForceDisabled = (flags & DISPLAYCONFIG_ADVANCED_COLOR_INFO_FLAGS.AdvancedColorForceDisabled) != 0;
 
-                        // Final decision: supported if flag is set and not force disabled
+                        // Supported if flag is set and not force disabled
                         bool finalSupported = isSupported && !isForceDisabled;
-                        // Final decision: enabled if flag is set or force disabled but we see YCbCr444 (some systems don't set the enabled flag correctly)
+                        // Enabled if flag is set or force disabled but YCbCr444 is present
                         bool finalEnabled = isEnabled || (finalSupported && colorInfo.colorEncoding == DISPLAYCONFIG_COLOR_ENCODING.DISPLAYCONFIG_COLOR_ENCODING_YCBCR444);
 
                         displayConfig.IsHdrSupported = finalSupported;
@@ -587,8 +585,6 @@ namespace DisplayProfileManager.Helpers
 
                     displays.Add(displayConfig);
                 }
-
-                //logger.Info($"Detected {displays.Count} display(s)");
             }
             catch (Exception ex)
             {

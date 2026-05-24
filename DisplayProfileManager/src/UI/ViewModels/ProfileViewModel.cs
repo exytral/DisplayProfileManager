@@ -20,6 +20,7 @@ namespace DisplayProfileManager.UI.ViewModels
         public string Id => _profile.Id;
         public string Name => _profile.Name;
         public string Description => _profile.Description;
+        public string Icon => _profile.Icon;
         public bool IsDefault => _profile.IsDefault;
         public DateTime CreatedDate => _profile.CreatedDate;
         public DateTime LastModifiedDate => _profile.LastModifiedDate;

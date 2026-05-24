@@ -16,6 +16,7 @@ namespace DisplayProfileManager.UI
         private ContextMenuStrip _contextMenu;
         private ProfileManager _profileManager;
         private bool _disposed = false;
+        private Icon _defaultIcon;
 
         public event EventHandler ShowMainWindow;
         public event EventHandler ShowSettingsWindow;
@@ -24,14 +25,25 @@ namespace DisplayProfileManager.UI
         public TrayIcon()
         {
             _profileManager = ProfileManager.Instance;
-            InitializeTrayIcon();
             SetupEventHandlers();
+            InitializeTrayIcon();
+
+        }
+
+        private void SetupEventHandlers()
+        {
+            _profileManager.ProfileAdded += OnProfileChanged;
+            _profileManager.ProfileUpdated += OnProfileChanged;
+            _profileManager.ProfileDeleted += OnProfileDeleted;
+            _profileManager.ProfilesLoaded += OnProfilesLoaded;
+            _profileManager.ProfileApplied += OnProfileApplied;
         }
 
         private void InitializeTrayIcon()
         {
             _notifyIcon = new NotifyIcon();
             _notifyIcon.Icon = CreateTrayIcon();
+            _defaultIcon = _notifyIcon.Icon;
             _notifyIcon.Text = "Display Profile Manager";
             _notifyIcon.Visible = true;
 
@@ -44,6 +56,27 @@ namespace DisplayProfileManager.UI
             UpdateTrayIconTooltip();
         }
 
+        private Icon CreateTrayIcon()
+        {
+            try
+            {
+                var icon = Properties.Resources.AppIcon;
+                if (icon != null)
+                {
+                    return icon;
+                }
+                else
+                {
+                    return SystemIcons.Application;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.Warn(ex, "Failed to load icon from resources");
+                return SystemIcons.Application;
+            }
+        }
+
         private void UpdateTrayIconTooltip()
         {
             var currentProfile = _profileManager.GetCurrentProfile();
@@ -53,10 +86,8 @@ namespace DisplayProfileManager.UI
                 string currentProfileName = currentProfile.Name;
                 string fullTooltip = $"{prefix}{currentProfileName}";
 
-                // NotifyIcon.Text has a strict 63-character limit.
                 if (fullTooltip.Length >= 64)
                 {
-                    // Truncate the name to fit within the 63 char limit including ellipses
                     int availableSpace = 63 - prefix.Length - 3;
                     if (availableSpace > 0)
                     {
@@ -64,7 +95,6 @@ namespace DisplayProfileManager.UI
                     }
                     else
                     {
-                        // Fallback if the prefix itself is nearly 63 chars
                         fullTooltip = fullTooltip.Substring(0, 60) + "...";
                     }
                 }
@@ -73,36 +103,10 @@ namespace DisplayProfileManager.UI
             }
         }
 
-        private void SetupEventHandlers()
+        private void UpdateTrayIcon(Profile profile)
         {
-            _profileManager.ProfileAdded += OnProfileChanged;
-            _profileManager.ProfileUpdated += OnProfileChanged;
-            _profileManager.ProfileDeleted += OnProfileDeleted;
-            _profileManager.ProfilesLoaded += OnProfilesLoaded;
-            _profileManager.ProfileApplied += OnProfileApplied;
-        }
-
-        private Icon CreateTrayIcon()
-        {
-            try
-            {
-                // Try to load from Resources
-                var icon = Properties.Resources.AppIcon;
-                if (icon != null)
-                {
-                    return icon;
-                }
-                else
-                {
-                    // Fallback to a default icon if not found
-                    return SystemIcons.Application;
-                }
-            }
-            catch (Exception ex)
-            {
-                logger.Warn(ex, "Failed to load icon from resources");
-                return SystemIcons.Application;
-            }
+            var icon = IconHelper.LoadIcon(profile?.Icon);
+            _notifyIcon.Icon = icon ?? _defaultIcon;
         }
 
         private void BuildContextMenu()
@@ -119,7 +123,6 @@ namespace DisplayProfileManager.UI
                 {
                     var profileDisplayName = profile.Name;
 
-                    // Add hotkey display if profile has one
                     if (profile.HotkeyConfig?.IsEnabled == true &&
                         profile.HotkeyConfig.Key != System.Windows.Input.Key.None)
                     {
@@ -135,13 +138,6 @@ namespace DisplayProfileManager.UI
                         profileItem.Checked = true;
                     }
 
-                    // Indicate disabled hotkey
-                    if (profile.HotkeyConfig?.IsEnabled == false &&
-                        profile.HotkeyConfig.Key != System.Windows.Input.Key.None)
-                    {
-                        // do nothing here for now
-                    }
-
                     profilesMenuItem.DropDownItems.Add(profileItem);
                 }
 
@@ -152,10 +148,6 @@ namespace DisplayProfileManager.UI
             var manageProfilesItem = new ToolStripMenuItem("Manage Profiles...");
             manageProfilesItem.Click += OnManageProfilesClick;
             _contextMenu.Items.Add(manageProfilesItem);
-
-            var refreshItem = new ToolStripMenuItem("Refresh");
-            refreshItem.Click += OnRefreshClick;
-            _contextMenu.Items.Add(refreshItem);
 
             _contextMenu.Items.Add(new ToolStripSeparator());
 
@@ -197,14 +189,13 @@ namespace DisplayProfileManager.UI
                 }
                 catch (Exception ex)
                 {
-                    // async void: guard ShowBalloonTip — tray icon may be disposed during shutdown.
                     logger.Error(ex, $"Error applying profile via tray");
                     try
                     {
                         _notifyIcon?.ShowBalloonTip(5000, "Display Profile Manager",
                             $"Error applying profile: {ex.Message}", ToolTipIcon.Error);
                     }
-                    catch { /* swallow: tray icon disposed or unavailable */ }
+                    catch { }
                 }
             }
         }
@@ -217,26 +208,6 @@ namespace DisplayProfileManager.UI
         private void OnManageProfilesClick(object sender, EventArgs e)
         {
             ShowMainWindow?.Invoke(this, EventArgs.Empty);
-        }
-
-        private async void OnRefreshClick(object sender, EventArgs e)
-        {
-            try
-            {
-                await _profileManager.LoadProfilesAsync();
-                BuildContextMenu();
-                _notifyIcon.ShowBalloonTip(2000, "Display Profile Manager",
-                    "Profiles refreshed", ToolTipIcon.Info);
-            }
-            catch (Exception ex)
-            {
-                try
-                {
-                    _notifyIcon?.ShowBalloonTip(5000, "Display Profile Manager",
-                        $"Error refreshing profiles: {ex.Message}", ToolTipIcon.Error);
-                }
-                catch { /* swallow: tray icon disposed or unavailable */ }
-            }
         }
 
         private void OnSettingsClick(object sender, EventArgs e)
@@ -268,9 +239,10 @@ namespace DisplayProfileManager.UI
         {
             BuildContextMenu();
             UpdateTrayIconTooltip();
+            UpdateTrayIcon(e);
         }
 
-        public void ShowNotification(string title, string message, ToolTipIcon icon = ToolTipIcon.Info, int timeout = 3000)
+        public void ShowNotification(string title, string message, ToolTipIcon icon = ToolTipIcon.None, int timeout = 3000)
         {
             _notifyIcon.ShowBalloonTip(timeout, title, message, icon);
         }

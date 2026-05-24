@@ -25,7 +25,6 @@ namespace DisplayProfileManager.Core
         {
             _scriptHelper = new ScriptHelper();
 
-            // Internalize the path logic
             string appData = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 "DisplayProfileManager"
@@ -62,7 +61,6 @@ namespace DisplayProfileManager.Core
             string name = parts.Path;
             string args = parts.Args;
 
-            // Resolve the path within the sandbox folder
             string path = Path.Combine(_scriptsFolderPath, name);
 
             if (File.Exists(path))
@@ -99,33 +97,32 @@ namespace DisplayProfileManager.Core
             scripts.Sort(StringComparer.OrdinalIgnoreCase);
         }
 
-        public async Task<string> ImportScriptAsync(string externalPath)
+        public async Task<string> ImportScriptAsync(string sourcePath)
         {
             try
             {
                 EnsureScriptsFolderExists();
-                if (!File.Exists(externalPath)) return null;
+                if (!File.Exists(sourcePath)) return null;
 
-                string originalFileName = Path.GetFileName(externalPath);
+                string originalFileName = Path.GetFileName(sourcePath);
                 string ext = Path.GetExtension(originalFileName).ToLower();
                 bool isExe = ext == ".exe";
 
-                // If extension is .exe, change target extension to .lnk
                 string fileName = isExe
                     ? Path.GetFileNameWithoutExtension(originalFileName) + ".lnk"
                     : originalFileName;
 
                 string destinationPath = Path.Combine(_scriptsFolderPath, fileName);
 
-                logger.Debug($"ImportScript sandbox check: dir='{Path.GetFullPath(Path.GetDirectoryName(externalPath)).TrimEnd(Path.DirectorySeparatorChar)}' sandbox='{Path.GetFullPath(_scriptsFolderPath).TrimEnd(Path.DirectorySeparatorChar)}'");
+                logger.Debug($"ImportScript sandbox check: dir='{Path.GetFullPath(Path.GetDirectoryName(sourcePath)).TrimEnd(Path.DirectorySeparatorChar)}' sandbox='{Path.GetFullPath(_scriptsFolderPath).TrimEnd(Path.DirectorySeparatorChar)}'");
 
-                // Early-return if already in sandbox — normalize both paths to avoid separator mismatches
+                // Early-return if already in sandbox
                 if (string.Equals(
-                    Path.GetFullPath(Path.GetDirectoryName(externalPath)).TrimEnd(Path.DirectorySeparatorChar),
+                    Path.GetFullPath(Path.GetDirectoryName(sourcePath)).TrimEnd(Path.DirectorySeparatorChar),
                     Path.GetFullPath(_scriptsFolderPath).TrimEnd(Path.DirectorySeparatorChar),
                     StringComparison.OrdinalIgnoreCase))
                 {
-                    return Path.GetFileName(externalPath);
+                    return Path.GetFileName(sourcePath);
                 }
 
                 int counter = 1;
@@ -140,11 +137,11 @@ namespace DisplayProfileManager.Core
                 {
                     if (isExe)
                     {
-                        CreateShortcut(destinationPath, externalPath);
+                        CreateShortcut(destinationPath, sourcePath);
                     }
                     else
                     {
-                        File.Copy(externalPath, destinationPath);
+                        File.Copy(sourcePath, destinationPath);
                     }
                 });
 
@@ -159,7 +156,6 @@ namespace DisplayProfileManager.Core
 
         private void CreateShortcut(string shortcutPath, string targetPath)
         {
-            // Uses late-binding to Windows Script Host to avoid needing COM References in the project
             Type t = Type.GetTypeFromProgID("WScript.Shell");
             dynamic shell = Activator.CreateInstance(t);
             dynamic shortcut = shell.CreateShortcut(shortcutPath);

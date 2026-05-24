@@ -121,15 +121,42 @@ namespace DisplayProfileManager.UI.Windows
             ActionButtonsPanel.Visibility = Visibility.Visible;
             ProfileDetailsPanel.Children.Clear();
 
-            var nameBlock = new TextBlock
+            // Profile Information Section
+            var nameRow = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+
+            nameRow.Children.Add(new TextBlock
             {
                 Text = profile.Name,
                 Style = (Style)FindResource("PrimaryTextBlockStyle"),
                 FontWeight = FontWeights.SemiBold,
                 FontSize = 16,
-                Margin = new Thickness(0, 0, 0, 8)
-            };
-            ProfileDetailsPanel.Children.Add(nameBlock);
+                Margin = new Thickness(0, 0, 6, 0),
+                VerticalAlignment = VerticalAlignment.Center
+            });
+            ProfileDetailsPanel.Children.Add(nameRow);
+
+            if (!string.IsNullOrWhiteSpace(profile.Icon))
+            {
+                var iconSource = IconHelper.LoadImageSource(profile.Icon);
+                if (iconSource != null)
+                {
+                    var iconImage = new Image
+                    {
+                        Source = iconSource,
+                        Width = 18,
+                        Height = 18,
+                        Margin = new Thickness(0, 2, 6, 0),
+                        VerticalAlignment = VerticalAlignment.Center
+                    };
+                    RenderOptions.SetBitmapScalingMode(
+                        iconImage, BitmapScalingMode.HighQuality);
+                    nameRow.Children.Add(iconImage);
+                }
+            }
 
             if (!string.IsNullOrEmpty(profile.Description))
             {
@@ -144,14 +171,15 @@ namespace DisplayProfileManager.UI.Windows
                 ProfileDetailsPanel.Children.Add(descBlock);
             }
 
+            // Display Settings Section
             if (profile.DisplaySettings.Count > 0)
             {
                 var displaysHeader = new TextBlock
                 {
-                    Text = "Display Settings:",
+                    Text = "Displays",
                     Style = (Style)FindResource("PrimaryTextBlockStyle"),
                     FontWeight = FontWeights.Medium,
-                    Margin = new Thickness(0, 0, 0, 8)
+                    Margin = new Thickness(0, 8, 0, 8)
                 };
                 ProfileDetailsPanel.Children.Add(displaysHeader);
 
@@ -159,7 +187,6 @@ namespace DisplayProfileManager.UI.Windows
                 {
                     var settingPanel = new StackPanel { Margin = new Thickness(0, 0, 0, 12) };
 
-                    // Add a border for disabled monitors to make them visually distinct
                     if (!setting.IsEnabled)
                     {
                         var disabledBorder = new Border
@@ -173,7 +200,6 @@ namespace DisplayProfileManager.UI.Windows
 
                         var innerPanel = new StackPanel();
 
-                        // Add disabled indicator
                         var disabledIndicator = new TextBlock
                         {
                             Text = "⚠ DISABLED MONITOR",
@@ -206,9 +232,35 @@ namespace DisplayProfileManager.UI.Windows
                         };
                         innerPanel.Children.Add(resolution);
 
+                        if (setting.Rotation != 1)
+                        {
+                            var rotation = new TextBlock
+                            {
+                                Text = $"Rotation: {GetRotationString(setting.Rotation)}",
+                                Style = (Style)FindResource("PrimaryTextBlockStyle"),
+                                FontSize = 12,
+                                Foreground = (SolidColorBrush)FindResource("SecondaryTextBrush"),
+                                Opacity = 0.6
+                            };
+                            innerPanel.Children.Add(rotation);
+                        }
+
+                        if (setting.IsHdrSupported)
+                        {
+                            var hdr = new TextBlock
+                            {
+                                Text = $"HDR: {(setting.IsHdrEnabled ? "On" : "Off")}",
+                                Style = (Style)FindResource("PrimaryTextBlockStyle"),
+                                FontSize = 12,
+                                Foreground = (SolidColorBrush)FindResource("SecondaryTextBrush"),
+                                Opacity = 0.6
+                            };
+                            innerPanel.Children.Add(hdr);
+                        }
+
                         var dpi = new TextBlock
                         {
-                            Text = $"DPI Scaling: {setting.GetDpiString()}",
+                            Text = $"DPI: {setting.GetDpiString()}",
                             Style = (Style)FindResource("PrimaryTextBlockStyle"),
                             FontSize = 12,
                             Foreground = (SolidColorBrush)FindResource("SecondaryTextBrush"),
@@ -235,7 +287,6 @@ namespace DisplayProfileManager.UI.Windows
                     }
                     else
                     {
-                        // Enabled monitor - with border for consistency
                         var enabledBorder = new Border
                         {
                             Background = new SolidColorBrush(Colors.Transparent),
@@ -266,9 +317,33 @@ namespace DisplayProfileManager.UI.Windows
                         };
                         innerPanel.Children.Add(resolution);
 
+                        if (setting.Rotation != 1)
+                        {
+                            var rotation = new TextBlock
+                            {
+                                Text = $"Rotation: {GetRotationString(setting.Rotation)}",
+                                Style = (Style)FindResource("PrimaryTextBlockStyle"),
+                                FontSize = 12,
+                                Foreground = (SolidColorBrush)FindResource("SecondaryTextBrush")
+                            };
+                            innerPanel.Children.Add(rotation);
+                        }
+
+                        if (setting.IsHdrSupported)
+                        {
+                            var hdr = new TextBlock
+                            {
+                                Text = $"HDR: {(setting.IsHdrEnabled ? "On" : "Off")}",
+                                Style = (Style)FindResource("PrimaryTextBlockStyle"),
+                                FontSize = 12,
+                                Foreground = (SolidColorBrush)FindResource("SecondaryTextBrush")
+                            };
+                            innerPanel.Children.Add(hdr);
+                        }
+
                         var dpi = new TextBlock
                         {
-                            Text = $"DPI Scaling: {setting.GetDpiString()}",
+                            Text = $"DPI: {setting.GetDpiString()}",
                             Style = (Style)FindResource("PrimaryTextBlockStyle"),
                             FontSize = 12,
                             Foreground = (SolidColorBrush)FindResource("SecondaryTextBrush")
@@ -303,10 +378,10 @@ namespace DisplayProfileManager.UI.Windows
             {
                 var audioHeader = new TextBlock
                 {
-                    Text = "Audio Settings:",
+                    Text = "Audio",
                     Style = (Style)FindResource("PrimaryTextBlockStyle"),
                     FontWeight = FontWeights.Medium,
-                    Margin = new Thickness(0, 16, 0, 8)
+                    Margin = new Thickness(0, 8, 0, 8)
                 };
                 ProfileDetailsPanel.Children.Add(audioHeader);
 
@@ -314,13 +389,17 @@ namespace DisplayProfileManager.UI.Windows
 
                 if (profile.AudioSettings.HasPlaybackDevice())
                 {
-                    var applyStatus = profile.AudioSettings.ApplyPlaybackDevice ? "" : " (Not Applied)";
+                    string outputText = profile.AudioSettings.ApplyPlaybackDevice
+                        ? $"Output: {profile.AudioSettings.PlaybackDeviceName}"
+                        : "Output: Not Applied";
                     var playbackDevice = new TextBlock
                     {
-                        Text = $"Output: {profile.AudioSettings.PlaybackDeviceName}{applyStatus}",
+                        Text = outputText,
                         Style = (Style)FindResource("PrimaryTextBlockStyle"),
                         FontSize = 12,
-                        Foreground = (SolidColorBrush)FindResource("SecondaryTextBrush"),
+                        Foreground = profile.AudioSettings.ApplyPlaybackDevice
+                            ? (SolidColorBrush)FindResource("SecondaryTextBrush")
+                            : (SolidColorBrush)FindResource("TertiaryTextBrush"),
                         Margin = new Thickness(0, 0, 0, 2)
                     };
                     audioPanel.Children.Add(playbackDevice);
@@ -328,13 +407,17 @@ namespace DisplayProfileManager.UI.Windows
 
                 if (profile.AudioSettings.HasCaptureDevice())
                 {
-                    var applyStatus = profile.AudioSettings.ApplyCaptureDevice ? "" : " (Not Applied)";
+                    string inputText = profile.AudioSettings.ApplyCaptureDevice
+                        ? $"Input: {profile.AudioSettings.CaptureDeviceName}"
+                        : "Input: Not Applied";
                     var captureDevice = new TextBlock
                     {
-                        Text = $"Input: {profile.AudioSettings.CaptureDeviceName}{applyStatus}",
+                        Text = inputText,
                         Style = (Style)FindResource("PrimaryTextBlockStyle"),
                         FontSize = 12,
-                        Foreground = (SolidColorBrush)FindResource("SecondaryTextBrush")
+                        Foreground = profile.AudioSettings.ApplyCaptureDevice
+                            ? (SolidColorBrush)FindResource("SecondaryTextBrush")
+                            : (SolidColorBrush)FindResource("TertiaryTextBrush")
                     };
                     audioPanel.Children.Add(captureDevice);
                 }
@@ -347,10 +430,10 @@ namespace DisplayProfileManager.UI.Windows
             {
                 var scriptHeader = new TextBlock
                 {
-                    Text = profile.EnableScripts ? "Scripts:" : "Scripts (Disabled):",
+                    Text = profile.EnableScripts ? "Scripts" : "Scripts (Disabled):",
                     Style = (Style)FindResource("PrimaryTextBlockStyle"),
                     FontWeight = FontWeights.Medium,
-                    Margin = new Thickness(0, 16, 0, 8)
+                    Margin = new Thickness(0, 8, 0, 8)
                 };
                 ProfileDetailsPanel.Children.Add(scriptHeader);
 
@@ -365,11 +448,7 @@ namespace DisplayProfileManager.UI.Windows
                     {
                         var parts = ScriptHelper.ParseScriptString(scriptEntry);
                         string parsedPath = parts.Path;
-
-                        // Strictly check the sandbox folder
                         string sandboxPath = Path.Combine(_scriptManager.ScriptsFolderPath, parsedPath);
-
-                        // File.Exists is safe even if ScriptsFolderPath is missing or null
                         fileExists = File.Exists(sandboxPath);
                     }
                     catch (Exception ex)
@@ -404,7 +483,7 @@ namespace DisplayProfileManager.UI.Windows
                     Text = "Hotkey Settings:",
                     Style = (Style)FindResource("PrimaryTextBlockStyle"),
                     FontWeight = FontWeights.Medium,
-                    Margin = new Thickness(0, 16, 0, 8)
+                    Margin = new Thickness(0, 8, 0, 8)
                 };
                 ProfileDetailsPanel.Children.Add(hotkeyHeader);
 
@@ -444,7 +523,7 @@ namespace DisplayProfileManager.UI.Windows
                 Style = (Style)FindResource("PrimaryTextBlockStyle"),
                 FontSize = 11,
                 Foreground = (SolidColorBrush)FindResource("TertiaryTextBrush"),
-                Margin = new Thickness(0, 16, 0, 0)
+                Margin = new Thickness(0, 8, 0, 0)
             };
             ProfileDetailsPanel.Children.Add(metaInfo);
         }
@@ -481,7 +560,6 @@ namespace DisplayProfileManager.UI.Windows
             try
             {
                 _isApplying = true;
-                StatusTextBlock.Text = $"Applying profile: {profile.Name}..."; // Skipped — update resolves too fast and causes flicker
 
                 var applyWatch = Stopwatch.StartNew();
                 var applyResult = await _profileManager.ApplyProfileAsync(profile);
@@ -559,7 +637,6 @@ namespace DisplayProfileManager.UI.Windows
 
             try
             {
-                StatusTextBlock.Text = $"Duplicating profile: {_selectedProfile.Name}...";
                 DuplicateProfileButton.IsEnabled = false;
 
                 var duplicatedProfile = await _profileManager.DuplicateProfileAsync(_selectedProfile.Id);
@@ -568,17 +645,14 @@ namespace DisplayProfileManager.UI.Windows
                 {
                     StatusTextBlock.Text = $"Duplicated '{duplicatedProfile.Name}'";
 
-                    // Refresh profile list
                     RefreshProfilesList();
 
-                    // Select newly duplicated profile
                     var duplicatedViewModel = _profileViewModels.FirstOrDefault(vm => vm.Profile.Id == duplicatedProfile.Id);
                     if (duplicatedViewModel != null)
                     {
                         ProfilesListBox.SelectedItem = duplicatedViewModel;
                     }
 
-                    // Open edit window for immediate customization
                     var editWindow = new ProfileEditWindow(duplicatedProfile);
                     editWindow.Owner = this;
                     editWindow.ShowDialog();
@@ -606,7 +680,6 @@ namespace DisplayProfileManager.UI.Windows
         {
             if (_selectedProfile == null) return;
 
-            // Store profile name before deletion
             var profileName = _selectedProfile.Name;
 
             var result = MessageBox.Show(
@@ -618,7 +691,6 @@ namespace DisplayProfileManager.UI.Windows
                 try
                 {
                     await _profileManager.DeleteProfileAsync(_selectedProfile.Id);
-                    // Use the stored profile name instead of _selectedProfile.Name
                     StatusTextBlock.Text = $"Deleted '{profileName}'";
                 }
                 catch (Exception ex)
@@ -645,7 +717,6 @@ namespace DisplayProfileManager.UI.Windows
         {
             try
             {
-                //StatusTextBlock.Text = "Refreshing profiles and themes..."; // Skipped — update resolves too fast and causes flicker
                 await _profileManager.LoadProfilesAsync();
                 RefreshProfilesList();
                 ThemeHelper.RefreshThemes();
@@ -724,7 +795,6 @@ namespace DisplayProfileManager.UI.Windows
                 if (saveFileDialog.ShowDialog() == true)
                 {
                     ExportProfileButton.IsEnabled = false;
-                    StatusTextBlock.Text = "Exporting profile...";
 
                     bool success = await _profileManager.ExportProfileAsync(_selectedProfile.Id, saveFileDialog.FileName);
 
@@ -758,8 +828,8 @@ namespace DisplayProfileManager.UI.Windows
             {
                 var openFileDialog = new Microsoft.Win32.OpenFileDialog
                 {
-                    Title = "Import Profile or Theme",
-                    Filter = "Supported Files (*.dpm;*.xaml)|*.dpm;*.xaml|Display Profile (*.dpm)|*.dpm|Theme File (*.xaml)|*.xaml|All Files (*.*)|*.*",
+                    Title = "Import Profile, Theme, or Icon",
+                    Filter = "Supported Files (*.dpm;*.xaml;*.ico)|*.dpm;*.xaml;*.ico|Profile (*.dpm)|*.dpm|Theme (*.xaml)|*.xaml|Icon (*.ico)|*.ico",
                     Multiselect = false
                 };
 
@@ -771,7 +841,6 @@ namespace DisplayProfileManager.UI.Windows
 
                 if (ext == ".xaml")
                 {
-                    StatusTextBlock.Text = "Importing theme...";
                     string themeName = await ThemeHelper.ImportThemeAsync(path);
 
                     if (themeName != null)
@@ -783,9 +852,8 @@ namespace DisplayProfileManager.UI.Windows
                             "Import Failed", MessageBoxButton.OK, MessageBoxImage.Error);
                     }
                 }
-                else
+                else if (ext == ".dpm")
                 {
-                    StatusTextBlock.Text = "Importing profile...";
                     var profile = await _profileManager.ImportProfileAsync(path);
 
                     if (profile != null)
@@ -799,6 +867,17 @@ namespace DisplayProfileManager.UI.Windows
                         MessageBox.Show("The file is not a valid DPM profile.",
                             "Import Failed", MessageBoxButton.OK, MessageBoxImage.Error);
                     }
+                }
+                else if (ext == ".ico")
+                {
+                    string filename = await IconHelper.ImportIconAsync(path);
+                    StatusTextBlock.Text = $"Imported icon '{filename}'";
+                }
+                else
+                {
+                    StatusTextBlock.Text = "Unsupported file type";
+                    MessageBox.Show($"'{Path.GetFileName(path)}' is not a supported file type.\n\nSupported types: .dpm, .xaml, .ico",
+                        "Unsupported File", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
             catch (Exception ex)
@@ -817,13 +896,13 @@ namespace DisplayProfileManager.UI.Windows
             try
             {
                 var dataFolder = _profileManager.GetAppDataFolder();
-                System.Diagnostics.ProcessStartInfo startInfo = new System.Diagnostics.ProcessStartInfo
+                ProcessStartInfo startInfo = new ProcessStartInfo
                 {
                     FileName = dataFolder,
                     UseShellExecute = true,
                     Verb = "open"
                 };
-                System.Diagnostics.Process.Start(startInfo);
+                Process.Start(startInfo);
                 StatusTextBlock.Text = "Opened data folder";
             }
             catch (Exception ex)
@@ -836,10 +915,8 @@ namespace DisplayProfileManager.UI.Windows
 
         private async void MainWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
-            // Check if user has already made a choice and wants to remember it
             if (_settingsManager.ShouldRememberCloseChoice())
             {
-                // Use the saved preference
                 if (_settingsManager.ShouldCloseToTray())
                 {
                     e.Cancel = true;
@@ -852,7 +929,6 @@ namespace DisplayProfileManager.UI.Windows
                 return;
             }
 
-            // Show confirmation dialog
             e.Cancel = true; // Cancel the close initially
             var dialog = new CloseConfirmationDialog();
             dialog.Owner = this;
@@ -861,15 +937,12 @@ namespace DisplayProfileManager.UI.Windows
 
             if (result == true)
             {
-                // User clicked OK, execute their choice
                 if (dialog.RememberChoice)
                 {
-                    // Save the user's preferences
                     await _settingsManager.SetRememberCloseChoiceAsync(true);
                     await _settingsManager.SetCloseToTrayAsync(dialog.ShouldCloseToTray);
                 }
 
-                // Execute the chosen action
                 if (dialog.ShouldCloseToTray)
                 {
                     Hide();
@@ -884,12 +957,9 @@ namespace DisplayProfileManager.UI.Windows
 
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
-            // Initialize maximize/restore button state
             UpdateMaximizeRestoreButton();
-            // Initialize title bar margin state
             UpdateTitleBarMargin();
 
-            // Load the app icon
             LoadAppIcon();
         }
 
@@ -900,7 +970,6 @@ namespace DisplayProfileManager.UI.Windows
                 var icon = Properties.Resources.AppIcon;
                 if (icon != null)
                 {
-                    // Convert System.Drawing.Icon to WPF BitmapSource
                     var bitmap = Imaging.CreateBitmapSourceFromHIcon(
                         icon.Handle,
                         Int32Rect.Empty,
@@ -908,7 +977,6 @@ namespace DisplayProfileManager.UI.Windows
 
                     AppIconImage.Source = bitmap;
 
-                    // Also set the window icon
                     this.Icon = bitmap;
                 }
             }
@@ -928,7 +996,7 @@ namespace DisplayProfileManager.UI.Windows
         private void InitializeSnapLayoutsTimer()
         {
             _snapLayoutsTimer = new System.Windows.Threading.DispatcherTimer();
-            _snapLayoutsTimer.Interval = TimeSpan.FromMilliseconds(150); // 150ms delay
+            _snapLayoutsTimer.Interval = TimeSpan.FromMilliseconds(150);
             _snapLayoutsTimer.Tick += (s, e) =>
             {
                 _snapLayoutsTimer.Stop();
@@ -951,12 +1019,7 @@ namespace DisplayProfileManager.UI.Windows
 
         protected override void OnStateChanged(EventArgs e)
         {
-            // Window minimizes to taskbar normally - ToTray button handles tray functionality
-
-            // Update maximize/restore button icon based on window state
             UpdateMaximizeRestoreButton();
-
-            // Adjust title bar margin for maximized state
             UpdateTitleBarMargin();
 
             base.OnStateChanged(e);
@@ -968,12 +1031,12 @@ namespace DisplayProfileManager.UI.Windows
             {
                 if (WindowState == WindowState.Maximized)
                 {
-                    MaximizeRestoreButton.Content = "\xE923"; // Restore icon
+                    MaximizeRestoreButton.Content = "\xE923";
                     MaximizeRestoreButton.ToolTip = "Restore Down";
                 }
                 else
                 {
-                    MaximizeRestoreButton.Content = "\xE922"; // Maximize icon
+                    MaximizeRestoreButton.Content = "\xE922";
                     MaximizeRestoreButton.ToolTip = "Maximize";
                 }
             }
@@ -985,16 +1048,12 @@ namespace DisplayProfileManager.UI.Windows
             {
                 if (WindowState == WindowState.Maximized)
                 {
-                    // Add top margin when maximized to compensate for upshift
                     TitleBarGrid.Margin = new Thickness(8, 8, 6, 0);
-                    // Increase title bar height when maximized
                     UpdateTitleBarHeight(40);
                 }
                 else
                 {
-                    // Reset margin for normal state
                     TitleBarGrid.Margin = new Thickness(0, 0, 0, 0);
-                    // Reset title bar height for normal state
                     UpdateTitleBarHeight(32);
                 }
             }
@@ -1002,17 +1061,26 @@ namespace DisplayProfileManager.UI.Windows
 
         private void UpdateTitleBarHeight(double height)
         {
-            // Update RowDefinition height
             if (TitleBarRowDefinition != null)
             {
                 TitleBarRowDefinition.Height = new GridLength(height);
             }
 
-            // Update WindowChrome CaptionHeight
             var windowChrome = WindowChrome.GetWindowChrome(this);
             if (windowChrome != null)
             {
                 windowChrome.CaptionHeight = height;
+            }
+        }
+
+        private static string GetRotationString(int rotation)
+        {
+            switch (rotation)
+            {
+                case 2: return "90°";
+                case 3: return "180°";
+                case 4: return "270°";
+                default: return "0°";
             }
         }
 
@@ -1058,7 +1126,6 @@ namespace DisplayProfileManager.UI.Windows
                 StatusTextBlock.Text = $"Applied '{profile.Name}'";
                 RefreshProfilesList();
 
-                // Re-select the previously selected profile if it's still available
                 if (_selectedProfile != null)
                 {
                     var viewModelToSelect = _profileViewModels.FirstOrDefault(vm => vm.Id == _selectedProfile.Id);
@@ -1164,18 +1231,15 @@ namespace DisplayProfileManager.UI.Windows
 
         private RECT GetMaximizeButtonRect()
         {
-            // Calculate the maximize button rectangle based on window layout
-            // Button order: ToTray, Minimize, Maximize, Close
-            // Each button is 46px wide, maximize is the 3rd button from right
             int windowWidth = (int)this.ActualWidth;
             int buttonWidth = 46;
             int titleBarHeight = 32;
 
             return new RECT
             {
-                left = windowWidth - (buttonWidth * 2), // 2 buttons from right (Close, then Maximize)
+                left = windowWidth - (buttonWidth * 2),
                 top = 0,
-                right = windowWidth - buttonWidth,       // 1 button from right (Close)
+                right = windowWidth - buttonWidth,
                 bottom = titleBarHeight
             };
         }

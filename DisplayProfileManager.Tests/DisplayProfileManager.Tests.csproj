@@ -1,9 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+
+  <!-- ═══════════════════════════════════════════════════════════
+       MSBuild bootstrapping
+  ═══════════════════════════════════════════════════════════ -->
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props"
+          Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+
+
+  <!-- ═══════════════════════════════════════════════════════════
+       Project identity
+  ═══════════════════════════════════════════════════════════ -->
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}</ProjectGuid>
     <OutputType>Library</OutputType>
     <RootNamespace>DisplayProfileManager.Tests</RootNamespace>
@@ -11,26 +19,44 @@
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>
+    <WarningLevel>4</WarningLevel>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+
+
+  <!-- ═══════════════════════════════════════════════════════════
+       Build configurations
+  ═══════════════════════════════════════════════════════════ -->
+  <PropertyGroup Condition="'$(Configuration)' == ''">
+    <Configuration>Debug</Configuration>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Platform)' == ''">
+    <Platform>AnyCPU</Platform>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|AnyCPU'">
     <PlatformTarget>AnyCPU</PlatformTarget>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|AnyCPU'">
     <PlatformTarget>AnyCPU</PlatformTarget>
-    <DebugType>pdbonly</DebugType>
-    <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
+
+
+  <!-- ═══════════════════════════════════════════════════════════
+       NuGet references
+  ═══════════════════════════════════════════════════════════ -->
   <ItemGroup>
     <Reference Include="Microsoft.VisualStudio.TestPlatform.TestFramework">
       <HintPath>$(SolutionDir)packages\MSTest.TestFramework.3.6.3\lib\net462\Microsoft.VisualStudio.TestPlatform.TestFramework.dll</HintPath>
@@ -38,38 +64,70 @@
     <Reference Include="Microsoft.VisualStudio.TestPlatform.TestFramework.Extensions">
       <HintPath>$(SolutionDir)packages\MSTest.TestFramework.3.6.3\lib\net462\Microsoft.VisualStudio.TestPlatform.TestFramework.Extensions.dll</HintPath>
     </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>$(SolutionDir)packages\Newtonsoft.Json.13.0.4\lib\net45\Newtonsoft.Json.dll</HintPath>
+    </Reference>
+    <Reference Include="NLog">
+      <HintPath>$(SolutionDir)packages\NLog.6.1.3\lib\net46\NLog.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+
+  <!-- ═══════════════════════════════════════════════════════════
+       Framework references
+  ═══════════════════════════════════════════════════════════ -->
+  <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="WindowsBase" />
-    <Reference Include="NLog">
-      <HintPath>$(SolutionDir)packages\NLog.6.0.4\lib\net46\NLog.dll</HintPath>
-    </Reference>
-    <Reference Include="Newtonsoft.Json">
-      <HintPath>$(SolutionDir)packages\Newtonsoft.Json.13.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
-    </Reference>
   </ItemGroup>
+
+
+  <!-- ═══════════════════════════════════════════════════════════
+       Project reference
+  ═══════════════════════════════════════════════════════════ -->
   <ItemGroup>
     <ProjectReference Include="..\DisplayProfileManager\DisplayProfileManager.csproj">
       <Project>{238D468E-8218-4643-AA8C-789C6A15A48B}</Project>
       <Name>DisplayProfileManager</Name>
     </ProjectReference>
   </ItemGroup>
+
+
+  <!-- ═══════════════════════════════════════════════════════════
+       Test helpers
+  ═══════════════════════════════════════════════════════════ -->
   <ItemGroup>
-    <Compile Include="Helpers\DisplaySettingBuilder.cs" />
     <Compile Include="Helpers\DisplayConfigInfoBuilder.cs" />
+    <Compile Include="Helpers\DisplaySettingBuilder.cs" />
+  </ItemGroup>
+
+
+  <!-- ═══════════════════════════════════════════════════════════
+       Tests
+  ═══════════════════════════════════════════════════════════ -->
+  <ItemGroup>
+    <Compile Include="Tests\CloneGroupTopologyTests.cs" />
     <Compile Include="Tests\CloneGroupValidationTests.cs" />
     <Compile Include="Tests\DisplayConfigNormalizationTests.cs" />
     <Compile Include="Tests\DisplayConfigPathSourceInfoTests.cs" />
     <Compile Include="Tests\DisplaySettingTests.cs" />
-    <Compile Include="Tests\CloneGroupTopologyTests.cs" />
     <Compile Include="Tests\GetLUIDFromStringTests.cs" />
     <Compile Include="Tests\HotkeyConfigTests.cs" />
     <Compile Include="Tests\ProfileManagerTests.cs" />
     <Compile Include="Tests\ProfileTests.cs" />
     <Compile Include="Tests\ScriptHelperTests.cs" />
   </ItemGroup>
+
+
+  <!-- ═══════════════════════════════════════════════════════════
+       Misc / root files
+  ═══════════════════════════════════════════════════════════ -->
   <ItemGroup>
     <None Include="packages.config" />
   </ItemGroup>
+
+
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+
 </Project>

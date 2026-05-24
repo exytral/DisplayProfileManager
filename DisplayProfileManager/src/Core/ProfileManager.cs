@@ -26,7 +26,7 @@ namespace DisplayProfileManager.Core
             public List<string> DisconnectedDisplays { get; set; } = new List<string>();
         }
 
-        private const int CurrentSchemaVersion = 1;
+        private const int CurrentSchemaVersion = 2;
 
         private static ProfileManager _instance;
         private static readonly object _lock = new object();
@@ -209,6 +209,13 @@ namespace DisplayProfileManager.Core
                 }
 
                 profile.SchemaVersion = 1;
+                changed = true;
+            }
+
+            // Version 1 → 2: icon field added; null default is correct for existing profiles
+            if (profile.SchemaVersion < 2)
+            {
+                profile.SchemaVersion = 2;
                 changed = true;
             }
 
@@ -845,7 +852,8 @@ namespace DisplayProfileManager.Core
                 Id = Guid.NewGuid().ToString(),
                 Name = GetUniqueProfileName(sourceProfile.Name),
                 Description = sourceProfile.Description,
-                IsDefault = false, // Never duplicate as default
+                Icon = sourceProfile.Icon,
+                IsDefault = false,
                 CreatedDate = DateTime.Now,
                 LastModifiedDate = DateTime.Now,
                 SchemaVersion = CurrentSchemaVersion,
@@ -901,7 +909,7 @@ namespace DisplayProfileManager.Core
                 } : new AudioSetting(),
                 EnableScripts = sourceProfile.EnableScripts,
                 Scripts = new List<string>(sourceProfile.Scripts),
-                HotkeyConfig = new HotkeyConfig() // Clear hotkey to avoid conflicts
+                HotkeyConfig = new HotkeyConfig()
             };
 
             return duplicatedProfile;

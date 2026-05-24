@@ -2,25 +2,29 @@ name: Release
 on:
   push:
     tags:
-      - '*'
+      - "*"
 permissions:
   contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     runs-on: windows-latest
 
     steps:
-      # ── A1: Checkout ────────────────────────────────────────────────
+      # ── A1: Checkout ─────────────────────────────────────────────────
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # ── A2: MSBuild ─────────────────────────────────────────────────
+      # ── A2: MSBuild ──────────────────────────────────────────────────
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
 
-      # ── A3: NuGet restore ───────────────────────────────────────────
+      # ── A3: NuGet restore ────────────────────────────────────────────
       - name: Restore NuGet packages
         run: nuget restore DisplayProfileManager.sln
 
@@ -30,21 +34,21 @@ jobs:
           msbuild DisplayProfileManager/DisplayProfileManager.csproj
           /p:Configuration=Release
           /p:Platform=x64
-          /p:SolutionDir="$PWD\\"
+          /p:SolutionDir="${{ github.workspace }}\"
 
       - name: Build x86
         run: >
           msbuild DisplayProfileManager/DisplayProfileManager.csproj
           /p:Configuration=Release
           /p:Platform=x86
-          /p:SolutionDir="$PWD\\"
+          /p:SolutionDir="${{ github.workspace }}\"
 
       - name: Build ARM64
         run: >
           msbuild DisplayProfileManager/DisplayProfileManager.csproj
           /p:Configuration=Release
           /p:Platform=ARM64
-          /p:SolutionDir="$PWD\\"
+          /p:SolutionDir="${{ github.workspace }}\"
 
       # ── B: Package portable zips ─────────────────────────────────────
       - name: Package portable zips
@@ -76,7 +80,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: "3.x"
 
       - name: Install PyInstaller and dependencies
         run: pip install pyinstaller requests

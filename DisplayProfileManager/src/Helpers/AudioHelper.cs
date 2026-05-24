@@ -11,7 +11,6 @@ namespace DisplayProfileManager.Helpers
     {
         private static readonly Logger logger = LoggerHelper.GetLogger();
 
-        // Device-name cache keyed by WASAPI device ID — stable across enumerator lifetimes
         private static readonly Dictionary<string, (string Name, DateTime Discovered)> _deviceCache = new Dictionary<string, (string Name, DateTime Discovered)>();
         private static readonly object _cacheLock = new object();
 
@@ -539,7 +538,6 @@ namespace DisplayProfileManager.Helpers
 
         private static void TrimCache()
         {
-            // Called inside lock — no re-lock needed
             var sorted = new List<KeyValuePair<string, (string Name, DateTime Discovered)>>(_deviceCache);
             sorted.Sort((a, b) => a.Value.Discovered.CompareTo(b.Value.Discovered));
             for (int i = 0; i < sorted.Count - 100; i++)

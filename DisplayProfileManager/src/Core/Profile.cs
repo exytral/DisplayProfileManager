@@ -16,6 +16,9 @@ namespace DisplayProfileManager.Core
         [JsonProperty("description")]
         public string Description { get; set; } = string.Empty;
 
+        [JsonProperty("icon")]
+        public string Icon { get; set; } = null;
+
         [JsonProperty("isDefault")]
         public bool IsDefault { get; set; } = false;
 

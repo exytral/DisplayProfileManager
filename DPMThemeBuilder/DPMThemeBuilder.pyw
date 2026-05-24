@@ -409,15 +409,15 @@ def draw_preview(canvas: tk.Canvas, co: dict, dpm_img):
     """
     Draw an accurate replica of DPM MainWindow (900x600 reference).
 
-    Fixed elements: title bar 32px, status bar 64px, right panel 320px,
+    Fixed elements: title bar 32px, status bar 64px, right panel 346px,
     all buttons, icon, window controls.
     Flexible: left panel fills remaining width.
 
     Layout from MainWindow.xaml:
       TitleBar 32px | StatusBar Padding=16 + btn 32px = 64px
-      Content Margin=16,16,16,0 | Panel gap=16px | Right panel=320px
+      Content Margin=16,16,16,0 | Panel gap=16px | Right panel=346px
       Profile header MinHeight=56 Padding=16 | Item Padding=12,8
-      Buttons: Duplicate auto, Import auto, Create auto, Edit 60px, Delete 60px, Apply 32x
+      Buttons: Duplicate auto, Import 60px, Create 60px, Edit 60px, Delete 60px, Apply 32x
       Status: RefreshBtn 32x32, OpenFolder 100px, Settings 70px
       Panel CornerRadius=4 | Item CornerRadius=4 | Card CornerRadius=4
     """
@@ -450,7 +450,7 @@ def draw_preview(canvas: tk.Canvas, co: dict, dpm_img):
     M        = 16
     STATUS_H = 64
     GAP      = 16
-    RIGHT_W  = 320
+    RIGHT_W  = 346
     HDR_H    = 56
     HDR_PAD  = 16
     BTN_H    = 34
@@ -530,9 +530,9 @@ def draw_preview(canvas: tk.Canvas, co: dict, dpm_img):
         b_y1      = content_y1 + (HDR_H - BTN_H) // 2
         b_y2      = b_y1 + BTN_H
         create_x2 = left_x2 - HDR_PAD
-        btn(create_x2 - 62, b_y1, create_x2, b_y2, "Create", accent, btn_fg)
-        btn(create_x2 - 132, b_y1, create_x2 - 70, b_y2, "Import", sec_bg, txt1)
-        btn(create_x2 - 222, b_y1, create_x2 - 140, b_y2, "Duplicate", sec_bg, txt1)
+        btn(create_x2 - 60, b_y1, create_x2, b_y2, "Create", accent, btn_fg)
+        btn(create_x2 - 128, b_y1, create_x2 - 68, b_y2, "Import", sec_bg, txt1)
+        btn(create_x2 - 212, b_y1, create_x2 - 136, b_y2, "Duplicate", sec_bg, txt1)
 
         ix1 = left_x1 + LIST_PAD
         ix2 = left_x2 - LIST_PAD
@@ -550,7 +550,7 @@ def draw_preview(canvas: tk.Canvas, co: dict, dpm_img):
             tag1_x = itx + (len("Default") * 7) + 10
             canvas.create_text(tag1_x, ity + 1, text="Default", fill=accent,
                                font=("Segoe UI", 10, "bold"), anchor="nw")
-            tag2_x = tag1_x + (len("Default") * 7) + 10
+            tag2_x = tag1_x + (len("Default") * 7) + 4
             canvas.create_text(tag2_x, ity + 1, text="Active", fill=success,
                                font=("Segoe UI", 10, "bold"), anchor="nw")
 
@@ -596,41 +596,44 @@ def draw_preview(canvas: tk.Canvas, co: dict, dpm_img):
         dcy += 20
         canvas.create_text(dcx, dcy, text="Default system profile created automatically",
                            fill=txt2, font=("Segoe UI", 10), anchor="nw")
-        dcy += 20
-        canvas.create_text(dcx, dcy, text="Display Settings:",
-                           fill=txt1, font=("Segoe UI", 10, "bold"), anchor="nw")
+        dcy += 30
+        canvas.create_text(dcx, dcy, text="Displays",
+                           fill=txt1, font=("Segoe UI", 11, "bold"), anchor="nw")
         dcy += 20
 
         # Monitor card
         mon_card_x1, mon_card_x2 = dcx, dcx2
-        mon_card_y1, mon_card_h = dcy, 78
+        mon_card_y1, mon_card_h = dcy, 105
         mon_card_y2 = mon_card_y1 + mon_card_h
 
         rrect(mon_card_x1, mon_card_y1, mon_card_x2, mon_card_y2, CARD_R, surf, border)
 
         mcy, mcx = mon_card_y1 + CARD_PAD, mon_card_x1 + CARD_PAD
-        canvas.create_text(mcx, mcy, text="Generic Display (1920x1080)",
-                           fill=txt1, font=("Segoe UI", 10, "bold"), anchor="nw")
+        canvas.create_text(mcx, mcy, text="Generic Display",
+                           fill=txt1, font=("Segoe UI", 11, "bold"), anchor="nw")
         mcy += 17
         canvas.create_text(mcx, mcy, text="Resolution: 1920x1080 @ 60Hz",
                            fill=txt2, font=("Segoe UI", 10), anchor="nw")
+        mcy += 17
+        canvas.create_text(mcx, mcy, text="Rotation: 0°",
+                           fill=txt2, font=("Segoe UI", 10), anchor="nw")
         mcy += 16
-        canvas.create_text(mcx, mcy, text="DPI Scaling: 100%",
+        canvas.create_text(mcx, mcy, text="DPI: 100%",
                            fill=txt2, font=("Segoe UI", 10), anchor="nw")
         mcy += 15
         canvas.create_text(mcx, mcy, text="Primary Display",
                            fill=accent, font=("Segoe UI", 10), anchor="nw")
 
-        dcy = mon_card_y2 + 10
-        canvas.create_text(dcx, dcy, text="Audio Settings:",
-                           fill=txt1, font=("Segoe UI", 10, "bold"), anchor="nw")
+        dcy = mon_card_y2 + 16
+        canvas.create_text(dcx, dcy, text="Audio",
+                           fill=txt1, font=("Segoe UI", 11, "bold"), anchor="nw")
         dcy += 17
         canvas.create_text(dcx, dcy, text="Output: Default Device (Not Applied)",
                            fill=txt2, font=("Segoe UI", 10), anchor="nw")
         dcy += 15
         canvas.create_text(dcx, dcy, text="Input: Default Device (Not Applied)",
                            fill=txt2, font=("Segoe UI", 10), anchor="nw")
-        dcy += 20
+        dcy += 30
         canvas.create_text(dcx, dcy, text=f"Created: {time_str}",
                            fill=comment, font=("Segoe UI", 9), anchor="nw")
         dcy += 14

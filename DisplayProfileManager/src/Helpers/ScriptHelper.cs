@@ -54,7 +54,7 @@ namespace DisplayProfileManager.Helpers
                 {
                     FileName = fileName,
                     Arguments = finalArguments.Trim(),
-                    UseShellExecute = useShell, // Set to true if it's a shortcut
+                    UseShellExecute = useShell, // Set to true if .lnk
                     CreateNoWindow = !useShell, // CreateNoWindow must be false if UseShellExecute is true
                     RedirectStandardError = !useShell // Cannot redirect error stream if using shell execute
                 };

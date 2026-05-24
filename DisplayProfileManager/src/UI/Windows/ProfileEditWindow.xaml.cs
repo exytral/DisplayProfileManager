@@ -28,6 +28,7 @@ namespace DisplayProfileManager.UI.Windows
         private ObservableCollection<AudioHelper.AudioDeviceInfo> _playbackDevices;
         private ObservableCollection<AudioHelper.AudioDeviceInfo> _captureDevices;
         private ObservableCollection<dynamic> _scriptList = new ObservableCollection<dynamic>();
+        private string _pendingIconFilename;
 
         public ProfileEditWindow(Profile profileToEdit = null)
         {
@@ -72,6 +73,10 @@ namespace DisplayProfileManager.UI.Windows
                 _scriptList.Clear();
                 AddScriptButton.IsEnabled = false;
                 ScriptsItemsControl.IsEnabled = false;
+
+                _pendingIconFilename = null;
+                RefreshIconPreview();
+                _ = PopulateIconGridAsync();
             }
         }
 
@@ -115,11 +120,11 @@ namespace DisplayProfileManager.UI.Windows
             if (_displayControls.Count > 0)
             {
                 var lastControl = _displayControls[_displayControls.Count - 1];
-                
+
                 if (lastControl.Content is StackPanel panel && panel.Children.Count > 0)
                 {
                     var last = panel.Children[panel.Children.Count - 1] as FrameworkElement;
-                    if (last != null) last.Margin = new Thickness(0,0,0,-24);
+                    if (last != null) last.Margin = new Thickness(0, 0, 0, -24);
                 }
             }
 
@@ -142,6 +147,9 @@ namespace DisplayProfileManager.UI.Windows
             ProfileNameTextBox.Text = _profile.Name;
             ProfileDescriptionTextBox.Text = _profile.Description;
             DefaultProfileCheckBox.IsChecked = _profile.IsDefault;
+            _pendingIconFilename = _profile.Icon;
+            RefreshIconPreview();
+            _ = PopulateIconGridAsync();
 
             // Displays
             LoadDisplaySettings(_profile.DisplaySettings);
@@ -161,7 +169,7 @@ namespace DisplayProfileManager.UI.Windows
             CheckForHotkeyConflicts();
 
             // Audio
-            Task audio = LoadAudioDevices();
+            _ = LoadAudioDevices();
 
             // Scripting state
             EnableScriptsCheckBox.IsChecked = _profile.EnableScripts;
@@ -197,17 +205,15 @@ namespace DisplayProfileManager.UI.Windows
             UpdateScriptsVisibility();
         }
 
-        private async void DetectDisplaysButton_Click(object sender, RoutedEventArgs e)
+        private async void LoadDisplaysButton_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                // UI feedback
-                StatusTextBlock.Text = "Detecting current display settings...";
-                DetectDisplaysButton.IsEnabled = false;
+                StatusTextBlock.Text = "Loading current display settings...";
+                LoadDisplaysButton.IsEnabled = false;
 
                 var currentSettings = await _profileManager.GetCurrentDisplaySettingsAsync();
 
-                // Primary monitor fallback
                 bool hasPrimary = currentSettings.Any(s => s.IsPrimary && s.IsEnabled);
                 if (!hasPrimary)
                 {
@@ -218,23 +224,21 @@ namespace DisplayProfileManager.UI.Windows
                     }
                 }
 
-                // View update
                 LoadDisplaySettings(currentSettings);
 
-                // Logging
                 var logger = LoggerHelper.GetLogger();
-                logger.Info($"Detect Current: {currentSettings.Count} physical displays detected, " +
+                logger.Info($"Load: {currentSettings.Count} physical displays loaded, " +
                           $"{_displayControls.Count} controls created");
             }
             catch (Exception ex)
             {
-                StatusTextBlock.Text = "Error detecting displays";
-                MessageBox.Show($"Error detecting current display settings: {ex.Message}", "Error",
+                StatusTextBlock.Text = "Error loading displays";
+                MessageBox.Show($"Error loading current display settings: {ex.Message}", "Error",
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
-                DetectDisplaysButton.IsEnabled = true;
+                LoadDisplaysButton.IsEnabled = true;
             }
         }
 
@@ -420,6 +424,8 @@ namespace DisplayProfileManager.UI.Windows
                     })
                     .ToList();
 
+                _profile.Icon = _pendingIconFilename;
+
                 // Hotkey persistence
                 if (_profile.HotkeyConfig == null) _profile.HotkeyConfig = new HotkeyConfig();
                 _profile.HotkeyConfig = HotkeyEditor.HotkeyConfig?.Clone() ?? new HotkeyConfig();
@@ -534,6 +540,15 @@ namespace DisplayProfileManager.UI.Windows
         {
             UpdateTitleBarMargin();
 
+            // Match owner window size and position at open time
+            if (Owner != null)
+            {
+                Width = Owner.ActualWidth;
+                Height = Owner.ActualHeight;
+                Left = Owner.Left + (Owner.ActualWidth - Width) / 2;
+                Top = Owner.Top + (Owner.ActualHeight - Height) / 2;
+            }
+
             // Hotkey interference prevention
             try
             {
@@ -596,6 +611,121 @@ namespace DisplayProfileManager.UI.Windows
             {
                 windowChrome.CaptionHeight = height;
             }
+        }
+
+        private void RefreshIconPreview()
+        {
+            if (string.IsNullOrWhiteSpace(_pendingIconFilename))
+            {
+                IconPreviewImage.Source = null;
+                IconFilenameTextBlock.Text = "No icon";
+                ClearIconButton.IsEnabled = false;
+            }
+            else
+            {
+                IconPreviewImage.Source = IconHelper.LoadImageSource(_pendingIconFilename);
+                IconFilenameTextBlock.Text = _pendingIconFilename;
+                ClearIconButton.IsEnabled = true;
+            }
+        }
+
+        private async Task PopulateIconGridAsync()
+        {
+            var icons = await Task.Run(() => IconHelper.GetAvailableIcons());
+
+            BuiltinIconsPanel.Children.Clear();
+
+            foreach (string filename in icons)
+            {
+                var src = await Task.Run(() => IconHelper.LoadImageSource(filename, 32));
+                if (src == null) continue;
+
+                src.Freeze();
+
+                var btn = new ToggleButton
+                {
+                    Width = 41,
+                    Height = 41,
+                    Tag = filename,
+                    IsChecked = filename == _pendingIconFilename,
+                    ToolTip = filename,
+                    Cursor = Cursors.Hand,
+                };
+                var imgAsync = new Image
+                {
+                    Source = src,
+                    Width = 32,
+                    Height = 32,
+                    IsHitTestVisible = false,
+                    SnapsToDevicePixels = true
+                };
+                RenderOptions.SetBitmapScalingMode(imgAsync, BitmapScalingMode.HighQuality);
+                btn.Content = imgAsync;
+                btn.Checked += IconButton_Checked;
+                BuiltinIconsPanel.Children.Add(btn);
+            }
+        }
+
+        private void SyncIconSelection()
+        {
+            foreach (var child in BuiltinIconsPanel.Children)
+                if (child is ToggleButton btn)
+                    btn.IsChecked = (btn.Tag as string) == _pendingIconFilename;
+        }
+
+        private void IconButton_Checked(object sender, RoutedEventArgs e)
+        {
+            if (sender is ToggleButton btn)
+            {
+                _pendingIconFilename = btn.Tag as string;
+                RefreshIconPreview();
+                SyncIconSelection();
+            }
+        }
+
+        private async void ImportIconButton_Click(object sender, RoutedEventArgs e)
+        {
+            var dlg = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Import Profile Icon",
+                Filter = "Icon (*.ico)|*.ico",
+                Multiselect = false
+            };
+
+            if (dlg.ShowDialog() != true) return;
+
+            ImportIconButton.IsEnabled = false;
+            StatusTextBlock.Text = "Importing icon...";
+
+            try
+            {
+                _pendingIconFilename = await IconHelper.ImportIconAsync(dlg.FileName);
+                StatusTextBlock.Text = $"Icon '{_pendingIconFilename}' imported";
+                await PopulateIconGridAsync();
+                RefreshIconPreview();
+                SyncIconSelection();
+            }
+            catch (InvalidOperationException ex)
+            {
+                StatusTextBlock.Text = "Import failed";
+                MessageBox.Show(ex.Message, "Import Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            catch (Exception ex)
+            {
+                StatusTextBlock.Text = "Import failed";
+                MessageBox.Show($"Error importing icon:\n{ex.Message}", "Import Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                ImportIconButton.IsEnabled = true;
+            }
+        }
+
+        private void ClearIconButton_Click(object sender, RoutedEventArgs e)
+        {
+            _pendingIconFilename = null;
+            RefreshIconPreview();
+            SyncIconSelection();
         }
 
         private async Task LoadAudioDevices()
@@ -698,18 +828,17 @@ namespace DisplayProfileManager.UI.Windows
             }
         }
 
-        private async void DetectAudioButton_Click(object sender, RoutedEventArgs e)
+        private async void LoadAudioButton_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                StatusTextBlock.Text = "Detecting current audio devices...";
-                await LoadAudioDevices();
-                StatusTextBlock.Text = "Current audio devices detected";
+                _ = LoadAudioDevices();
+                StatusTextBlock.Text = "Current audio devices loaded";
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error detecting audio devices");
-                StatusTextBlock.Text = "Error detecting audio devices";
+                logger.Error(ex, "Error loading audio devices");
+                StatusTextBlock.Text = "Error loading audio devices";
             }
         }
 
@@ -844,7 +973,6 @@ namespace DisplayProfileManager.UI.Windows
 
         private void RemoveScriptButton_Click(object sender, RoutedEventArgs e)
         {
-            // Toggle deletion state
             if (sender is Button btn && btn.DataContext is System.Dynamic.ExpandoObject entry)
             {
                 dynamic dEntry = entry;
@@ -856,9 +984,20 @@ namespace DisplayProfileManager.UI.Windows
             }
         }
 
+        private void ClearAllScriptsButton_Click(object sender, RoutedEventArgs e)
+        {
+            bool anyActive = _scriptList.Any(s => !(bool)(((dynamic)s).IsDeleted ?? false));
+            if (!anyActive) return;
+
+            foreach (dynamic entry in _scriptList)
+                entry.IsDeleted = true;
+
+            ScriptsItemsControl.Items.Refresh();
+            StatusTextBlock.Text = "All scripts marked for deletion";
+        }
+
         private void ClearArgs_Click(object sender, RoutedEventArgs e)
         {
-            // Reset argument string
             if (sender is Button btn && btn.DataContext is System.Dynamic.ExpandoObject entry)
             {
                 ((dynamic)entry).Arguments = string.Empty;
@@ -918,6 +1057,12 @@ namespace DisplayProfileManager.UI.Windows
         private void EnableHotkeyCheckBox_Unchecked(object sender, RoutedEventArgs e)
         {
             StatusTextBlock.Text = "Global hotkey disabled for this profile";
+        }
+
+        private void ClearHotkeyButton_Click(object sender, RoutedEventArgs e)
+        {
+            HotkeyEditor.HotkeyConfig = new HotkeyConfig();
+            EnableHotkeyCheckBox.IsChecked = false;
         }
 
         protected override void OnClosed(EventArgs e)
@@ -1111,7 +1256,7 @@ namespace DisplayProfileManager.UI.Windows
             if (_isCloneGroup && _cloneGroupMembers.Count > 1)
             {
                 // Clone group: 🔗 icon (large) + stacked member names + CLONE badge
-                var nameGrid = new Grid { Margin = new Thickness(0, 0, 0, 16) };
+                var nameGrid = new Grid { Margin = new Thickness(0, 0, 0, 8) };
                 nameGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
                 nameGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 nameGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -1151,7 +1296,7 @@ namespace DisplayProfileManager.UI.Windows
                     FontFamily = new FontFamily("Segoe MDL2 Assets"),
                     FontSize = 13,
                     VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Thickness(0, 1, 7, 0)
+                    Margin = new Thickness(0, 2, 6, 0)
                 });
                 breakBtnContent.Children.Add(new TextBlock
                 {
@@ -1173,22 +1318,70 @@ namespace DisplayProfileManager.UI.Windows
             }
             else
             {
-                // Single display: name left, clone dropdown right
-                var singleGrid = new Grid();
+                // Single display: name + checkboxes left, clone dropdown right
+                var singleGrid = new Grid { Margin = new Thickness(0, 0, 0, 8) };
                 singleGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 singleGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
+                var leftPanel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+
                 var nameBlock = new TextBlock
                 {
-                    Text = $"Monitor {_monitorIndex} — {_setting.ReadableDeviceName}",
+                    Text = $"{_setting.ReadableDeviceName}",
                     FontWeight = FontWeights.Medium,
                     FontSize = 14,
                     Foreground = primaryFg,
-                    VerticalAlignment = VerticalAlignment.Top,
-                    TextTrimming = TextTrimming.CharacterEllipsis
+                    VerticalAlignment = VerticalAlignment.Center,
+                    TextTrimming = TextTrimming.CharacterEllipsis,
+                    Margin = new Thickness(0, 0, 12, 0)
                 };
-                Grid.SetColumn(nameBlock, 0);
-                singleGrid.Children.Add(nameBlock);
+                leftPanel.Children.Add(nameBlock);
+
+                _enabledCheckBox = new CheckBox
+                {
+                    Content = "Enable",
+                    IsChecked = _setting.IsEnabled,
+                    FontSize = 14,
+                    Padding = new Thickness(6, 0, 0, 0),
+                    Margin = new Thickness(0, 0, 10, 0),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Foreground = primaryFg
+                };
+                _enabledCheckBox.Checked += EnabledCheckBox_CheckedChanged;
+                _enabledCheckBox.Unchecked += EnabledCheckBox_CheckedChanged;
+                leftPanel.Children.Add(_enabledCheckBox);
+
+                _primaryCheckBox = new CheckBox
+                {
+                    Content = "Primary",
+                    IsChecked = _setting.IsPrimary,
+                    FontSize = 14,
+                    Padding = new Thickness(6, 0, 0, 0),
+                    Margin = new Thickness(0, 0, 10, 0),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Foreground = primaryFg
+                };
+                _primaryCheckBox.Checked += PrimaryCheckBox_Checked;
+                _primaryCheckBox.Unchecked += PrimaryCheckBox_Unchecked;
+                leftPanel.Children.Add(_primaryCheckBox);
+
+                _hdrCheckBox = new CheckBox
+                {
+                    Content = _setting.IsHdrSupported ? "HDR" : "HDR (Not Supported)",
+                    IsChecked = _setting.IsHdrEnabled && _setting.IsHdrSupported,
+                    IsEnabled = _setting.IsHdrSupported,
+                    FontSize = 14,
+                    Padding = new Thickness(6, 0, 0, 0),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Foreground = primaryFg,
+                    ToolTip = _setting.IsHdrSupported ? "Enable HDR for this monitor" : "This monitor does not support HDR"
+                };
+                _hdrCheckBox.Checked += HdrCheckBox_CheckedChanged;
+                _hdrCheckBox.Unchecked += HdrCheckBox_CheckedChanged;
+                leftPanel.Children.Add(_hdrCheckBox);
+
+                Grid.SetColumn(leftPanel, 0);
+                singleGrid.Children.Add(leftPanel);
 
                 var cloneBtnContent = new StackPanel { Orientation = Orientation.Horizontal };
                 cloneBtnContent.Children.Add(new TextBlock
@@ -1219,66 +1412,61 @@ namespace DisplayProfileManager.UI.Windows
             }
             mainPanel.Children.Add(nameRow);
 
-            var controlsGrid = new Grid { Margin = new Thickness(0, -8, 0, 16) };
-            controlsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            controlsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-            var checkboxPanel = new StackPanel
+            // Clone groups checkbox row
+            if (_isCloneGroup && _cloneGroupMembers.Count > 1)
             {
-                Orientation = Orientation.Horizontal,
-                VerticalAlignment = VerticalAlignment.Center
-            };
+                _enabledCheckBox = new CheckBox
+                {
+                    Content = "Enable",
+                    IsChecked = _setting.IsEnabled,
+                    FontSize = 14,
+                    Padding = new Thickness(6, 0, 0, 0),
+                    Margin = new Thickness(0, 0, 10, 0),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Foreground = primaryFg
+                };
+                _enabledCheckBox.Checked += EnabledCheckBox_CheckedChanged;
+                _enabledCheckBox.Unchecked += EnabledCheckBox_CheckedChanged;
 
-            _enabledCheckBox = new CheckBox
-            {
-                Content = "Enable",
-                IsChecked = _setting.IsEnabled,
-                FontSize = 14,
-                Padding = new Thickness(6, 0, -1, 0),
-                Margin = new Thickness(0, 0, 10, 0),
-                VerticalAlignment = VerticalAlignment.Center,
-                Foreground = primaryFg
-            };
-            _enabledCheckBox.Checked += EnabledCheckBox_CheckedChanged;
-            _enabledCheckBox.Unchecked += EnabledCheckBox_CheckedChanged;
-            checkboxPanel.Children.Add(_enabledCheckBox);
+                _primaryCheckBox = new CheckBox
+                {
+                    Content = "Primary",
+                    IsChecked = _setting.IsPrimary,
+                    FontSize = 14,
+                    Padding = new Thickness(6, 0, 0, 0),
+                    Margin = new Thickness(0, 0, 10, 0),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Foreground = primaryFg
+                };
+                _primaryCheckBox.Checked += PrimaryCheckBox_Checked;
+                _primaryCheckBox.Unchecked += PrimaryCheckBox_Unchecked;
 
-            _primaryCheckBox = new CheckBox
-            {
-                Content = "Primary",
-                IsChecked = _setting.IsPrimary,
-                FontSize = 14,
-                Padding = new Thickness(6, 0, -1, 0),
-                Margin = new Thickness(0, 0, 10, 0),
-                VerticalAlignment = VerticalAlignment.Center,
-                Foreground = primaryFg
-            };
-            _primaryCheckBox.Checked += PrimaryCheckBox_Checked;
-            _primaryCheckBox.Unchecked += PrimaryCheckBox_Unchecked;
-            checkboxPanel.Children.Add(_primaryCheckBox);
+                _hdrCheckBox = new CheckBox
+                {
+                    Content = _setting.IsHdrSupported ? "HDR" : "HDR (Not Supported)",
+                    IsChecked = _setting.IsHdrEnabled && _setting.IsHdrSupported,
+                    IsEnabled = _setting.IsHdrSupported,
+                    FontSize = 14,
+                    Padding = new Thickness(6, 0, 0, 0),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Foreground = primaryFg,
+                    ToolTip = _setting.IsHdrSupported ? "Enable HDR for this monitor" : "This monitor does not support HDR"
+                };
+                _hdrCheckBox.Checked += HdrCheckBox_CheckedChanged;
+                _hdrCheckBox.Unchecked += HdrCheckBox_CheckedChanged;
 
-            _hdrCheckBox = new CheckBox
-            {
-                Content = _setting.IsHdrSupported ? "HDR" : "HDR (Not Supported)",
-                IsChecked = _setting.IsHdrEnabled && _setting.IsHdrSupported,
-                IsEnabled = _setting.IsHdrSupported,
-                FontSize = 14,
-                Padding = new Thickness(6, 0, -1, 0),
-                Margin = new Thickness(0, 0, 10, 0),
-                VerticalAlignment = VerticalAlignment.Center,
-                Foreground = primaryFg,
-                ToolTip = _setting.IsHdrSupported ? "Enable HDR for this monitor" : "This monitor does not support HDR"
-            };
-            _hdrCheckBox.Checked += HdrCheckBox_CheckedChanged;
-            _hdrCheckBox.Unchecked += HdrCheckBox_CheckedChanged;
-            checkboxPanel.Children.Add(_hdrCheckBox);
+                var cloneCheckboxPanel = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Margin = new Thickness(0, 0, 0, 8)
+                };
+                cloneCheckboxPanel.Children.Add(_enabledCheckBox);
+                cloneCheckboxPanel.Children.Add(_primaryCheckBox);
+                cloneCheckboxPanel.Children.Add(_hdrCheckBox);
+                mainPanel.Children.Add(cloneCheckboxPanel);
+            }
 
-            Grid.SetColumn(checkboxPanel, 0);
-            controlsGrid.Children.Add(checkboxPanel);
-
-            mainPanel.Children.Add(controlsGrid);
-
-            // Main configuration grid for resolution, refresh, and scaling
+            // Main configuration grid for resolution, refresh, rotation, and DPI
             var contentGrid = new Grid();
             contentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.5, GridUnitType.Star) });
             contentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(16) });
@@ -1400,7 +1588,7 @@ namespace DisplayProfileManager.UI.Windows
             _rotationComboBox.Items.Add("180° (Rotate180)");
             _rotationComboBox.Items.Add("270° (Rotate270)");
 
-            // Enum mapping (1-4 to 0-3 index)
+            // Enum mapping
             int rotationIndex = _setting.Rotation - 1;
             if (rotationIndex >= 0 && rotationIndex < _rotationComboBox.Items.Count)
             {

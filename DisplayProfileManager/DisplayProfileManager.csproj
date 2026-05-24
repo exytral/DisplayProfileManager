@@ -1,161 +1,228 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+
+  <!-- ═══════════════════════════════════════════════════════════
+       MSBuild bootstrapping
+  ═══════════════════════════════════════════════════════════ -->
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props"
+          Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+
+
+  <!-- ═══════════════════════════════════════════════════════════
+       Project identity
+  ═══════════════════════════════════════════════════════════ -->
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{238D468E-8218-4643-AA8C-789C6A15A48B}</ProjectGuid>
+    <ProjectTypeGuids>{60dc8134-eba5-43b8-bcc9-bb4bc16c2548};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
     <OutputType>WinExe</OutputType>
     <RootNamespace>DisplayProfileManager</RootNamespace>
     <AssemblyName>DisplayProfileManager</AssemblyName>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>icon.ico</ApplicationIcon>
     <FileAlignment>512</FileAlignment>
-    <ProjectTypeGuids>{60dc8134-eba5-43b8-bcc9-bb4bc16c2548};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
-    <WarningLevel>4</WarningLevel>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <Deterministic>true</Deterministic>
+    <WarningLevel>4</WarningLevel>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+
+
+  <!-- ═══════════════════════════════════════════════════════════
+       Build configurations
+  ═══════════════════════════════════════════════════════════ -->
+  <PropertyGroup Condition="'$(Configuration)' == ''">
+    <Configuration>Debug</Configuration>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Platform)' == ''">
+    <Platform>AnyCPU</Platform>
+  </PropertyGroup>
+
+  <!-- AnyCPU -->
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|AnyCPU'">
     <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
-    <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|AnyCPU'">
     <PlatformTarget>AnyCPU</PlatformTarget>
-    <DebugType>pdbonly</DebugType>
-    <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
-  <PropertyGroup>
-    <ApplicationManifest>app.manifest</ApplicationManifest>
-    <ApplicationIcon>icon.ico</ApplicationIcon>
-  </PropertyGroup>
+
+  <!-- x64 -->
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
-    <DebugSymbols>true</DebugSymbols>
+    <PlatformTarget>x64</PlatformTarget>
     <OutputPath>bin\x64\Debug\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
-    <PlatformTarget>x64</PlatformTarget>
+    <Optimize>false</Optimize>
     <LangVersion>7.3</LangVersion>
     <ErrorReport>prompt</ErrorReport>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
+    <PlatformTarget>x64</PlatformTarget>
+    <Prefer32Bit>true</Prefer32Bit>
     <OutputPath>bin\x64\Release\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
-    <Optimize>true</Optimize>
     <DebugType>pdbonly</DebugType>
-    <PlatformTarget>x64</PlatformTarget>
+    <Optimize>true</Optimize>
     <LangVersion>7.3</LangVersion>
     <ErrorReport>prompt</ErrorReport>
-    <Prefer32Bit>true</Prefer32Bit>
   </PropertyGroup>
+
+  <!-- x86 -->
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x86'">
-    <DebugSymbols>true</DebugSymbols>
+    <PlatformTarget>x86</PlatformTarget>
     <OutputPath>bin\x86\Debug\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
-    <PlatformTarget>x86</PlatformTarget>
+    <Optimize>false</Optimize>
     <LangVersion>7.3</LangVersion>
     <ErrorReport>prompt</ErrorReport>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x86'">
+    <PlatformTarget>x86</PlatformTarget>
+    <Prefer32Bit>true</Prefer32Bit>
     <OutputPath>bin\x86\Release\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
-    <Optimize>true</Optimize>
     <DebugType>pdbonly</DebugType>
-    <PlatformTarget>x86</PlatformTarget>
+    <Optimize>true</Optimize>
     <LangVersion>7.3</LangVersion>
     <ErrorReport>prompt</ErrorReport>
-    <Prefer32Bit>true</Prefer32Bit>
   </PropertyGroup>
+
+  <!-- ARM64 -->
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|ARM64'">
-    <DebugSymbols>true</DebugSymbols>
+    <PlatformTarget>ARM64</PlatformTarget>
     <OutputPath>bin\ARM64\Debug\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
-    <PlatformTarget>ARM64</PlatformTarget>
+    <Optimize>false</Optimize>
     <LangVersion>7.3</LangVersion>
     <ErrorReport>prompt</ErrorReport>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|ARM64'">
+    <PlatformTarget>ARM64</PlatformTarget>
+    <Prefer32Bit>true</Prefer32Bit>
     <OutputPath>bin\ARM64\Release\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
-    <Optimize>true</Optimize>
     <DebugType>pdbonly</DebugType>
-    <PlatformTarget>ARM64</PlatformTarget>
+    <Optimize>true</Optimize>
     <LangVersion>7.3</LangVersion>
     <ErrorReport>prompt</ErrorReport>
-    <Prefer32Bit>true</Prefer32Bit>
   </PropertyGroup>
+
+
+  <!-- ═══════════════════════════════════════════════════════════
+       NuGet references
+  ═══════════════════════════════════════════════════════════ -->
   <ItemGroup>
     <Reference Include="Newtonsoft.Json">
-      <HintPath>$(SolutionDir)packages\Newtonsoft.Json.13.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
+      <HintPath>$(SolutionDir)packages\Newtonsoft.Json.13.0.4\lib\net45\Newtonsoft.Json.dll</HintPath>
     </Reference>
-    <Reference Include="NLog, Version=6.0.0.0, Culture=neutral, PublicKeyToken=5120e14c03d0593c, processorArchitecture=MSIL">
-      <HintPath>$(SolutionDir)packages\NLog.6.0.4\lib\net46\NLog.dll</HintPath>
+    <Reference Include="NLog">
+      <HintPath>$(SolutionDir)packages\NLog.6.1.3\lib\net46\NLog.dll</HintPath>
     </Reference>
+  </ItemGroup>
+
+
+  <!-- ═══════════════════════════════════════════════════════════
+       Framework references
+  ═══════════════════════════════════════════════════════════ -->
+  <ItemGroup>
+    <!-- Core -->
     <Reference Include="System" />
+    <Reference Include="System.Core" />
     <Reference Include="System.Configuration" />
     <Reference Include="System.Data" />
-    <Reference Include="System.Management" />
-    <Reference Include="System.Xml" />
-    <Reference Include="Microsoft.CSharp" />
-    <Reference Include="System.Core" />
-    <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Management" />
     <Reference Include="System.Net.Http" />
+    <Reference Include="System.Xml" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="Microsoft.CSharp" />
+    <!-- WPF -->
     <Reference Include="System.Xaml">
       <RequiredTargetFramework>4.0</RequiredTargetFramework>
     </Reference>
     <Reference Include="WindowsBase" />
     <Reference Include="PresentationCore" />
     <Reference Include="PresentationFramework" />
-    <Reference Include="System.Drawing" />
+    <!-- WinForms (tray icon) -->
     <Reference Include="System.Windows.Forms" />
   </ItemGroup>
+
+
+  <!-- ═══════════════════════════════════════════════════════════
+       Application entry point
+  ═══════════════════════════════════════════════════════════ -->
   <ItemGroup>
     <ApplicationDefinition Include="src\App.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
-    <Page Include="src\UI\Themes\Black.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
-    </Page>
+    <Compile Include="src\App.xaml.cs">
+      <DependentUpon>App.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+  </ItemGroup>
+
+
+  <!-- ═══════════════════════════════════════════════════════════
+       Core models and managers
+  ═══════════════════════════════════════════════════════════ -->
+  <ItemGroup>
+    <Compile Include="src\Core\HotkeyConfig.cs" />
+    <Compile Include="src\Core\Profile.cs" />
+    <Compile Include="src\Core\ProfileManager.cs" />
+    <Compile Include="src\Core\ScriptManager.cs" />
+    <Compile Include="src\Core\SettingsManager.cs" />
+  </ItemGroup>
+
+
+  <!-- ═══════════════════════════════════════════════════════════
+       Helpers
+  ═══════════════════════════════════════════════════════════ -->
+  <ItemGroup>
+    <Compile Include="src\Helpers\AboutHelper.cs" />
+    <Compile Include="src\Helpers\AudioHelper.cs" />
+    <Compile Include="src\Helpers\AutoStartHelper.cs" />
+    <Compile Include="src\Helpers\DisplayConfigHelper.cs" />
+    <Compile Include="src\Helpers\DisplayGroupHelper.cs" />
+    <Compile Include="src\Helpers\DisplayHelper.cs" />
+    <Compile Include="src\Helpers\DpiHelper.cs" />
+    <Compile Include="src\Helpers\GlobalHotkeyHelper.cs" />
+    <Compile Include="src\Helpers\IconHelper.cs" />
+    <Compile Include="src\Helpers\KeyConverter.cs" />
+    <Compile Include="src\Helpers\LoggerHelper.cs" />
+    <Compile Include="src\Helpers\ScriptHelper.cs" />
+    <Compile Include="src\Helpers\ThemeHelper.cs" />
+  </ItemGroup>
+
+
+  <!-- ═══════════════════════════════════════════════════════════
+       UI — themes
+  ═══════════════════════════════════════════════════════════ -->
+  <ItemGroup>
     <Page Include="src\UI\Themes\Base.xaml">
-      <SubType>Designer</SubType>
-      <Generator>MSBuild:Compile</Generator>
-    </Page>
-    <Page Include="src\UI\Windows\MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
-    <Page Include="src\UI\Windows\ProfileEditWindow.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
-    </Page>
-    <Page Include="src\UI\Windows\MonitorIdentifyWindow.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
-    </Page>
-    <Page Include="src\UI\Windows\CloseConfirmationDialog.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
-    </Page>
-    <Page Include="src\UI\Windows\SettingsWindow.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
-    </Page>
-    <Page Include="src\UI\Themes\Light.xaml">
+    <Page Include="src\UI\Themes\Black.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
@@ -163,60 +230,101 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
+    <Page Include="src\UI\Themes\Light.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+  </ItemGroup>
+
+
+  <!-- ═══════════════════════════════════════════════════════════
+       UI — controls
+  ═══════════════════════════════════════════════════════════ -->
+  <ItemGroup>
     <Page Include="src\UI\Controls\HotkeyEditorControl.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
-    <Compile Include="src\App.xaml.cs">
-      <DependentUpon>App.xaml</DependentUpon>
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="src\Core\ScriptManager.cs" />
-    <Compile Include="src\Helpers\AboutHelper.cs" />
-    <Compile Include="src\Helpers\AudioHelper.cs" />
-    <Compile Include="src\Helpers\AutoStartHelper.cs" />
-    <Compile Include="src\Helpers\DisplayGroupHelper.cs" />
-    <Compile Include="src\Helpers\ScriptHelper.cs" />
-    <Compile Include="src\UI\Converters\BooleanToVisibilityConverter.cs" />
-    <Compile Include="src\Helpers\DisplayHelper.cs" />
-    <Compile Include="src\Helpers\DisplayConfigHelper.cs" />
-    <Compile Include="src\Helpers\DpiHelper.cs" />
-    <Compile Include="src\Helpers\GlobalHotkeyHelper.cs" />
-    <Compile Include="src\Helpers\LoggerHelper.cs" />
-    <Compile Include="src\Helpers\ThemeHelper.cs" />
-    <Compile Include="src\Helpers\KeyConverter.cs" />
-    <Compile Include="src\Core\HotkeyConfig.cs" />
     <Compile Include="src\UI\Controls\HotkeyEditorControl.xaml.cs">
       <DependentUpon>HotkeyEditorControl.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="src\UI\Windows\MainWindow.xaml.cs">
-      <DependentUpon>MainWindow.xaml</DependentUpon>
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="src\Core\Profile.cs" />
-    <Compile Include="src\UI\Windows\ProfileEditWindow.xaml.cs">
-      <DependentUpon>ProfileEditWindow.xaml</DependentUpon>
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="src\UI\Windows\MonitorIdentifyWindow.xaml.cs">
-      <DependentUpon>MonitorIdentifyWindow.xaml</DependentUpon>
-      <SubType>Code</SubType>
-    </Compile>
+  </ItemGroup>
+
+
+  <!-- ═══════════════════════════════════════════════════════════
+       UI — converters and view models
+  ═══════════════════════════════════════════════════════════ -->
+  <ItemGroup>
+    <Compile Include="src\UI\Converters\BooleanToVisibilityConverter.cs" />
+    <Compile Include="src\UI\Converters\ProfileIconConverter.cs" />
+    <Compile Include="src\UI\Converters\RectConverter.cs" />
+    <Compile Include="src\UI\ViewModels\ProfileViewModel.cs" />
+  </ItemGroup>
+
+
+  <!-- ═══════════════════════════════════════════════════════════
+       UI — windows
+  ═══════════════════════════════════════════════════════════ -->
+  <ItemGroup>
+    <Page Include="src\UI\Windows\CloseConfirmationDialog.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
     <Compile Include="src\UI\Windows\CloseConfirmationDialog.xaml.cs">
       <DependentUpon>CloseConfirmationDialog.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
+
+    <Page Include="src\UI\Windows\MainWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Compile Include="src\UI\Windows\MainWindow.xaml.cs">
+      <DependentUpon>MainWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+
+    <Page Include="src\UI\Windows\MonitorIdentifyWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Compile Include="src\UI\Windows\MonitorIdentifyWindow.xaml.cs">
+      <DependentUpon>MonitorIdentifyWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+
+    <Page Include="src\UI\Windows\ProfileEditWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Compile Include="src\UI\Windows\ProfileEditWindow.xaml.cs">
+      <DependentUpon>ProfileEditWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+
+    <Page Include="src\UI\Windows\SettingsWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
     <Compile Include="src\UI\Windows\SettingsWindow.xaml.cs">
       <DependentUpon>SettingsWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="src\Core\ProfileManager.cs" />
-    <Compile Include="src\UI\ViewModels\ProfileViewModel.cs" />
-    <Compile Include="src\UI\Converters\RectConverter.cs" />
-    <Compile Include="src\Core\SettingsManager.cs" />
+  </ItemGroup>
+
+
+  <!-- ═══════════════════════════════════════════════════════════
+       UI — tray
+  ═══════════════════════════════════════════════════════════ -->
+  <ItemGroup>
     <Compile Include="src\UI\TrayIcon.cs" />
   </ItemGroup>
+
+
+  <!-- ═══════════════════════════════════════════════════════════
+       Properties / assembly metadata
+  ═══════════════════════════════════════════════════════════ -->
   <ItemGroup>
     <Compile Include="Properties\AssemblyInfo.cs">
       <SubType>Code</SubType>
@@ -236,22 +344,31 @@
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>
       <SubType>Designer</SubType>
     </EmbeddedResource>
-    <None Include="NLog.config">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="packages.config" />
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>
     </None>
   </ItemGroup>
-  <ItemGroup>
-    <None Include="App.config" />
-    <None Include="app.manifest" />
-  </ItemGroup>
+
+
+  <!-- ═══════════════════════════════════════════════════════════
+       Misc / root files
+  ═══════════════════════════════════════════════════════════ -->
   <ItemGroup>
     <Resource Include="icon.ico" />
+    <None Include="App.config" />
+    <None Include="app.manifest" />
+    <None Include="NLog.config">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="packages.config" />
+    <Content Include="DisplayProfileManager.Setup.iss" />
   </ItemGroup>
+
+
+  <!-- ═══════════════════════════════════════════════════════════
+       Bootstrapper packages
+  ═══════════════════════════════════════════════════════════ -->
   <ItemGroup>
     <BootstrapperPackage Include=".NETFramework,Version=v4.8">
       <Visible>False</Visible>
@@ -264,8 +381,8 @@
       <Install>false</Install>
     </BootstrapperPackage>
   </ItemGroup>
-  <ItemGroup>
-    <Content Include="DisplayProfileManager.Setup.iss" />
-  </ItemGroup>
+
+
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+
 </Project>

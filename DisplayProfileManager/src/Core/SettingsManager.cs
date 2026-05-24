@@ -30,7 +30,6 @@ namespace DisplayProfileManager.Core
         [JsonProperty("applyStartupProfile")]
         public bool ApplyStartupProfile { get; set; } = false;
 
-
         [JsonProperty("rememberCloseChoice")]
         public bool RememberCloseChoice { get; set; } = false;
 
@@ -232,10 +231,8 @@ namespace DisplayProfileManager.Core
                     }
                 }
 
-                // Only update settings if task operation succeeded
                 _settings.StartWithWindows = startWithWindows;
 
-                // If disabling StartWithWindows, also disable StartInSystemTray
                 if (!startWithWindows)
                 {
                     _settings.StartInSystemTray = false;
@@ -246,7 +243,6 @@ namespace DisplayProfileManager.Core
                 if (!settingsSaved)
                 {
                     logger.Error("Failed to save settings after task change");
-                    // Revert task change if settings save failed
                     if (startWithWindows)
                     {
                         autoStartHelper.DisableAutoStart();
@@ -271,14 +267,12 @@ namespace DisplayProfileManager.Core
         {
             try
             {
-                // StartInSystemTray can only be true if StartWithWindows is also true
                 if (startInSystemTray && !_settings.StartWithWindows)
                 {
                     logger.Warn("Cannot enable StartInSystemTray without StartWithWindows");
                     return false;
                 }
 
-                // Update the auto-start entry with the new argument
                 if (_settings.StartWithWindows)
                 {
                     var autoStartHelper = new AutoStartHelper();
@@ -290,7 +284,6 @@ namespace DisplayProfileManager.Core
                     }
                 }
 
-                // Update settings
                 _settings.StartInSystemTray = startInSystemTray;
                 return await SaveSettingsAsync();
             }
@@ -305,14 +298,12 @@ namespace DisplayProfileManager.Core
         {
             try
             {
-                // Cannot change mode unless auto-start is enabled
                 if (!_settings.StartWithWindows)
                 {
                     logger.Warn("Cannot change auto-start mode when auto-start is disabled");
                     return false;
                 }
 
-                // If already using this mode, nothing to do
                 if (_settings.AutoStartMode == mode)
                 {
                     logger.Debug($"Already using {mode} mode");
@@ -320,11 +311,8 @@ namespace DisplayProfileManager.Core
                 }
 
                 var autoStartHelper = new AutoStartHelper();
-
-                // Disable current auto-start method (both to ensure clean state)
                 autoStartHelper.DisableAutoStart();
 
-                // Enable new auto-start method
                 bool success = autoStartHelper.EnableAutoStart(mode, _settings.StartInSystemTray);
 
                 if (success)
@@ -337,7 +325,6 @@ namespace DisplayProfileManager.Core
                 }
                 else
                 {
-                    // If failed, try to restore previous mode
                     logger.Error($"Failed to switch to {mode} mode, restoring previous mode");
 
                     autoStartHelper.EnableAutoStart(_settings.AutoStartMode, _settings.StartInSystemTray);

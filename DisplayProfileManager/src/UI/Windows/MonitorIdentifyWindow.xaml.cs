@@ -29,18 +29,13 @@ namespace DisplayProfileManager.UI.Windows
 
             MonitorIndex = monitorIndex;
 
-            // Set the monitor index
             IndexTextBlock.Text = monitorIndex.ToString();
 
-            // Store target positions (these are physical pixels)
             _targetLeft = left;
             _targetTop = top;
-
-            // Set initial position (WPF will mess this up, but we'll fix it in Loaded event)
             this.Left = left;
             this.Top = top;
 
-            // Set up auto-close timer (3 seconds)
             _closeTimer = new DispatcherTimer();
             _closeTimer.Interval = TimeSpan.FromSeconds(3);
             _closeTimer.Tick += (s, e) =>
@@ -54,16 +49,13 @@ namespace DisplayProfileManager.UI.Windows
 
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
-            // Get the window handle
             var helper = new WindowInteropHelper(this);
             IntPtr hwnd = helper.Handle;
 
-            // Use SetWindowPos to position the window using physical pixel coordinates
-            // This bypasses WPF's broken DPI-aware positioning
+            // Use SetWindowPos to position the window using physical pixel coordinates (bypasses WPF's broken DPI-aware positioning)
             SetWindowPos(hwnd, IntPtr.Zero, (int)_targetLeft, (int)_targetTop, 0, 0,
                 SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
 
-            // Start the auto-close timer
             _closeTimer.Start();
         }
 

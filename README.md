@@ -18,6 +18,7 @@ This is a fork based on [zac15987/DisplayProfileManager](https://github.com/zac1
 - 🖱️ **Multiple ways to switch** — GUI, global hotkey, system tray, or CLI
 - 📺 **Full per-monitor control** — resolution, refresh rate, rotation, HDR, DPI, position, enable/disable, primary
 - 🪞 **Mirror display support** — clone monitors in pure or mixed extended/mirror configurations
+- 🖼️ **Custom profile icons** — assign a `.ico` icon to any profile; shown in the profile list, details panel, and system tray when active
 - 📋 **Profile duplication** — copy an existing profile as a starting point
 - 📥 **Import** — import `.dpm` profile files
 
@@ -98,10 +99,10 @@ MIT + Commons Clause — see [LICENSE](LICENSE) for details. Third-party license
 
 ## 🙏 Acknowledgments
 
-- [Newtonsoft.Json](https://www.newtonsoft.com/json) — JSON serialization
-- [NLog](https://nlog-project.org/) — logging
-- [windows-DPI-scaling-sample](https://github.com/lihas/windows-DPI-scaling-sample) — DPI scaling foundation
-- [tinted-themes](https://github.com/tinted-theming/tinted-themes) — theme database for DPM Theme Builder
+- [Newtonsoft.Json](https://www.newtonsoft.com/json) (BSD-3-Clause) — JSON serialization
+- [NLog](https://nlog-project.org/) (MIT) — logging
+- [windows-DPI-scaling-sample](https://github.com/lihas/windows-DPI-scaling-sample) (Unlicense) — DPI scaling foundation
+- [tinted-themes](https://github.com/tinted-theming/tinted-themes) (MIT) — theme database for DPM Theme Builder
 - [Claude Code](https://claude.ai/code) — built in collaboration with Anthropic's Claude Code
 
 ### 🤝 Contributors

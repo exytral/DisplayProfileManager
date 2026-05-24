@@ -3,10 +3,9 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
-             xmlns:converters="clr-namespace:DisplayProfileManager.UI.Converters"
              mc:Ignorable="d" 
              d:DesignHeight="30" d:DesignWidth="300">
-    
+
     <UserControl.Resources>
         <Style x:Key="HotkeyTextBoxStyle" TargetType="TextBox">
             <Setter Property="Padding" Value="8,6"/>
@@ -77,56 +76,16 @@
                 </Setter.Value>
             </Setter>
         </Style>
-        
-        <Style x:Key="ClearButtonStyle" TargetType="Button">
-            <Setter Property="Width" Value="20"/>
-            <Setter Property="Height" Value="20"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="Transparent" CornerRadius="2">
-                            <TextBlock Text="✕" 
-                                       FontSize="12" 
-                                       Foreground="{DynamicResource SecondaryTextBrush}"
-                                       HorizontalAlignment="Center"
-                                       VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="{DynamicResource ControlHoverBackgroundBrush}"/>
-                                <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
     </UserControl.Resources>
-    
-    <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*"/>
-            <ColumnDefinition Width="Auto"/>
-        </Grid.ColumnDefinitions>
-        
-        <TextBox x:Name="HotkeyTextBox"
-                 Grid.Column="0"
-                 Style="{StaticResource HotkeyTextBoxStyle}"
-                 IsReadOnly="True"
-                 Focusable="True"
-                 Text="{Binding HotkeyText, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}"
-                 PreviewKeyDown="HotkeyTextBox_PreviewKeyDown"
-                 PreviewKeyUp="HotkeyTextBox_PreviewKeyUp"
-                 GotFocus="HotkeyTextBox_GotFocus"
-                 LostFocus="HotkeyTextBox_LostFocus"
-                 MouseDown="HotkeyTextBox_MouseDown"/>
-        
-        <Button x:Name="ClearButton"
-                Grid.Column="1"
-                Style="{StaticResource ClearButtonStyle}"
-                Margin="4,0,0,0"
-                ToolTip="Clear hotkey (ESC)"
-                Click="ClearButton_Click"
-                Visibility="{Binding HasHotkey, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={x:Static converters:BooleanToVisibilityConverter.Instance}}"/>
-    </Grid>
+
+    <TextBox x:Name="HotkeyTextBox"
+             Style="{StaticResource HotkeyTextBoxStyle}"
+             IsReadOnly="True"
+             Focusable="True"
+             Text="{Binding HotkeyText, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}"
+             PreviewKeyDown="HotkeyTextBox_PreviewKeyDown"
+             PreviewKeyUp="HotkeyTextBox_PreviewKeyUp"
+             GotFocus="HotkeyTextBox_GotFocus"
+             LostFocus="HotkeyTextBox_LostFocus"
+             MouseDown="HotkeyTextBox_MouseDown"/>
 </UserControl>

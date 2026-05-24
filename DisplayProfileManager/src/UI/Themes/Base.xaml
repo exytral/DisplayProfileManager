@@ -108,6 +108,131 @@
         </Setter>
     </Style>
 
+    <!-- CheckBox Style -->
+    <Style TargetType="CheckBox">
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="FontFamily" Value="Segoe UI"/>
+        <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Padding" Value="6,0,0,0"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CheckBox">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Border Name="CheckBorder"
+                                Grid.Column="0"
+                                Width="13"
+                                Height="13"
+                                Background="Transparent"
+                                BorderBrush="{DynamicResource PrimaryTextBrush}"
+                                BorderThickness="1"
+                                CornerRadius="2"
+                                VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                Opacity="0.7">
+                            <Path Name="CheckMark"
+                                  Data="M 1 5 L 4.5 8.5 L 10 2"
+                                  Stroke="{DynamicResource PrimaryTextBrush}"
+                                  StrokeThickness="1.5"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"
+                                  SnapsToDevicePixels="True"
+                                  Visibility="Collapsed"/>
+                        </Border>
+                        <ContentPresenter Grid.Column="1"
+                                          Margin="{TemplateBinding Padding}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                          HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          RecognizesAccessKey="True"/>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="CheckMark" Property="Visibility" Value="Visible"/>
+                            <Setter TargetName="CheckBorder" Property="Background" Value="{DynamicResource ButtonBackgroundBrush}"/>
+                            <Setter TargetName="CheckBorder" Property="BorderBrush" Value="{DynamicResource ButtonBackgroundBrush}"/>
+                            <Setter TargetName="CheckBorder" Property="Opacity" Value="1"/>
+                            <Setter TargetName="CheckMark" Property="Stroke" Value="{DynamicResource ButtonForegroundBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="{x:Null}">
+                            <Setter TargetName="CheckMark" Property="Visibility" Value="Visible"/>
+                            <Setter TargetName="CheckMark" Property="Data" Value="M 1.5 6.5 L 10.5 6.5"/>
+                            <Setter TargetName="CheckBorder" Property="Opacity" Value="0.5"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="CheckBorder" Property="BorderBrush" Value="{DynamicResource ButtonBackgroundBrush}"/>
+                            <Setter TargetName="CheckBorder" Property="Opacity" Value="1"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="CheckBorder" Property="Opacity" Value="0.3"/>
+                            <Setter Property="Foreground" Value="{DynamicResource TertiaryTextBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- RadioButton Style -->
+    <Style TargetType="RadioButton">
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="FontFamily" Value="Segoe UI"/>
+        <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Padding" Value="6,0,0,0"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Ellipse Name="RadioOuter"
+                                 Grid.Column="0"
+                                 Width="13"
+                                 Height="13"
+                                 Stroke="{DynamicResource PrimaryTextBrush}"
+                                 StrokeThickness="1"
+                                 Fill="Transparent"
+                                 VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                 Opacity="0.7"/>
+                        <Ellipse Name="RadioInner"
+                                 Grid.Column="0"
+                                 Width="7"
+                                 Height="7"
+                                 Fill="{DynamicResource ButtonForegroundBrush}"
+                                 VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                 Visibility="Collapsed"/>
+                        <ContentPresenter Grid.Column="1"
+                                          Margin="{TemplateBinding Padding}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                          HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          RecognizesAccessKey="True"/>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="RadioInner" Property="Visibility" Value="Visible"/>
+                            <Setter TargetName="RadioOuter" Property="Fill" Value="{DynamicResource ButtonBackgroundBrush}"/>
+                            <Setter TargetName="RadioOuter" Property="Stroke" Value="{DynamicResource ButtonBackgroundBrush}"/>
+                            <Setter TargetName="RadioOuter" Property="Opacity" Value="1"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="RadioOuter" Property="Stroke" Value="{DynamicResource ButtonBackgroundBrush}"/>
+                            <Setter TargetName="RadioOuter" Property="Opacity" Value="1"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="RadioOuter" Property="Opacity" Value="0.3"/>
+                            <Setter Property="Foreground" Value="{DynamicResource TertiaryTextBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- ComboBox Item Style -->
     <Style TargetType="ComboBoxItem">
         <Setter Property="Background" Value="Transparent"/>

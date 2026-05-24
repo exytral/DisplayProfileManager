@@ -139,7 +139,7 @@ namespace DisplayProfileManager
                     return;
                 }
 
-                // IPC failed; handle local fallbacks for IPC-only commands
+                // IPC failed (handle local fallbacks for IPC-only commands)
                 if (isRefresh || (isTheme && string.IsNullOrEmpty(theme)))
                 {
                     logger.Info("Target maintenance command requires an active instance. Exiting.");
@@ -246,11 +246,6 @@ namespace DisplayProfileManager
                 if (profile != null)
                 {
                     var result = await _profileManager.ApplyProfileAsync(profile);
-                    // ApplyProfileAsync already logs its result
-                    //if (result.Success)
-                    //    logger.Info($"Successfully applied '{profile.Name}'");
-                    //else
-                    //    logger.Error($"Failed to apply '{profile.Name}'");
                 }
                 else
                 {
@@ -405,11 +400,9 @@ namespace DisplayProfileManager
                 }
 
                 // Always try to signal the event (even if window was found)
-                // This ensures the app shows even if it's in the tray
                 try
                 {
-                    // Wait a moment to ensure the first instance has set up the listener
-                    System.Threading.Thread.Sleep(100);
+                    Thread.Sleep(100); // Wait to ensure the first instance has set up the listener
 
                     using (var showEvent = EventWaitHandle.OpenExisting(SHOW_WINDOW_EVENT_NAME))
                     {
@@ -479,13 +472,9 @@ namespace DisplayProfileManager
             await _settingsManager.LoadSettingsAsync();
             await _profileManager.LoadProfilesAsync();
 
-            // Initialize theme system
             ThemeHelper.InitializeTheme();
-
-            // Initialize global hotkeys
             InitializeGlobalHotkeys();
 
-            // Subscribe to profile events to keep hotkeys updated
             _profileManager.ProfileAdded += OnProfileChanged;
             _profileManager.ProfileUpdated += OnProfileChanged;
             _profileManager.ProfileDeleted += OnProfileDeleted;
@@ -545,7 +534,6 @@ namespace DisplayProfileManager
         {
             ShowMainWindow();
 
-            // Open settings after showing main window
             if (_mainWindow != null)
             {
                 _mainWindow.OpenSettingsWindow();
@@ -652,8 +640,7 @@ namespace DisplayProfileManager
         {
             try
             {
-                // Clamp at 0 — if Window_Loaded incremented but the constructor failed before
-                // the Closed handler was hooked, the count drifts and hotkeys stop working permanently.
+                // Clamp at 0 (if Window_Loaded incremented but the constructor failed before the Closed handler was hooked, the count drifts and hotkeys stop working permanently)
                 _profileEditWindowCount = Math.Max(0, _profileEditWindowCount - 1);
                 logger.Debug($"ProfileEditWindow closed. Count: {_profileEditWindowCount}");
 
@@ -711,7 +698,7 @@ namespace DisplayProfileManager
                         "Error applying profile via hotkey",
                         System.Windows.Forms.ToolTipIcon.Error);
                 }
-                catch { /* swallow: tray icon disposed or unavailable */ }
+                catch { }
             }
         }
 
@@ -728,7 +715,6 @@ namespace DisplayProfileManager
 
         private void OnProfileChanged(object sender, Profile profile)
         {
-            // Refresh all profile hotkeys when any profile is added or updated
             RegisterAllProfileHotkeys();
         }
 
@@ -736,7 +722,6 @@ namespace DisplayProfileManager
         {
             try
             {
-                // Unregister the specific profile's hotkey
                 _globalHotkeyHelper?.UnregisterProfileHotkey(profileId);
                 logger.Info($"Unregistered hotkey for deleted profile: {profileId}");
             }
@@ -760,7 +745,6 @@ namespace DisplayProfileManager
 
                 _trayIcon?.Dispose();
 
-                // Unsubscribe from profile events
                 if (_profileManager != null)
                 {
                     _profileManager.ProfileAdded -= OnProfileChanged;
@@ -768,17 +752,13 @@ namespace DisplayProfileManager
                     _profileManager.ProfileDeleted -= OnProfileDeleted;
                 }
 
-                // Cleanup global hotkeys
                 if (_globalHotkeyHelper != null)
                 {
                     _globalHotkeyHelper.UnregisterAllProfileHotkeys();
                     _globalHotkeyHelper.Dispose();
                 }
 
-                // Cleanup theme system
                 ThemeHelper.Cleanup();
-
-                // Profiles are now saved individually when modified, no need to save all on exit
 
                 if (_settingsManager != null)
                 {
@@ -797,9 +777,7 @@ namespace DisplayProfileManager
                 logger.Error(ex, "Error during application exit");
             }
 
-            logger.Info("========== Display Profile Manager Exiting ==========");
-
-
+            logger.Info("Display Profile Manager Exited");
             base.OnExit(e);
         }
     }

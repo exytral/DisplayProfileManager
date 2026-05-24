@@ -8,6 +8,12 @@ Display Profile Manager is a Windows desktop application for managing display pr
 
 This is a fork by [exytral](https://github.com/exytral) based on [zac15987/DisplayProfileManager](https://github.com/zac15987/DisplayProfileManager).
 
+## Updating This File
+
+- **Current state only** — describe how things are, not how they changed. No "formerly", "previously", "renamed from", "now exposes", or version-delta language.
+- **No internal version references** — do not mention which release introduced or changed something. That belongs in `CHANGELOG.md`.
+- **When in doubt, rewrite the affected section from scratch** rather than patching around existing wording.
+
 ## Build and Run Commands
 
 ```bash
@@ -45,6 +51,7 @@ Listed roughly in order of invocation during `ApplyProfileAsync`:
 - **DisplayConfigHelper** — Primary Windows Display Configuration API wrapper. All topology and layout changes go through here. Implements `ApplyDisplayTopology`, `DeferDisplayLayoutAsync`, `ApplyDisplayLayout`, `ApplyDisplayConfig`, `ApplyHdrSettings`, `VerifyDisplayConfiguration`, `ValidateCloneGroups`. See **Display Configuration Engine** below.
 - **DpiHelper** — System-wide DPI scaling via P/Invoke, adapted from the windows-DPI-scaling-sample project. Called after layout is committed.
 - **AudioHelper** — Direct native COM/WASAPI integration for low-overhead audio profile configuration and endpoint switching.- **ScriptManager** — Thread-safe singleton for script management. Sandboxed scripts folder at `%AppData%\DisplayProfileManager\Scripts\`. All scripts are copied into this folder on import — arbitrary file paths outside this folder are not supported. Exposes `ExecuteScript`, `AddScript`, `RemoveScript`, `SortScripts`, `ImportScriptAsync`. Called last in the apply sequence.
+- **IconHelper** — Icons sandbox management (`Helpers/IconHelper.cs`). `GetIconsFolderPath` creates `%AppData%\DisplayProfileManager\Icons\` on demand. `ResolveIconPath` rejects path traversal. `LoadImageSource` returns a frozen `BitmapImage` with an in-process `ConcurrentDictionary` cache keyed by `filename|size|lastWriteUtcTicks` — stale entries evict automatically when files change externally. `ImportIconAsync` copies `.ico` files with conflict-resolution renaming. `GetAvailableIcons` returns a sorted list of bare filenames.
 - **SettingsManager** — Thread-safe singleton for app settings. Manages auto-start mode (Registry or Task Scheduler), default profile, current theme, and other persisted preferences.
 - **ThemeHelper** — Theme loading, registration, and switching. Manages built-in themes and user themes from `%AppData%\DisplayProfileManager\Themes\`. Exposes `AvailableThemes` (live list) and `RefreshThemes` (public, rescans and reapplies).
 - **DisplayGroupHelper** (`DisplayGroupHelper.cs`) — Provides display grouping logic for the profile editor UI, handling clone group member aggregation and display of shared settings.
@@ -52,8 +59,7 @@ Listed roughly in order of invocation during `ApplyProfileAsync`:
 - **AutoStartHelper** — Registry mode (no admin) or Task Scheduler mode (requires admin for setup, faster launch).
 - **DisplayHelper** — Legacy API wrapper. Used only for monitor connection checks (`IsMonitorConnected`).
 - **TrayIcon** — System tray integration with dynamically generated context menu from profiles.
-- **AboutHelper** — Version string resolution (`GetVersion`, `GetInformationalVersion`), settings path helper, and static data for the Settings → About panel. `Libraries` nested class holds third-party library metadata. `Contributors` nested class holds contributor names, URLs, and feature request credits used by `SettingsWindow` to render the contributors list.
-
+- **AboutHelper** — Version string resolution (`GetVersion`, `GetInformationalVersion`), settings path helper, and static data for the Settings → About panel. `Libraries` nested class holds third-party library metadata. `Contributors` nested class holds contributor names, URLs, link labels, and feature request credits used by `SettingsWindow.LoadContributors` to render the contributors list. Each contributor entry has a `Name`, `Url`, `Desc`, an optional `LinkLabel`/`LinkUrl` pair (renders as a hyperlink in parentheses between the name and description), and an optional `SubText` (italic line below, for community request credits).
 ### Display Configuration Engine
 
 The application uses the Windows Display Configuration API (`SetDisplayConfig`) for atomic, reliable profile switching. The apply flow in `ProfileManager.ApplyProfileAsync` is:
@@ -119,7 +125,7 @@ Profiles can contain both clone groups and independent displays in the same conf
 
 Themes are split into two layers:
 
-1. **`BaseTheme.xaml`** — all control styles (TextBox, ComboBox, ScrollBar, ComboBoxItem, etc.). Shared across all themes. Adding a new theme does not require touching this file.
+1. **`Base.xaml`** — all control styles (TextBox, ComboBox, ScrollBar, ComboBoxItem, etc.). Shared across all themes. Adding a new theme does not require touching this file.
 2. **Color/brush files** (e.g. `LightTheme.xaml`, `DarkTheme.xaml`, `BlackTheme.xaml`) — define only brush and color keys. Base `Color` keys (`BackgroundColor`, `SurfaceColor`, `BorderColor`, `HoverColor`, `AccentColor`) are defined here; most brushes derive from these automatically.
 
 **Built-in themes:** Light, Dark, Black. `System` is reserved (follows Windows theme).
@@ -156,7 +162,7 @@ All flags accept any number of leading dashes or none at all — `--profile`, `-
 ### Script System
 
 - Scripts are sandboxed to `%AppData%\DisplayProfileManager\Scripts\`. When a script is imported, it is copied into this folder. Arbitrary paths outside this folder are not supported.
-- Supported types: `.ps1` (via `powershell.exe -ExecutionPolicy Bypass`), `.bat`/`.cmd` (via `cmd.exe /c`), `.lnk` (via shell execute), `.vbs`/`.js` (via `cscript.exe /nologo`), `.py` (via `python.exe`), `.ahk` (via `autohotkey.exe`). `.exe` files are automatically converted to `.lnk` shortcuts on import to avoid COM reference issues — the shortcut is created in the scripts folder transparently.
+- Supported types: `.lnk` (via shell execute), `.ps1` (via `powershell.exe -ExecutionPolicy Bypass`), `.bat`/`.cmd` (via `cmd.exe /c`), `.vbs`/`.js` (via `cscript.exe /nologo`), `.py` (via `python.exe`), `.ahk` (via `autohotkey.exe`). `.exe` files are automatically converted to `.lnk` shortcuts on import to avoid COM reference issues.
 - `EnableScripts` is a per-profile section-level flag. When false, no scripts in that profile execute on apply. There is no per-script enable/disable toggle — scripts are always included or excluded as a group per profile. Scripts remain stored in the profile when `EnableScripts` is false.
 - Arguments can be passed to any script type. They are appended after the script path in the constructed command.
 
@@ -164,11 +170,12 @@ All flags accept any number of leading dashes or none at all — `--profile`, `-
 
 | Path | Contents |
 |------|----------|
+| `%AppData%\DisplayProfileManager\Icons\*.ico` | User icons |
+| `%AppData%\DisplayProfileManager\Logs\*.log` | NLog daily rotation, 30-day retention |
 | `%AppData%\DisplayProfileManager\Profiles\*.dpm` | One JSON file per profile |
+| `%AppData%\DisplayProfileManager\Scripts\` | User scripts |
+| `%AppData%\DisplayProfileManager\Themes\*.xaml` | User themes |
 | `%AppData%\DisplayProfileManager\Settings.json` | App settings |
-| `%AppData%\DisplayProfileManager\Themes\*.xaml` | User theme files |
-| `%AppData%\DisplayProfileManager\Scripts\` | User scripts (sandboxed) |
-| `%AppData%\DisplayProfileManager\Logs\` | NLog daily rotation, 30-day retention |
 
 ### Profile Structure
 
@@ -179,10 +186,11 @@ A `Profile` object contains the following top-level properties:
 | `Id` | `string` (GUID) | new GUID | Unique identifier |
 | `Name` | `string` | `""` | Display name |
 | `Description` | `string` | `""` | Optional description |
+| `Icon` | `string` | `null` | Bare filename of a custom tray/list icon relative to `%AppData%\DisplayProfileManager\Icons\`, or `null` for no custom icon |
 | `IsDefault` | `bool` | `false` | Applied on startup if set |
 | `CreatedDate` | `DateTime` | now | Creation timestamp |
 | `LastModifiedDate` | `DateTime` | now | Last save timestamp |
-| `SchemaVersion` | `int` | `0` | Schema version for migration. Defaults to `0` so old profiles without this field trigger migration on first load. Current version is `1`. |
+| `SchemaVersion` | `int` | `0` | Schema version for migration. Defaults to `0` so old profiles without this field trigger migration on first load. Current version is `2`. |
 | `DisplaySettings` | `List<DisplaySetting>` | `[]` | Per-monitor settings (see below) |
 | `AudioSettings` | `AudioSetting` | default | Playback/recording device config |
 | `EnableScripts` | `bool` | `true` | Whether scripts run on apply |
@@ -192,6 +200,7 @@ A `Profile` object contains the following top-level properties:
 Each `DisplaySetting` entry (one per physical monitor) includes:
 
 **Identity**
+
 | Property | Description |
 |----------|-------------|
 | `DeviceName`, `DeviceString` | GDI device path (e.g. `\\.\DISPLAY1`) and adapter string |
@@ -204,17 +213,20 @@ Each `DisplaySetting` entry (one per physical monitor) includes:
 | `PathIndex` | Display path enumeration index |
 
 **State**
+
 | Property | Description |
 |----------|-------------|
 | `IsEnabled` | Include/exclude this monitor from the profile |
 | `IsPrimary` | Primary display flag — the display positioned at (0,0) is primary |
 
 **Layout**
+
 | Property | Description |
 |----------|-------------|
 | `DisplayPositionX`, `DisplayPositionY` | Position in the virtual desktop |
 
 **Active configuration**
+
 | Property | Description |
 |----------|-------------|
 | `Width`, `Height` | Desired resolution |
@@ -224,11 +236,13 @@ Each `DisplaySetting` entry (one per physical monitor) includes:
 | `DpiScaling` | Windows DPI scaling percentage |
 
 **Native**
+
 | Property | Description |
 |----------|-------------|
 | `NativeWidth`, `NativeHeight` | EDID preferred timing resolution from `targetVideoSignalInfo.activeSize` — the panel's physical pixel grid. Used by `BreakClone` to restore the correct resolution rather than defaulting to the highest supported (which may be a DCI resolution). Populated via `GetDisplayConfigs` during `GetCurrentDisplaySettingsAsync`. `0` on old profiles — backfilled during schema migration when the display is connected. |
 
 **Capabilities**
+
 | Property | Description |
 |----------|-------------|
 | `AvailableResolutions` | All supported resolutions, sorted by width descending |
@@ -237,9 +251,13 @@ Each `DisplaySetting` entry (one per physical monitor) includes:
 
 ### Schema Migration
 
-`ProfileManager.LoadProfilesAsync` checks each profile's `SchemaVersion` against `CurrentSchemaVersion` (currently `1`). Profiles with `SchemaVersion < 1` are passed to `MigrateProfileAsync`.
+`ProfileManager.LoadProfilesAsync` checks each profile's `SchemaVersion` against `CurrentSchemaVersion` (currently `2`). Profiles with `SchemaVersion < 2` are passed to `MigrateProfileAsync`.
 
 `SchemaVersion` defaults to `0` in `Profile.cs` so that old profiles without this field deserialize to `0` and trigger migration automatically.
+
+**Version 1 → 2:**
+- No data backfill — `Icon` defaults to `null` via `JsonProperty`
+- Bumps `SchemaVersion` to `2` and sets `changed = true` to trigger a re-save
 
 **Version 0 → 1:**
 - Backfills `NativeWidth`/`NativeHeight` from live `GetDisplayConfigs()` by matching `TargetId`
@@ -250,8 +268,8 @@ Each `DisplaySetting` entry (one per physical monitor) includes:
 ## Dependencies
 
 - **.NET Framework 4.8**: WPF support
-- **Newtonsoft.Json 13.0.3**: JSON serialization for profiles and settings
-- **NLog 6.0.4**: Logging framework with daily file rotation
+- **Newtonsoft.Json 13.0.4**: JSON serialization for profiles and settings
+- **NLog 6.1.3**: Logging framework with daily file rotation
 - **packages.config**: Traditional NuGet package management (not PackageReference) — legacy `.csproj` format
 
 ## Platform Requirements
@@ -266,6 +284,35 @@ Each `DisplaySetting` entry (one per physical monitor) includes:
 - **Architectures**: AnyCPU (default), x86, x64, ARM64
 
 ## Development Guidelines
+
+### Comment Style
+
+- **Short, concise, single-line.** No `<summary>` tags, no step/phase headers, no multi-line blocks.
+- **Verb-oriented wherever appropriate** — comments describe what happens and why, not what exists.
+- **Don't explain self-explanatory code.** If the method name already says it, skip the comment. Getters, setters, simple assignments, obvious one-liners — no comment needed. Possible exception for large methods where a block needs orientation (one line per block, not per statement).
+- When unsure, look at the existing comment style in the file for guidance.
+
+```csharp
+// Good — orients the reader inside a large method without over-explaining
+// fetch live configs once — reused across all profile migrations
+// reject path traversal attempts
+// fall back to default icon if load fails
+// iterate displayConfigs — QueryDisplayConfig correctly reports clone topology unlike legacy API
+
+// Good — marks a non-obvious grouping boundary
+// Identity
+setting.DeviceName = foundConfig.DeviceName;
+// State
+setting.IsEnabled = foundConfig.IsEnabled;
+
+// Bad — explains the method name
+// This method gets the current display settings
+// Returns a list of DisplaySetting objects
+
+// Bad — step/phase narration
+// Step 1: Get the path
+// Step 2: Load the image
+```
 
 ### Logging
 ```csharp
@@ -291,52 +338,91 @@ private static readonly Logger logger = LoggerHelper.GetLogger();
 ### WPF UI Guidelines
 - Extract reusable UI components as standalone `UserControl` in `UI/Controls/` with separate `.xaml` and `.xaml.cs` files. Do not use inner classes for UI components in code-behind.
 - Use converters in `UI/Converters/` for data binding transformations.
-- Theme resources: `BaseTheme.xaml` for control styles, individual color files in `UI/Themes/` for brush definitions.
+- Theme resources: `Base.xaml` for control styles, individual color files in `UI/Themes/` for brush definitions.
 - Never hardcode theme names or lists in XAML or code-behind; bind to `ThemeHelper.AvailableThemes`.
+- **CheckBox / RadioButton alignment** — `Base.xaml` provides implicit styles with custom `Grid`-based templates that respect `VerticalContentAlignment`. Do not use negative padding (e.g. `Padding="-1"`) to compensate for misalignment — the root cause was WPF's default `BulletDecorator` template ignoring `VerticalContentAlignment`, fixed at the style level. Do not add keyed `CheckBox`/`RadioButton` styles in window resources; rely on the implicit style.
 
 ### JSON Serialization Notes
 - All profile/settings properties use `[JsonProperty("name")]` attributes for consistent naming.
 - New properties must have sensible defaults for loading old `.dpm` files (backward compatibility).
-  - `IsHdrEnabled` → `false`, `Rotation` → `1` (0°), `EnableScripts` → `true`, `CloneGroupId` → `""` (extended mode), `NativeWidth`/`NativeHeight` → `0` (backfilled by migration), `SchemaVersion` → `0` (triggers migration on first load).
+  - `IsHdrEnabled` → `false`, `Rotation` → `1` (0°), `EnableScripts` → `true`, `CloneGroupId` → `""` (extended mode), `NativeWidth`/`NativeHeight` → `0` (backfilled by migration), `SchemaVersion` → `0` (triggers migration on first load), `Icon` → `null` (no custom icon; `null` is the correct JSON absence).
+
+### Adding a Contributor
+
+Two files need updating — `AboutHelper.cs` and `SettingsWindow.xaml.cs`.
+
+**`AboutHelper.Contributors`** — add a constant group for the new entry:
+
+```csharp
+public const string ExampleName      = "@example";
+public const string ExampleUrl       = "https://github.com/example";
+public const string ExampleDesc      = "Short description of contribution";
+public const string ExampleLinkLabel = "PR #99";           // omit if no link
+public const string ExampleLinkUrl   = "https://github.com/zac15987/DisplayProfileManager/pull/99";
+```
+
+For forks use the repo URL as `LinkUrl` and `"Fork"` as `LinkLabel`. For the original project use the repo URL and `"Original project"`. Community requesters go in `SubText` on an existing entry — add a `FfgtthrIssueUrl`-style constant if you need to link an issue.
+
+**`SettingsWindow.xaml.cs` — `LoadContributors`** — add a new entry to the array:
+
+```csharp
+new
+{
+    Name        = AboutHelper.Contributors.ExampleName,
+    Url         = AboutHelper.Contributors.ExampleUrl,
+    LinkLabel   = AboutHelper.Contributors.ExampleLinkLabel,  // or (string)null
+    LinkUrl     = AboutHelper.Contributors.ExampleLinkUrl,    // or (string)null
+    Description = AboutHelper.Contributors.ExampleDesc,
+    SubText     = (string)null
+},
+```
+
+Order: upstream contributors first (chronological by contribution), then `@exytral` last.
 
 ### File Structure
 ```
 DisplayProfileManager/
 ├── Core/
-│   ├── Profile.cs              Profile model + DisplaySetting, AudioSetting, HotkeyConfig
-│   ├── ProfileManager.cs       Thread-safe singleton; orchestrates ApplyProfileAsync and MigrateProfileAsync
-│   ├── SettingsManager.cs      Thread-safe singleton; persists app settings to Settings.json
-│   ├── ScriptManager.cs        Thread-safe singleton; script CRUD and execution
-│   └── HotkeyConfig.cs         Per-profile hotkey definition
+│   ├── HotkeyConfig.cs                          Per-profile hotkey definition
+│   ├── Profile.cs                               Profile model + DisplaySetting, AudioSetting, HotkeyConfig
+│   ├── ProfileManager.cs                        Thread-safe singleton; orchestrates ApplyProfileAsync and MigrateProfileAsync
+│   ├── ScriptManager.cs                         Thread-safe singleton; script CRUD and execution
+│   └── SettingsManager.cs                       Thread-safe singleton; persists app settings to Settings.json
 ├── Helpers/
-│   ├── DisplayConfigHelper.cs  Display engine — all SetDisplayConfig logic lives here
-│   ├── DisplayGroupHelper.cs   Clone group display grouping for the profile editor UI
-│   ├── DisplayHelper.cs        Legacy API wrapper; used only for IsMonitorConnected
-│   ├── DpiHelper.cs            System-wide DPI scaling via P/Invoke
-│   ├── AudioHelper.cs          Native Windows WASAPI/COM interface mapping for audio switching
-│   ├── ScriptHelper.cs         Script execution — process launch for .lnk, .ps1, .bat, .vbs, .js, .py, .ahk
-│   ├── GlobalHotkeyHelper.cs   RegisterHotKey / UnregisterHotKey management
-│   ├── AutoStartHelper.cs      Registry and Task Scheduler auto-start modes
-│   ├── ThemeHelper.cs          Theme registration, switching, folder scanning
-│   ├── LoggerHelper.cs         NLog factory with automatic class-name detection
-│   ├── AboutHelper.cs          Version strings, settings path, Libraries and Contributors nested classes
-│   └── KeyConverter.cs         WPF Key ↔ VirtualKey conversion for hotkeys
+│   ├── AboutHelper.cs                           Version strings, settings path, Libraries and Contributors nested classes
+│   ├── AudioHelper.cs                           Native Windows WASAPI/COM interface mapping for audio switching
+│   ├── AutoStartHelper.cs                       Registry and Task Scheduler auto-start modes
+│   ├── DisplayConfigHelper.cs                   Display engine — all SetDisplayConfig logic lives here
+│   ├── DisplayGroupHelper.cs                    Clone group display grouping for the profile editor UI
+│   ├── DisplayHelper.cs                         Legacy API wrapper; used only for IsMonitorConnected
+│   ├── DpiHelper.cs                             System-wide DPI scaling via P/Invoke
+│   ├── GlobalHotkeyHelper.cs                    RegisterHotKey / UnregisterHotKey management
+│   ├── IconHelper.cs                            Icons sandbox — import, load (cached), and enumerate .ico files
+│   ├── KeyConverter.cs                          WPF Key ↔ VirtualKey conversion for hotkeys
+│   ├── LoggerHelper.cs                          NLog factory with automatic class-name detection
+│   ├── ScriptHelper.cs                          Script execution — process launch for .lnk, .ps1, .bat, .vbs, .js, .py, .ahk
+│   └── ThemeHelper.cs                           Theme registration, switching, folder scanning
 └── UI/
     ├── Controls/
-    │   └── HotkeyEditorControl.xaml/.cs   Hotkey capture and edit control
-    ├── Converters/             Value converters for data binding transformations
+    │   └── HotkeyEditorControl.xaml(.cs)        Hotkey capture and edit control
+    ├── Converters/
+    │   ├── BooleanToVisibilityConverter.cs      bool → Visibility with Collapsed fallback
+    │   ├── ProfileIconConverter.cs              Bare filename → ImageSource for profile list card binding
+    │   └── RectConverter.cs                     Width + Height → Rect(0,0,w,h) for rounded clip geometry
     ├── Themes/
-    │   ├── BaseTheme.xaml      Shared control styles (TextBox, ComboBox, ScrollBar, etc.)
-    ├── ViewModels/             MVVM view models
+    │   ├── Base.xaml                            Shared control styles (TextBox, ComboBox, ScrollBar, CheckBox, RadioButton, etc.)
+    │   ├── Black.xaml                           Black theme — Material dark palette, OLED-optimised
+    │   ├── Dark.xaml                            Dark theme
+    │   └── Light.xaml                           Light theme
+    ├── ViewModels/
+    │   └── ProfileViewModel.cs                  Profile display model; exposes Icon, Name, and binding-friendly properties
     ├── Windows/
-    │   ├── MainWindow          Profile list, details panel, action buttons
-    │   ├── ProfileEditWindow   Per-monitor settings editor, clone UI, audio, scripts panel
-    │   ├── SettingsWindow      Auto-start, theme, startup profile, notifications, hotkey overview
-    │   └── MonitorIdentifyWindow  Numbered overlay for physical monitor identification
-    └── TrayIcon.cs             System tray icon and dynamic context menu
-DPMThemeBuilder.pyw             Python tool: tinted-themes database → .xaml theme files
-docs/                           User-facing documentation (GitHub wiki source)
-.github/ISSUE_TEMPLATE/         GitHub issue templates
+    │   ├── CloseConfirmationDialog.xaml(.cs)    Minimize vs Exit prompt with Remember my choice
+    │   ├── MainWindow.xaml(.cs)                 Profile list, details panel, action buttons
+    │   ├── MonitorIdentifyWindow.xaml(.cs)      Numbered overlay for physical monitor identification
+    │   ├── ProfileEditWindow.xaml(.cs)          Profile info, per-monitor settings editor, clone UI, audio, scripts panel
+    │   └── SettingsWindow.xaml(.cs)             Theme, Auto-start, startup profile, notifications, hotkey overview
+    └── TrayIcon.cs                              System tray icon and dynamic context menu
 ```
 
 ## UI Behavior Reference
@@ -350,9 +436,9 @@ This section documents non-obvious UI interactions that affect how features shou
 - **Double-click unselected card** — selects then applies the profile.
 - **Double-click selected card** — opens the profile editor.
 - **Applying a profile** — clears the current selection.
-- **Refreshing** — clears the current selection.
+- **Refreshing** — clears the current selection, refreshes profiles and themes.
 - **Deleting a profile** — clears the current selection.
-- Profile cards show an inline hotkey label (e.g. "Shift + F4") when one is assigned.
+- Profile cards show an inline hotkey label when one is assigned (in green when enabled).
 - Profile name is truncated if too long. Description wraps to a maximum of 3 lines.
 
 ### Main Window — Action Buttons
@@ -366,9 +452,10 @@ This section documents non-obvious UI interactions that affect how features shou
 ### Main Window — Details Panel
 
 Visible when a profile is selected. Shows:
-- Profile name and description
-- Per-monitor cards: resolution, refresh rate, DPI. Disabled monitors shown with an amber "DISABLED MONITOR" badge. Primary monitor labeled "Primary Display".
-- Audio Settings: device names with "(Not Applied)" when the Apply toggle is off for that device.
+- Profile name and description; when a custom icon is set, an 18×18 icon appears inline to the right of the name.
+- Per-monitor cards: resolution, refresh rate, rotation, DPI. Disabled monitors shown with an amber "DISABLED MONITOR" badge. Primary monitor labeled "Primary Display".
+- **Display:** section: with consistent 16px top spacing shared across all sections.
+- **Audio:** section: enabled devices show the device name in secondary text; disabled devices show "Output: Not Applied" / "Input: Not Applied" in gray with no device name.
 - Scripts section: labeled "Scripts (Disabled):" when the section-level `EnableScripts` toggle is off.
 - Hotkey Settings: hotkey combination and Enabled/Disabled status. Status is accent-colored when enabled, default text color when disabled.
 - Created and Last Modified timestamps.
@@ -380,16 +467,21 @@ Visible when a profile is selected. Shows:
 
 ### Profile Editor
 
-- **Detect Current** — overwrites all display settings with the current live desktop configuration.
-- **Detect Current Audio** — overwrites audio settings with current default playback/recording devices.
+- **Load** (Displays) — overwrites all display settings with the current live desktop configuration.
 - **Identify** — overlays each physical monitor with its number temporarily.
 - **Clone dropdown** — per-monitor control. Select another monitor to create a mirror group. The two monitors merge into a single group panel listing both device names. Resolution and refresh rate are shared across the group.
 - **Break Clone** — appears on grouped panels in place of the Clone dropdown. Splits the group back into independent monitors. Restores each non-representative member's resolution from `NativeWidth`/`NativeHeight` where available.
+- **Profile name** — `MaxLength="60"` enforced on the TextBox. Names longer than 63 characters cause tray menu truncation issues; the 60-char limit is the enforced UI ceiling with headroom below the known breakpoint.
+- **Icon picker** — between the name/hotkey section and Display Settings. Import `.ico` files into the Icons sandbox. Select from previously imported icons via a scrollable toggle grid. Clear removes the icon assignment without deleting the file from the sandbox.
+- **Load** (Audio) — overwrites audio settings with current default playback/recording devices.
+- **Clear All Scripts** — danger button in the Scripts section header. Marks all non-deleted scripts for deletion in one click; individual rows can still be restored.
 - The Scripts section has a single **Enable** toggle that controls all scripts for the profile. There is no per-script enable/disable.
 - Hotkeys are disabled system-wide while any profile editor window is open.
+- The window opens sized and positioned to match the main window at open time.
 
 ### Settings Window
 
+- **Themes dropdown** — populated at runtime from `ThemeHelper.AvailableThemes`. Lists all built-in themes (Light, Dark, Black, System) plus any user themes dropped into `%AppData%\DisplayProfileManager\Themes\`. Selecting a theme applies and persists it immediately. The list updates automatically after a refresh.
 - **Start with Windows** — enables auto-start. **Start in system tray when Windows starts** is a sub-option, greyed out and inactive unless Start with Windows is enabled. Unchecking Start with Windows also unchecks the tray sub-option.
 - **Auto-Start Method** — Standard (Registry, no admin) or Quick Launch (Task Scheduler, admin required for initial setup only).
 - **Startup Profile** — any profile can be selected. Independent of the Default profile badge.
@@ -403,8 +495,8 @@ Visible when a profile is selected. Shows:
 
 - Left-click or right-click opens the context menu.
 - Profile list — all profiles listed. Active profile has a checkmark. Clicking any profile applies it directly.
+- The tray icon updates to the active profile's custom icon on each apply, falling back to the default app icon if loading fails. Apply success notification uses `ToolTipIcon.Info`; failure uses `ToolTipIcon.Error`.
 - **Manage Profiles...** — opens the main window.
-- **Refresh** — rescans profiles and themes from disk.
 - **Settings...** — opens the main window then the Settings window.
 - **Exit** — exits the application.
 
@@ -417,8 +509,8 @@ The test project (`DisplayProfileManager.Tests/`) is a separate MSTest v3 projec
 ```
 DisplayProfileManager.Tests/
 ├── Helpers/
-│   ├── DisplayConfigInfoBuilder.cs   Builder for DisplayConfigHelper.DisplayConfigInfo test fixtures
-│   └── DisplaySettingBuilder.cs      Builder for DisplaySetting test fixtures
+│   ├── DisplayConfigInfoBuilder.cs
+│   └── DisplaySettingBuilder.cs
 └── Tests/
     ├── DisplayConfigNormalizationTests.cs
     ├── DisplayConfigPathSourceInfoTests.cs

@@ -17,7 +17,6 @@ namespace DisplayProfileManager.UI.Windows
 
             _settingsManager = SettingsManager.Instance;
 
-            // Set default selection based on current CloseToTray setting
             if (_settingsManager.ShouldCloseToTray())
             {
                 MinimizeToTrayRadioButton.IsChecked = true;
@@ -32,7 +31,6 @@ namespace DisplayProfileManager.UI.Windows
 
         private void OKButton_Click(object sender, RoutedEventArgs e)
         {
-            // Determine the user's choice
             ShouldCloseToTray = MinimizeToTrayRadioButton.IsChecked == true;
             RememberChoice = RememberChoiceCheckBox.IsChecked == true;
 
