@@ -35,15 +35,16 @@ namespace DisplayProfileManager.Helpers
 
         public static class Libraries
         {
-            public const string NLogName = "NLog";
-            public const string NLogVersion = "6.1.3";
-            public const string NLogLicense = "BSD-3-Clause";
-            public const string NLogUrl = "https://nlog-project.org/";
 
             public const string NewtonsoftName = "Newtonsoft.Json";
             public const string NewtonsoftVersion = "13.0.4";
             public const string NewtonsoftLicense = "MIT";
             public const string NewtonsoftUrl = "https://www.newtonsoft.com/json";
+
+            public const string NLogName = "NLog";
+            public const string NLogVersion = "6.1.3";
+            public const string NLogLicense = "BSD-3-Clause";
+            public const string NLogUrl = "https://nlog-project.org/";
         }
 
         public static class Contributors

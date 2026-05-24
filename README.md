@@ -99,8 +99,8 @@ MIT + Commons Clause — see [LICENSE](LICENSE) for details. Third-party license
 
 ## 🙏 Acknowledgments
 
-- [Newtonsoft.Json](https://www.newtonsoft.com/json) (MIT BSD-3-Clause) — JSON serialization
-- [NLog](https://nlog-project.org/) (MIT) — Logging
+- [Newtonsoft.Json](https://www.newtonsoft.com/json) (MIT) — JSON serialization
+- [NLog](https://nlog-project.org/) (BSD-3-Clause) — Logging
 - [windows-DPI-scaling-sample](https://github.com/lihas/windows-DPI-scaling-sample) (Unlicense) — DPI scaling foundation
 - [tinted-themes](https://github.com/tinted-theming/tinted-themes) (MIT) — Theme database for DPM Theme Builder
 - [Claude Code](https://claude.ai/code) — Built in collaboration with Anthropic's Claude Code
