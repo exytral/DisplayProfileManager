@@ -21,14 +21,15 @@ namespace DisplayProfileManager.UI.Windows
     public partial class MainWindow : Window
     {
         private static readonly Logger logger = LoggerHelper.GetLogger();
+
         private ScriptManager _scriptManager;
         private ProfileManager _profileManager;
         private SettingsManager _settingsManager;
+
         private Profile _selectedProfile;
         private List<ProfileViewModel> _profileViewModels;
         private HwndSource _hwndSource;
 
-        // State management
         private bool _isHoveringMaxButton = false;
         private bool _isApplying = false;
 
@@ -42,7 +43,6 @@ namespace DisplayProfileManager.UI.Windows
             _settingsManager = SettingsManager.Instance;
 
             InitializeComponent();
-
             SetupEventHandlers();
 
             LoadProfiles();
@@ -64,15 +64,13 @@ namespace DisplayProfileManager.UI.Windows
         {
             try
             {
-                StatusTextBlock.Text = "Loading profiles...";
                 RefreshProfilesList();
                 StatusTextBlock.Text = "Ready";
             }
             catch (Exception ex)
             {
                 StatusTextBlock.Text = $"Error loading profiles: {ex.Message}";
-                MessageBox.Show($"Error loading profiles: {ex.Message}", "Error",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Error loading profiles: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -91,13 +89,12 @@ namespace DisplayProfileManager.UI.Windows
             ProfilesListBox.ItemsSource = _profileViewModels;
 
             if (profiles.Count == 0)
-            {
                 StatusTextBlock.Text = "No profiles found. Create your first profile to get started.";
-            }
         }
 
         private void UpdateProfileDetails(Profile profile)
         {
+            // Clear details panel and hide actions when no profile is selected
             if (profile == null)
             {
                 ActionButtonsPanel.Visibility = Visibility.Collapsed;
@@ -152,8 +149,7 @@ namespace DisplayProfileManager.UI.Windows
                         Margin = new Thickness(0, 2, 6, 0),
                         VerticalAlignment = VerticalAlignment.Center
                     };
-                    RenderOptions.SetBitmapScalingMode(
-                        iconImage, BitmapScalingMode.HighQuality);
+                    RenderOptions.SetBitmapScalingMode(iconImage, BitmapScalingMode.HighQuality);
                     nameRow.Children.Add(iconImage);
                 }
             }
@@ -171,7 +167,7 @@ namespace DisplayProfileManager.UI.Windows
                 ProfileDetailsPanel.Children.Add(descBlock);
             }
 
-            // Display Settings Section
+            // Display Section — grouped via DisplayGroupHelper to handle clone groups correctly
             if (profile.DisplaySettings.Count > 0)
             {
                 var displaysHeader = new TextBlock
@@ -183,8 +179,11 @@ namespace DisplayProfileManager.UI.Windows
                 };
                 ProfileDetailsPanel.Children.Add(displaysHeader);
 
-                foreach (var setting in profile.DisplaySettings)
+                var displayGroups = DisplayGroupHelper.GroupDisplaysForUI(profile.DisplaySettings);
+                foreach (var group in displayGroups)
                 {
+                    var setting = group.RepresentativeSetting;
+                    var displayMembers = group.AllMembers;
                     var settingPanel = new StackPanel { Margin = new Thickness(0, 0, 0, 12) };
 
                     if (!setting.IsEnabled)
@@ -202,7 +201,7 @@ namespace DisplayProfileManager.UI.Windows
 
                         var disabledIndicator = new TextBlock
                         {
-                            Text = "⚠ DISABLED MONITOR",
+                            Text = displayMembers.Count > 1 ? "⚠ DISABLED CLONE GROUP" : "⚠ DISABLED MONITOR",
                             Style = (Style)FindResource("PrimaryTextBlockStyle"),
                             FontSize = 11,
                             Foreground = new SolidColorBrush(Color.FromRgb(200, 100, 0)),
@@ -211,14 +210,26 @@ namespace DisplayProfileManager.UI.Windows
                         };
                         innerPanel.Children.Add(disabledIndicator);
 
+                        string deviceText = displayMembers.Count > 1
+                            ? string.Join("\n", displayMembers.Select(m =>
+                            {
+                                var name = !string.IsNullOrEmpty(m.ReadableDeviceName) ? m.ReadableDeviceName
+                                    : (!string.IsNullOrEmpty(m.DeviceString) ? m.DeviceString : m.DeviceName);
+                                return m.IsCloneSource ? $"{name}  (Source)" : $"{name}  (Clone)";
+                            }))
+                            : (!string.IsNullOrEmpty(setting.ReadableDeviceName) ? setting.ReadableDeviceName :
+                               (!string.IsNullOrEmpty(setting.DeviceString) ? setting.DeviceString : setting.DeviceName));
+
                         var deviceName = new TextBlock
                         {
-                            Text = !string.IsNullOrEmpty(setting.ReadableDeviceName) ? setting.ReadableDeviceName :
-                                   (!string.IsNullOrEmpty(setting.DeviceString) ? setting.DeviceString : setting.DeviceName),
+                            Text = deviceText,
                             Style = (Style)FindResource("PrimaryTextBlockStyle"),
                             FontWeight = FontWeights.Medium,
                             Opacity = 0.7,
-                            ToolTip = $"{setting.ReadableDeviceName ?? setting.DeviceString}\n{setting.DeviceName}\n\nThis monitor will be disabled when applying this profile"
+                            TextWrapping = TextWrapping.Wrap,
+                            ToolTip = displayMembers.Count > 1
+                                ? $"Clone Group:\n{string.Join("\n", displayMembers.Select(m => $"• {m.ReadableDeviceName ?? m.DeviceString} ({m.DeviceName})"))}\n\nThese monitors will be disabled when applying this profile"
+                                : $"{setting.ReadableDeviceName ?? setting.DeviceString}\n{setting.DeviceName}\n\nThis monitor will be disabled when applying this profile"
                         };
                         innerPanel.Children.Add(deviceName);
 
@@ -256,6 +267,32 @@ namespace DisplayProfileManager.UI.Windows
                                 Opacity = 0.6
                             };
                             innerPanel.Children.Add(hdr);
+                        }
+
+                        if (setting.IsAcmEnabled)
+                        {
+                            var acm = new TextBlock
+                            {
+                                Text = "ACM: On",
+                                Style = (Style)FindResource("PrimaryTextBlockStyle"),
+                                FontSize = 12,
+                                Foreground = (SolidColorBrush)FindResource("SecondaryTextBrush"),
+                                Opacity = 0.6
+                            };
+                            innerPanel.Children.Add(acm);
+                        }
+
+                        if (!string.IsNullOrEmpty(setting.ColorProfile))
+                        {
+                            var colorProfile = new TextBlock
+                            {
+                                Text = $"Color Profile: {setting.ColorProfile}",
+                                Style = (Style)FindResource("PrimaryTextBlockStyle"),
+                                FontSize = 12,
+                                Foreground = (SolidColorBrush)FindResource("SecondaryTextBrush"),
+                                Opacity = 0.6
+                            };
+                            innerPanel.Children.Add(colorProfile);
                         }
 
                         var dpi = new TextBlock
@@ -298,15 +335,40 @@ namespace DisplayProfileManager.UI.Windows
 
                         var innerPanel = new StackPanel();
 
+                        string deviceTextEnabled = displayMembers.Count > 1
+                            ? string.Join("\n", displayMembers.Select(m =>
+                            {
+                                var name = !string.IsNullOrEmpty(m.ReadableDeviceName) ? m.ReadableDeviceName
+                                    : (!string.IsNullOrEmpty(m.DeviceString) ? m.DeviceString : m.DeviceName);
+                                return m.IsCloneSource ? $"{name}  (Source)" : $"{name}  (Clone)";
+                            }))
+                            : (!string.IsNullOrEmpty(setting.ReadableDeviceName) ? setting.ReadableDeviceName :
+                                (!string.IsNullOrEmpty(setting.DeviceString) ? setting.DeviceString : setting.DeviceName));
+
                         var deviceName = new TextBlock
                         {
-                            Text = !string.IsNullOrEmpty(setting.ReadableDeviceName) ? setting.ReadableDeviceName :
-                                   (!string.IsNullOrEmpty(setting.DeviceString) ? setting.DeviceString : setting.DeviceName),
+                            Text = deviceTextEnabled,
                             Style = (Style)FindResource("PrimaryTextBlockStyle"),
                             FontWeight = FontWeights.Medium,
-                            ToolTip = $"{setting.ReadableDeviceName ?? setting.DeviceString}\n{setting.DeviceName}"
+                            TextWrapping = TextWrapping.Wrap,
+                            ToolTip = displayMembers.Count > 1
+                                ? $"Clone Group:\n{string.Join("\n", displayMembers.Select(m => $"• {m.ReadableDeviceName ?? m.DeviceString} ({m.DeviceName})"))}"
+                                : $"{setting.ReadableDeviceName ?? setting.DeviceString}\n{setting.DeviceName}"
                         };
                         innerPanel.Children.Add(deviceName);
+
+                        if (displayMembers.Count > 1)
+                        {
+                            var cloneIndicator = new TextBlock
+                            {
+                                Text = "Clone Group",
+                                Style = (Style)FindResource("PrimaryTextBlockStyle"),
+                                FontSize = 11,
+                                Foreground = (SolidColorBrush)FindResource("ButtonBackgroundBrush"),
+                                FontWeight = FontWeights.Medium,
+                            };
+                            innerPanel.Children.Add(cloneIndicator);
+                        }
 
                         var resolution = new TextBlock
                         {
@@ -341,6 +403,30 @@ namespace DisplayProfileManager.UI.Windows
                             innerPanel.Children.Add(hdr);
                         }
 
+                        if (setting.IsHdrSupported && setting.IsAcmEnabled)
+                        {
+                            var acm = new TextBlock
+                            {
+                                Text = "ACM: On",
+                                Style = (Style)FindResource("PrimaryTextBlockStyle"),
+                                FontSize = 12,
+                                Foreground = (SolidColorBrush)FindResource("SecondaryTextBrush")
+                            };
+                            innerPanel.Children.Add(acm);
+                        }
+
+                        if (!string.IsNullOrEmpty(setting.ColorProfile))
+                        {
+                            var colorProfile = new TextBlock
+                            {
+                                Text = $"Color Profile: {setting.ColorProfile}",
+                                Style = (Style)FindResource("PrimaryTextBlockStyle"),
+                                FontSize = 12,
+                                Foreground = (SolidColorBrush)FindResource("SecondaryTextBrush")
+                            };
+                            innerPanel.Children.Add(colorProfile);
+                        }
+
                         var dpi = new TextBlock
                         {
                             Text = $"DPI: {setting.GetDpiString()}",
@@ -373,7 +459,7 @@ namespace DisplayProfileManager.UI.Windows
             SetManagementButtonsEnabled(true);
             DuplicateProfileButton.Visibility = Visibility.Visible;
 
-            // Audio Settings Section
+            // Audio Section
             if (profile.AudioSettings != null && (profile.AudioSettings.HasPlaybackDevice() || profile.AudioSettings.HasCaptureDevice()))
             {
                 var audioHeader = new TextBlock
@@ -389,17 +475,13 @@ namespace DisplayProfileManager.UI.Windows
 
                 if (profile.AudioSettings.HasPlaybackDevice())
                 {
-                    string outputText = profile.AudioSettings.ApplyPlaybackDevice
-                        ? $"Output: {profile.AudioSettings.PlaybackDeviceName}"
-                        : "Output: Not Applied";
+                    string outputText = profile.AudioSettings.ApplyPlaybackDevice ? $"Output: {profile.AudioSettings.PlaybackDeviceName}" : "Output: Not Applied";
                     var playbackDevice = new TextBlock
                     {
                         Text = outputText,
                         Style = (Style)FindResource("PrimaryTextBlockStyle"),
                         FontSize = 12,
-                        Foreground = profile.AudioSettings.ApplyPlaybackDevice
-                            ? (SolidColorBrush)FindResource("SecondaryTextBrush")
-                            : (SolidColorBrush)FindResource("TertiaryTextBrush"),
+                        Foreground = profile.AudioSettings.ApplyPlaybackDevice ? (SolidColorBrush)FindResource("SecondaryTextBrush") : (SolidColorBrush)FindResource("TertiaryTextBrush"),
                         Margin = new Thickness(0, 0, 0, 2)
                     };
                     audioPanel.Children.Add(playbackDevice);
@@ -407,17 +489,13 @@ namespace DisplayProfileManager.UI.Windows
 
                 if (profile.AudioSettings.HasCaptureDevice())
                 {
-                    string inputText = profile.AudioSettings.ApplyCaptureDevice
-                        ? $"Input: {profile.AudioSettings.CaptureDeviceName}"
-                        : "Input: Not Applied";
+                    string inputText = profile.AudioSettings.ApplyCaptureDevice ? $"Input: {profile.AudioSettings.CaptureDeviceName}" : "Input: Not Applied";
                     var captureDevice = new TextBlock
                     {
                         Text = inputText,
                         Style = (Style)FindResource("PrimaryTextBlockStyle"),
                         FontSize = 12,
-                        Foreground = profile.AudioSettings.ApplyCaptureDevice
-                            ? (SolidColorBrush)FindResource("SecondaryTextBrush")
-                            : (SolidColorBrush)FindResource("TertiaryTextBrush")
+                        Foreground = profile.AudioSettings.ApplyCaptureDevice ? (SolidColorBrush)FindResource("SecondaryTextBrush") : (SolidColorBrush)FindResource("TertiaryTextBrush")
                     };
                     audioPanel.Children.Add(captureDevice);
                 }
@@ -425,7 +503,7 @@ namespace DisplayProfileManager.UI.Windows
                 ProfileDetailsPanel.Children.Add(audioPanel);
             }
 
-            // Scripts Settings Section
+            // Scripts Section
             if (profile.Scripts != null && profile.Scripts.Count > 0)
             {
                 var scriptHeader = new TextBlock
@@ -439,22 +517,19 @@ namespace DisplayProfileManager.UI.Windows
 
                 var scriptPanel = new StackPanel { Margin = new Thickness(0, 0, 0, 12) };
 
-                foreach (var scriptEntry in profile.Scripts)
+                foreach (var script in profile.Scripts)
                 {
-                    string displayText = scriptEntry;
+                    string displayText = script.ToString();
                     bool fileExists = false;
 
                     try
                     {
-                        var parts = ScriptHelper.ParseScriptString(scriptEntry);
-                        string parsedPath = parts.Path;
-                        string sandboxPath = Path.Combine(_scriptManager.ScriptsFolderPath, parsedPath);
+                        string sandboxPath = Path.Combine(_scriptManager.ScriptsFolderPath, script.FileName);
                         fileExists = File.Exists(sandboxPath);
                     }
                     catch (Exception ex)
                     {
-                        logger.Error($"Error validating script path for {scriptEntry}: {ex.Message}");
-                        fileExists = false;
+                        logger.Error($"Error validating script path for {script.FileName}: {ex.Message}");
                     }
 
                     var scriptItem = new TextBlock
@@ -475,12 +550,12 @@ namespace DisplayProfileManager.UI.Windows
                 ProfileDetailsPanel.Children.Add(scriptPanel);
             }
 
-            // Hotkey Settings Section
+            // Hotkey Section
             if (profile.HotkeyConfig != null && profile.HotkeyConfig.Key != System.Windows.Input.Key.None)
             {
                 var hotkeyHeader = new TextBlock
                 {
-                    Text = "Hotkey Settings:",
+                    Text = "Hotkey:",
                     Style = (Style)FindResource("PrimaryTextBlockStyle"),
                     FontWeight = FontWeights.Medium,
                     Margin = new Thickness(0, 8, 0, 8)
@@ -491,7 +566,7 @@ namespace DisplayProfileManager.UI.Windows
 
                 var hotkeyText = new TextBlock
                 {
-                    Text = $"Hotkey: {profile.HotkeyConfig}",
+                    Text = $"{profile.HotkeyConfig}",
                     Style = (Style)FindResource("PrimaryTextBlockStyle"),
                     FontSize = 12,
                     Foreground = (SolidColorBrush)FindResource("SecondaryTextBrush"),
@@ -506,7 +581,7 @@ namespace DisplayProfileManager.UI.Windows
 
                 var hotkeyStatus = new TextBlock
                 {
-                    Text = $"Status: {statusText}",
+                    Text = $"{statusText}",
                     Style = (Style)FindResource("PrimaryTextBlockStyle"),
                     FontSize = 12,
                     Foreground = statusColor,
@@ -526,6 +601,17 @@ namespace DisplayProfileManager.UI.Windows
                 Margin = new Thickness(0, 8, 0, 0)
             };
             ProfileDetailsPanel.Children.Add(metaInfo);
+        }
+
+        private static string GetRotationString(int rotation)
+        {
+            switch (rotation)
+            {
+                default: return "0°";
+                case 2: return "90°";
+                case 3: return "180°";
+                case 4: return "270°";
+            }
         }
 
         private void ProfilesListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -549,9 +635,7 @@ namespace DisplayProfileManager.UI.Windows
                 editWindow.ShowDialog();
             }
             else
-            {
                 await ApplyProfile(profile);
-            }
         }
 
         private async Task ApplyProfile(Profile profile)
@@ -573,15 +657,12 @@ namespace DisplayProfileManager.UI.Windows
                     MessageBox.Show(errorDetails, "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
                 else
-                {
-                    StatusTextBlock.Text = $"Profile '{profile.Name}' successfully applied in {(applyWatch.Elapsed.TotalSeconds == 0 ? "0" : $"{Math.Ceiling(applyWatch.Elapsed.TotalSeconds * 10) / 10:0.#}")} {(Math.Ceiling(applyWatch.Elapsed.TotalSeconds * 10) / 10 == 1 ? "second" : "seconds")}";
-                }
+                    StatusTextBlock.Text = $"'{profile.Name}' applied in {(applyWatch.Elapsed.TotalSeconds == 0 ? "0" :$"{Math.Ceiling(applyWatch.Elapsed.TotalSeconds * 10) / 10:0.#}")} {(Math.Ceiling(applyWatch.Elapsed.TotalSeconds * 10) / 10 == 1 ? "second" : "seconds")}";
             }
             catch (Exception ex)
             {
                 StatusTextBlock.Text = "Error applying profile";
-                MessageBox.Show($"Exception: Error applying profile: {ex.Message}", "Error",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Exception: Error applying profile: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 logger.Error(ex, "Exception while applying profile");
             }
             finally
@@ -609,8 +690,7 @@ namespace DisplayProfileManager.UI.Windows
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error opening profile editor: {ex.Message}", "Error",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Error opening profile editor: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -626,8 +706,7 @@ namespace DisplayProfileManager.UI.Windows
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error opening profile editor: {ex.Message}", "Error",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Error opening profile editor: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -660,15 +739,13 @@ namespace DisplayProfileManager.UI.Windows
                 else
                 {
                     StatusTextBlock.Text = "Error duplicating profile";
-                    MessageBox.Show("Failed to duplicate profile. Please try again.", "Error",
-                        MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show("Failed to duplicate profile. Please try again.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
             catch (Exception ex)
             {
                 StatusTextBlock.Text = "Error duplicating profile";
-                MessageBox.Show($"Error duplicating profile: {ex.Message}", "Error",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Error duplicating profile: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
@@ -681,11 +758,7 @@ namespace DisplayProfileManager.UI.Windows
             if (_selectedProfile == null) return;
 
             var profileName = _selectedProfile.Name;
-
-            var result = MessageBox.Show(
-                $"Are you sure you want to delete '{profileName}'?\n\nThis action cannot be undone.",
-                "Confirm Delete", MessageBoxButton.YesNo, MessageBoxImage.Question);
-
+            var result = MessageBox.Show($"Are you sure you want to delete '{profileName}'?\n\nThis action cannot be undone.", "Confirm Delete", MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (result == MessageBoxResult.Yes)
             {
                 try
@@ -695,8 +768,7 @@ namespace DisplayProfileManager.UI.Windows
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show($"Error deleting profile: {ex.Message}", "Error",
-                        MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show($"Error deleting profile: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
         }
@@ -710,27 +782,29 @@ namespace DisplayProfileManager.UI.Windows
             EditProfileButton.IsEnabled = isEnabled;
             DuplicateProfileButton.IsEnabled = isEnabled;
             DeleteProfileButton.IsEnabled = isEnabled;
-            ExportProfileButton.IsEnabled = isEnabled;
         }
 
         private async void RefreshButton_Click(object sender, RoutedEventArgs e)
         {
             try
             {
+                RefreshButton.IsEnabled = false;
                 await _profileManager.LoadProfilesAsync();
                 RefreshProfilesList();
                 ThemeHelper.RefreshThemes();
 
-                // Reapply current theme unconditionally (in case of edits or deletions)
                 var currentTheme = SettingsManager.Instance.Settings.Theme;
                 ThemeHelper.ApplyTheme(currentTheme);
-                StatusTextBlock.Text = "Refreshed profiles and themes";
+                StatusTextBlock.Text = "Profiles and themes refreshed";
             }
             catch (Exception ex)
             {
                 StatusTextBlock.Text = "Error refreshing";
-                MessageBox.Show($"Error refreshing: {ex.Message}", "Error",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Error refreshing: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                RefreshButton.IsEnabled = true;
             }
         }
 
@@ -746,12 +820,6 @@ namespace DisplayProfileManager.UI.Windows
             settingsWindow.ShowDialog();
         }
 
-
-        private void ToTrayButton_Click(object sender, RoutedEventArgs e)
-        {
-            Hide();
-        }
-
         private void MinimizeButton_Click(object sender, RoutedEventArgs e)
         {
             WindowState = WindowState.Minimized;
@@ -762,65 +830,18 @@ namespace DisplayProfileManager.UI.Windows
             if (WindowState == WindowState.Maximized)
             {
                 WindowState = WindowState.Normal;
-                MaximizeRestoreButton.Content = "\xE922"; // Maximize icon
+                MaximizeRestoreButton.Content = "\xE922";
                 MaximizeRestoreButton.ToolTip = "Maximize";
             }
             else
             {
                 WindowState = WindowState.Maximized;
-                MaximizeRestoreButton.Content = "\xE923"; // Restore icon
+                MaximizeRestoreButton.Content = "\xE923";
                 MaximizeRestoreButton.ToolTip = "Restore Down";
             }
         }
 
-        private void CloseButton_Click(object sender, RoutedEventArgs e)
-        {
-            Close();
-        }
-
-        private async void ExportProfileButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (_selectedProfile == null) return;
-
-            try
-            {
-                var saveFileDialog = new Microsoft.Win32.SaveFileDialog
-                {
-                    Title = "Export Profile",
-                    Filter = "Display Profile (*.dpm)|*.dpm",
-                    DefaultExt = ".dpm",
-                    FileName = $"{_selectedProfile.Name}.dpm"
-                };
-
-                if (saveFileDialog.ShowDialog() == true)
-                {
-                    ExportProfileButton.IsEnabled = false;
-
-                    bool success = await _profileManager.ExportProfileAsync(_selectedProfile.Id, saveFileDialog.FileName);
-
-                    if (success)
-                    {
-                        StatusTextBlock.Text = $"Exported '{_selectedProfile.Name}' to:\n{saveFileDialog.FileName}";
-                    }
-                    else
-                    {
-                        StatusTextBlock.Text = "Failed to export profile";
-                        MessageBox.Show("Failed to export profile. Please try again.",
-                            "Export Failed", MessageBoxButton.OK, MessageBoxImage.Error);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                StatusTextBlock.Text = "Error exporting profile";
-                MessageBox.Show($"Error exporting profile: {ex.Message}", "Error",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-            finally
-            {
-                ExportProfileButton.IsEnabled = true;
-            }
-        }
+        private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
 
         private async void ImportButton_Click(object sender, RoutedEventArgs e)
         {
@@ -848,8 +869,7 @@ namespace DisplayProfileManager.UI.Windows
                     else
                     {
                         StatusTextBlock.Text = "Failed to import theme";
-                        MessageBox.Show("The file is not a valid DPM theme. Ensure it contains the required brush keys.",
-                            "Import Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+                        MessageBox.Show("The file is not a valid DPM theme. Ensure it contains the required brush keys.", "Import Failed", MessageBoxButton.OK, MessageBoxImage.Error);
                     }
                 }
                 else if (ext == ".dpm")
@@ -864,8 +884,7 @@ namespace DisplayProfileManager.UI.Windows
                     else
                     {
                         StatusTextBlock.Text = "Failed to import profile";
-                        MessageBox.Show("The file is not a valid DPM profile.",
-                            "Import Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+                        MessageBox.Show("The file is not a valid DPM profile.", "Import Failed", MessageBoxButton.OK, MessageBoxImage.Error);
                     }
                 }
                 else if (ext == ".ico")
@@ -876,8 +895,7 @@ namespace DisplayProfileManager.UI.Windows
                 else
                 {
                     StatusTextBlock.Text = "Unsupported file type";
-                    MessageBox.Show($"'{Path.GetFileName(path)}' is not a supported file type.\n\nSupported types: .dpm, .xaml, .ico",
-                        "Unsupported File", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show($"'{Path.GetFileName(path)}' is not a supported file type.\n\nSupported types: .dpm, .xaml, .ico", "Unsupported File", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
             catch (Exception ex)
@@ -923,13 +941,12 @@ namespace DisplayProfileManager.UI.Windows
                     Hide();
                 }
                 else
-                {
                     Application.Current.Shutdown();
-                }
+
                 return;
             }
 
-            e.Cancel = true; // Cancel the close initially
+            e.Cancel = true;
             var dialog = new CloseConfirmationDialog();
             dialog.Owner = this;
 
@@ -944,22 +961,16 @@ namespace DisplayProfileManager.UI.Windows
                 }
 
                 if (dialog.ShouldCloseToTray)
-                {
                     Hide();
-                }
                 else
-                {
                     Application.Current.Shutdown();
-                }
             }
-            // If result is false (Cancel or X button), do nothing - window stays open
         }
 
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
             UpdateMaximizeRestoreButton();
             UpdateTitleBarMargin();
-
             LoadAppIcon();
         }
 
@@ -970,13 +981,8 @@ namespace DisplayProfileManager.UI.Windows
                 var icon = Properties.Resources.AppIcon;
                 if (icon != null)
                 {
-                    var bitmap = Imaging.CreateBitmapSourceFromHIcon(
-                        icon.Handle,
-                        Int32Rect.Empty,
-                        BitmapSizeOptions.FromEmptyOptions());
-
+                    var bitmap = Imaging.CreateBitmapSourceFromHIcon(icon.Handle, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
                     AppIconImage.Source = bitmap;
-
                     this.Icon = bitmap;
                 }
             }
@@ -1000,11 +1006,10 @@ namespace DisplayProfileManager.UI.Windows
             _snapLayoutsTimer.Tick += (s, e) =>
             {
                 _snapLayoutsTimer.Stop();
-                // Force a mouse position check to trigger HTMAXBUTTON if still hovering
                 if (_isHoveringMaxButton)
                 {
                     var pos = System.Windows.Forms.Cursor.Position;
-                    SetCursorPos(pos.X, pos.Y); // Trigger a new WM_NCHITTEST
+                    SetCursorPos(pos.X, pos.Y);
                 }
             };
         }
@@ -1021,7 +1026,6 @@ namespace DisplayProfileManager.UI.Windows
         {
             UpdateMaximizeRestoreButton();
             UpdateTitleBarMargin();
-
             base.OnStateChanged(e);
         }
 
@@ -1062,26 +1066,11 @@ namespace DisplayProfileManager.UI.Windows
         private void UpdateTitleBarHeight(double height)
         {
             if (TitleBarRowDefinition != null)
-            {
                 TitleBarRowDefinition.Height = new GridLength(height);
-            }
 
             var windowChrome = WindowChrome.GetWindowChrome(this);
             if (windowChrome != null)
-            {
                 windowChrome.CaptionHeight = height;
-            }
-        }
-
-        private static string GetRotationString(int rotation)
-        {
-            switch (rotation)
-            {
-                case 2: return "90°";
-                case 3: return "180°";
-                case 4: return "270°";
-                default: return "0°";
-            }
         }
 
         private void OnProfileChanged(object sender, Profile profile)
@@ -1123,16 +1112,13 @@ namespace DisplayProfileManager.UI.Windows
         {
             Dispatcher.Invoke(() =>
             {
-                StatusTextBlock.Text = $"Applied '{profile.Name}'";
                 RefreshProfilesList();
 
                 if (_selectedProfile != null)
                 {
                     var viewModelToSelect = _profileViewModels.FirstOrDefault(vm => vm.Id == _selectedProfile.Id);
                     if (viewModelToSelect != null)
-                    {
                         ProfilesListBox.SelectedItem = viewModelToSelect;
-                    }
                 }
             });
         }
@@ -1157,10 +1143,8 @@ namespace DisplayProfileManager.UI.Windows
 
         [DllImport("user32.dll")]
         public static extern bool ScreenToClient(IntPtr hWnd, ref POINT lpPoint);
-
         [DllImport("user32.dll")]
         public static extern bool PtInRect([In] ref RECT lprc, POINT pt);
-
         [DllImport("user32.dll")]
         public static extern bool SetCursorPos(int x, int y);
 
@@ -1177,25 +1161,21 @@ namespace DisplayProfileManager.UI.Windows
                     int x = (short)((int)lParam & 0xFFFF);
                     int y = (short)(((int)lParam >> 16) & 0xFFFF);
 
-                    // Convert screen point to client point
                     POINT pt = new POINT { X = x, Y = y };
                     ScreenToClient(hwnd, ref pt);
 
-                    // Check if point is in the maximize button area
                     var buttonRect = GetMaximizeButtonRect();
 
                     if (PtInRect(ref buttonRect, pt))
                     {
                         if (!_isHoveringMaxButton)
                         {
-                            // Start hover tracking
                             _isHoveringMaxButton = true;
                             _hoverStartTime = DateTime.Now;
                             _snapLayoutsTimer.Start();
                         }
                         else
                         {
-                            // Check if enough time has passed to show Snap Layouts
                             var hoverDuration = DateTime.Now - _hoverStartTime;
                             if (hoverDuration.TotalMilliseconds >= 150)
                             {
@@ -1206,7 +1186,6 @@ namespace DisplayProfileManager.UI.Windows
                     }
                     else
                     {
-                        // Mouse is not over maximize button
                         if (_isHoveringMaxButton)
                         {
                             _isHoveringMaxButton = false;
@@ -1216,11 +1195,9 @@ namespace DisplayProfileManager.UI.Windows
                     break;
 
                 case WM_MOUSEMOVE:
-                    // Additional mouse move tracking if needed
                     break;
 
                 case WM_MOUSELEAVE:
-                    // Reset hover state when mouse leaves window
                     _isHoveringMaxButton = false;
                     _snapLayoutsTimer.Stop();
                     break;

@@ -28,14 +28,10 @@ namespace DisplayProfileManager.Helpers
             return informationalVersion ?? GetVersion();
         }
 
-        public static string GetSettingsPath()
-        {
-            return SettingsManager.Instance.GetSettingsFilePath();
-        }
+        public static string GetSettingsPath() => SettingsManager.Instance.GetSettingsFilePath();
 
         public static class Libraries
         {
-
             public const string NewtonsoftName = "Newtonsoft.Json";
             public const string NewtonsoftVersion = "13.0.4";
             public const string NewtonsoftLicense = "MIT";
@@ -77,7 +73,7 @@ namespace DisplayProfileManager.Helpers
             public const string XtrillaUrl = "https://github.com/xtrilla";
             public const string XtrillaLinkUrl = "https://github.com/xtrilla/DisplayProfileManager";
             public const string XtrillaLinkLabel = "Fork";
-            public const string XtrillaDesc = "Safe file saves";
+            public const string XtrillaDesc = "Safe file saves, stability improvements";
 
             public const string ExytralName = "@exytral";
             public const string ExytralUrl = "https://github.com/exytral";

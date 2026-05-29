@@ -40,6 +40,14 @@ namespace DisplayProfileManager.UI.Windows
                 // Initialize title bar margin state
                 UpdateTitleBarMargin();
 
+                // Match owner height and position at open time
+                if (Owner != null)
+                {
+                    Height = Owner.ActualHeight;
+                    Left = Owner.Left + (Owner.ActualWidth - Width) / 2;
+                    Top = Owner.Top + (Owner.ActualHeight - Height) / 2;
+                }
+
                 // Load current settings
                 var settings = _settingsManager.Settings;
 
@@ -58,18 +66,15 @@ namespace DisplayProfileManager.UI.Windows
 
                 // Auto-start mode settings
                 if (settings.AutoStartMode == Core.AutoStartMode.Registry)
-                {
                     RegistryModeRadio.IsChecked = true;
-                }
                 else
-                {
                     TaskSchedulerModeRadio.IsChecked = true;
-                }
                 AutoStartModePanel.IsEnabled = settings.StartWithWindows;
 
                 await LoadStartupProfiles();
                 SelectComboBoxItemByTag(StartupProfileComboBox, settings.StartupProfileId);
                 ApplyStartupProfileCheckBox.IsChecked = settings.ApplyStartupProfile;
+                UpdateComboBoxOpacity();
 
                 // Window behavior settings
                 if (settings.CloseToTray)
@@ -89,8 +94,15 @@ namespace DisplayProfileManager.UI.Windows
                 RefreshHotkeyList();
 
                 // About section
-                VersionTextBlock.Text = Helpers.AboutHelper.GetInformationalVersion();
-                SettingsPathTextBlock.Text = Helpers.AboutHelper.GetSettingsPath();
+                var versionLink = new System.Windows.Documents.Hyperlink(new System.Windows.Documents.Run(AboutHelper.GetInformationalVersion()))
+                {
+                    NavigateUri = new Uri("https://github.com/exytral/DisplayProfileManager/releases"),
+                    Foreground = (Brush)FindResource("LinkBrush")
+                };
+                versionLink.RequestNavigate += Hyperlink_RequestNavigate;
+                VersionTextBlock.Inlines.Clear();
+                VersionTextBlock.Inlines.Add(versionLink);
+                SettingsPathTextBlock.Text = AboutHelper.GetSettingsPath();
                 LoadLibraries();
                 LoadContributors();
             }
@@ -102,48 +114,6 @@ namespace DisplayProfileManager.UI.Windows
             finally
             {
                 _isLoadingSettings = false;
-            }
-        }
-
-        private void InnerScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
-        {
-            var scrollViewer = sender as ScrollViewer;
-            if (scrollViewer == null) return;
-
-            var parent = VisualTreeHelper.GetParent(scrollViewer);
-            while (parent != null && !(parent is ScrollViewer))
-                parent = VisualTreeHelper.GetParent(parent);
-
-            // Bubble vertical scroll to parent
-            if (parent is ScrollViewer parentScroller)
-            {
-                parentScroller.ScrollToVerticalOffset(parentScroller.VerticalOffset - e.Delta / 3);
-                e.Handled = true;
-            }
-        }
-
-        private async System.Threading.Tasks.Task LoadStartupProfiles()
-        {
-            try
-            {
-                await _profileManager.LoadProfilesAsync();
-                var profiles = _profileManager.GetAllProfiles();
-
-                StartupProfileComboBox.Items.Clear();
-                StartupProfileComboBox.Items.Add(new ComboBoxItem { Content = "None", Tag = "" });
-
-                foreach (var profile in profiles)
-                {
-                    StartupProfileComboBox.Items.Add(new ComboBoxItem
-                    {
-                        Content = profile.Name,
-                        Tag = profile.Id
-                    });
-                }
-            }
-            catch (Exception ex)
-            {
-                logger.Error(ex, "Error loading startup profiles");
             }
         }
 
@@ -159,10 +129,23 @@ namespace DisplayProfileManager.UI.Windows
             }
         }
 
-        private void OnThemeChanged(object sender, EventArgs e)
+        private void InnerScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
-            ThemeComboBox.ItemsSource = new[] { "System" }.Concat(ThemeHelper.AvailableThemes);
+            var scrollViewer = sender as ScrollViewer;
+            if (scrollViewer == null) return;
+
+            var parent = VisualTreeHelper.GetParent(scrollViewer);
+            while (parent != null && !(parent is ScrollViewer))
+                parent = VisualTreeHelper.GetParent(parent);
+
+            if (parent is ScrollViewer parentScroller)
+            {
+                parentScroller.ScrollToVerticalOffset(parentScroller.VerticalOffset - e.Delta / 3);
+                e.Handled = true;
+            }
         }
+
+        private void OnThemeChanged(object sender, EventArgs e) => ThemeComboBox.ItemsSource = new[] { "System" }.Concat(ThemeHelper.AvailableThemes);
 
         private async void ThemeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
@@ -183,9 +166,7 @@ namespace DisplayProfileManager.UI.Windows
 
             var selectedItem = LanguageComboBox.SelectedItem as ComboBoxItem;
             if (selectedItem != null)
-            {
                 await _settingsManager.UpdateSettingAsync("Language", selectedItem.Tag.ToString());
-            }
         }
 
         private async void StartWithWindowsCheckBox_Changed(object sender, RoutedEventArgs e)
@@ -197,15 +178,11 @@ namespace DisplayProfileManager.UI.Windows
                 var isChecked = StartWithWindowsCheckBox.IsChecked ?? false;
                 await _settingsManager.SetStartWithWindowsAsync(isChecked);
 
-                // Enable/disable the StartInSystemTray checkbox and auto-start mode panel based on StartWithWindows
                 StartInSystemTrayCheckBox.IsEnabled = isChecked;
                 AutoStartModePanel.IsEnabled = isChecked;
 
-                // If StartWithWindows is unchecked, also uncheck StartInSystemTray
                 if (!isChecked)
-                {
                     StartInSystemTrayCheckBox.IsChecked = false;
-                }
             }
             catch (Exception ex)
             {
@@ -238,12 +215,10 @@ namespace DisplayProfileManager.UI.Windows
 
             try
             {
-                Core.AutoStartMode selectedMode = RegistryModeRadio.IsChecked == true
-                    ? Core.AutoStartMode.Registry
-                    : Core.AutoStartMode.TaskScheduler;
+                AutoStartMode selectedMode = RegistryModeRadio.IsChecked == true? AutoStartMode.Registry : AutoStartMode.TaskScheduler;
 
                 // Check if switching to Task Scheduler mode
-                if (selectedMode == Core.AutoStartMode.TaskScheduler)
+                if (selectedMode == AutoStartMode.TaskScheduler)
                 {
                     // Check if already running as admin
                     if (!AutoStartHelper.IsRunningAsAdmin())
@@ -270,12 +245,11 @@ namespace DisplayProfileManager.UI.Windows
 
                 // Attempt to change the mode
                 bool success = await _settingsManager.SetAutoStartModeAsync(selectedMode);
-
                 if (!success)
                 {
                     MessageBox.Show(
                         $"Failed to switch to {selectedMode} mode. " +
-                        (selectedMode == Core.AutoStartMode.TaskScheduler
+                        (selectedMode == AutoStartMode.TaskScheduler
                             ? "Administrator privileges may be required for setup."
                             : "Please check the logs for more details."),
                         "Error",
@@ -284,21 +258,16 @@ namespace DisplayProfileManager.UI.Windows
 
                     // Revert to previous mode
                     _isLoadingSettings = true;
-                    if (selectedMode == Core.AutoStartMode.Registry)
-                    {
+                    if (selectedMode == AutoStartMode.Registry)
                         TaskSchedulerModeRadio.IsChecked = true;
-                    }
                     else
-                    {
                         RegistryModeRadio.IsChecked = true;
-                    }
                     _isLoadingSettings = false;
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error changing auto-start mode: {ex.Message}", "Error",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Error changing auto-start mode: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
 
                 // Revert to Registry mode on error
                 _isLoadingSettings = true;
@@ -306,6 +275,8 @@ namespace DisplayProfileManager.UI.Windows
                 _isLoadingSettings = false;
             }
         }
+
+        private void UpdateComboBoxOpacity() => StartupProfileComboBox.Opacity = (ApplyStartupProfileCheckBox.IsChecked == true) ? 1.0 : 0.5;
 
         private async void StartupProfileComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
@@ -318,12 +289,11 @@ namespace DisplayProfileManager.UI.Windows
                 var applyOnStartup = ApplyStartupProfileCheckBox.IsChecked ?? false;
                 await _settingsManager.SetStartupProfileAsync(profileId, applyOnStartup);
 
-                // Enable/disable the apply checkbox based on selection
                 ApplyStartupProfileCheckBox.IsEnabled = !string.IsNullOrEmpty(profileId);
                 if (string.IsNullOrEmpty(profileId))
-                {
                     ApplyStartupProfileCheckBox.IsChecked = false;
-                }
+
+                UpdateComboBoxOpacity();
             }
         }
 
@@ -334,8 +304,34 @@ namespace DisplayProfileManager.UI.Windows
             var profileId = (StartupProfileComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
             var applyOnStartup = ApplyStartupProfileCheckBox.IsChecked ?? false;
             await _settingsManager.SetStartupProfileAsync(profileId, applyOnStartup);
+
+            UpdateComboBoxOpacity();
         }
 
+        private async System.Threading.Tasks.Task LoadStartupProfiles()
+        {
+            try
+            {
+                await _profileManager.LoadProfilesAsync();
+                var profiles = _profileManager.GetAllProfiles();
+
+                StartupProfileComboBox.Items.Clear();
+                StartupProfileComboBox.Items.Add(new ComboBoxItem { Content = "None", Tag = "" });
+
+                foreach (var profile in profiles)
+                {
+                    StartupProfileComboBox.Items.Add(new ComboBoxItem
+                    {
+                        Content = profile.Name,
+                        Tag = profile.Id
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex, "Error loading startup profiles");
+            }
+        }
 
         private async void CloseActionRadio_Changed(object sender, RoutedEventArgs e)
         {
@@ -367,11 +363,7 @@ namespace DisplayProfileManager.UI.Windows
             {
                 HotkeyListPanel.Children.Clear();
 
-                // Get all profiles with hotkeys configured (both enabled and disabled)
-                var profilesWithHotkeys = _profileManager.GetAllProfiles()
-                    .Where(p => p.HotkeyConfig != null && p.HotkeyConfig.Key != Key.None)
-                    .OrderBy(p => p.Name)
-                    .ToList();
+                var profilesWithHotkeys = _profileManager.GetProfilesWithActiveHotkeys();
 
                 if (profilesWithHotkeys.Count == 0)
                 {
@@ -412,26 +404,18 @@ namespace DisplayProfileManager.UI.Windows
                             Margin = new Thickness(8, 0, 0, 0)
                         };
 
-                        // Apply different styling based on enabled/disabled status
                         if (profile.HotkeyConfig.IsEnabled)
-                        {
                             hotkeyText.Foreground = (Brush)FindResource("PrimaryTextBrush");
-                        }
                         else
-                        {
                             hotkeyText.Foreground = (Brush)FindResource("TertiaryTextBrush");
-                        }
 
-                        // Add status indicator
                         var statusText = new TextBlock
                         {
                             Text = profile.HotkeyConfig.IsEnabled ? "(Enabled)" : "(Disabled)",
                             Style = (Style)FindResource("PrimaryTextBlockStyle"),
                             FontSize = 11,
                             FontStyle = profile.HotkeyConfig.IsEnabled ? FontStyles.Normal : FontStyles.Italic,
-                            Foreground = profile.HotkeyConfig.IsEnabled
-                                ? (Brush)FindResource("SuccessButtonBackgroundBrush")
-                                : (Brush)FindResource("TertiaryTextBrush"),
+                            Foreground = profile.HotkeyConfig.IsEnabled? (Brush)FindResource("SuccessButtonBackgroundBrush") : (Brush)FindResource("TertiaryTextBrush"),
                             Margin = new Thickness(8, 0, 0, 0)
                         };
 
@@ -448,15 +432,9 @@ namespace DisplayProfileManager.UI.Windows
             }
         }
 
-        private void MinimizeButton_Click(object sender, RoutedEventArgs e)
-        {
-            WindowState = WindowState.Minimized;
-        }
+        private void MinimizeButton_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
 
-        private void CloseButton_Click(object sender, RoutedEventArgs e)
-        {
-            Close();
-        }
+        private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
 
         protected override void OnStateChanged(EventArgs e)
         {
@@ -470,16 +448,12 @@ namespace DisplayProfileManager.UI.Windows
             {
                 if (WindowState == WindowState.Maximized)
                 {
-                    // Add top margin when maximized to compensate for upshift
                     TitleBarGrid.Margin = new Thickness(8, 8, 6, 0);
-                    // Increase title bar height when maximized
                     UpdateTitleBarHeight(40);
                 }
                 else
                 {
-                    // Reset margin for normal state
                     TitleBarGrid.Margin = new Thickness(0, 0, 0, 0);
-                    // Reset title bar height for normal state
                     UpdateTitleBarHeight(32);
                 }
             }
@@ -487,20 +461,14 @@ namespace DisplayProfileManager.UI.Windows
 
         private void UpdateTitleBarHeight(double height)
         {
-            // Update RowDefinition height
             if (TitleBarRowDefinition != null)
-            {
                 TitleBarRowDefinition.Height = new GridLength(height);
-            }
 
-            // Update WindowChrome CaptionHeight
             var windowChrome = WindowChrome.GetWindowChrome(this);
             if (windowChrome != null)
-            {
                 windowChrome.CaptionHeight = height;
-            }
         }
-        
+
         private void Hyperlink_RequestNavigate(object sender, RequestNavigateEventArgs e)
         {
             try
@@ -522,9 +490,8 @@ namespace DisplayProfileManager.UI.Windows
             {
                 LibrariesPanel.Children.Clear();
 
-                // Create library entries dynamically using AboutHelper data
                 var libraries = new[]
-                { 
+                {
                     new { Name = AboutHelper.Libraries.NewtonsoftName, Version = AboutHelper.Libraries.NewtonsoftVersion, License = AboutHelper.Libraries.NewtonsoftLicense, Url = AboutHelper.Libraries.NewtonsoftUrl, Description = "JSON serialization" },
                     new { Name = AboutHelper.Libraries.NLogName, Version = AboutHelper.Libraries.NLogVersion, License = AboutHelper.Libraries.NLogLicense, Url = AboutHelper.Libraries.NLogUrl, Description = "Logging framework" },
                 };
@@ -533,16 +500,7 @@ namespace DisplayProfileManager.UI.Windows
                 {
                     var libraryPanel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 2) };
 
-                    // Add bullet point
-                    libraryPanel.Children.Add(new TextBlock
-                    {
-                        Text = "• ",
-                        Style = (Style)FindResource("PrimaryTextBlockStyle"),
-                        FontSize = 12,
-                        Foreground = (Brush)FindResource("TertiaryTextBrush")
-                    });
-
-                    // Add library name as hyperlink
+                    // Name hyperlink
                     var libraryLink = new System.Windows.Documents.Hyperlink(new System.Windows.Documents.Run(library.Name))
                     {
                         NavigateUri = new Uri(library.Url),
@@ -584,78 +542,86 @@ namespace DisplayProfileManager.UI.Windows
 
                 var contributors = new[]
                 {
-            new
-            {
-                Name        = AboutHelper.Contributors.Zac15987Name,
-                Url         = AboutHelper.Contributors.Zac15987Url,
-                LinkLabel   = AboutHelper.Contributors.Zac15987LinkLabel,
-                LinkUrl     = AboutHelper.Contributors.Zac15987LinkUrl,
-                Description = AboutHelper.Contributors.Zac15987Desc,
-                SubText     = "(community requests: audio switching by @Catriks & @Alienmario; hotkeys by @anodynos; monitor disable/enable by @xtrilla)"
-            },
-            new
-            {
-                Name        = AboutHelper.Contributors.JarandalName,
-                Url         = AboutHelper.Contributors.JarandalUrl,
-                LinkLabel   = AboutHelper.Contributors.JarandalLinkLabel,
-                LinkUrl     = AboutHelper.Contributors.JarandalLinkUrl,
-                Description = AboutHelper.Contributors.JarandalDesc,
-                SubText     = (string)null
-            },
-            new
-            {
-                Name        = AboutHelper.Contributors.JonathanasdfName,
-                Url         = AboutHelper.Contributors.JonathanasdfUrl,
-                LinkLabel   = AboutHelper.Contributors.JonathanasdfLinkLabel,
-                LinkUrl     = AboutHelper.Contributors.JonathanasdfLinkUrl,
-                Description = AboutHelper.Contributors.JonathanasdfDesc,
-                SubText     = (string)null
-            },
-            new
-            {
-                Name        = AboutHelper.Contributors.RvahilarioName,
-                Url         = AboutHelper.Contributors.RvahilarioUrl,
-                LinkLabel   = AboutHelper.Contributors.RvahilarioLinkLabel,
-                LinkUrl     = AboutHelper.Contributors.RvahilarioLinkUrl,
-                Description = AboutHelper.Contributors.RvahilarioDesc,
-                SubText     = (string)null
-            },
-            new
-            {
-                Name        = AboutHelper.Contributors.XtrillaName,
-                Url         = AboutHelper.Contributors.XtrillaUrl,
-                LinkLabel   = AboutHelper.Contributors.XtrillaLinkLabel,
-                LinkUrl     = AboutHelper.Contributors.XtrillaLinkUrl,
-                Description = AboutHelper.Contributors.XtrillaDesc,
-                SubText     = (string)null
-            },
-            new
-            {
-                Name        = AboutHelper.Contributors.ExytralName,
-                Url         = AboutHelper.Contributors.ExytralUrl,
-                LinkLabel   = (string)null,
-                LinkUrl     = (string)null,
-                Description = AboutHelper.Contributors.ExytralDesc,
-                SubText     = "(community requests: custom profile icons by @ffgtthr)"
-            },
-        };
+                    new
+                    {
+                        Name        = AboutHelper.Contributors.Zac15987Name,
+                        Url         = AboutHelper.Contributors.Zac15987Url,
+                        LinkLabel   = AboutHelper.Contributors.Zac15987LinkLabel,
+                        LinkUrl     = AboutHelper.Contributors.Zac15987LinkUrl,
+                        Description = AboutHelper.Contributors.Zac15987Desc,
+                        SubText     = "(community requests: audio switching by @Catriks & @Alienmario; hotkeys by @anodynos; monitor disable/enable by @xtrilla)"
+                    },
+                    new
+                    {
+                        Name        = AboutHelper.Contributors.JarandalName,
+                        Url         = AboutHelper.Contributors.JarandalUrl,
+                        LinkLabel   = AboutHelper.Contributors.JarandalLinkLabel,
+                        LinkUrl     = AboutHelper.Contributors.JarandalLinkUrl,
+                        Description = AboutHelper.Contributors.JarandalDesc,
+                        SubText     = (string)null
+                    },
+                    new
+                    {
+                        Name        = AboutHelper.Contributors.JonathanasdfName,
+                        Url         = AboutHelper.Contributors.JonathanasdfUrl,
+                        LinkLabel   = AboutHelper.Contributors.JonathanasdfLinkLabel,
+                        LinkUrl     = AboutHelper.Contributors.JonathanasdfLinkUrl,
+                        Description = AboutHelper.Contributors.JonathanasdfDesc,
+                        SubText     = (string)null
+                    },
+                    new
+                    {
+                        Name        = AboutHelper.Contributors.RvahilarioName,
+                        Url         = AboutHelper.Contributors.RvahilarioUrl,
+                        LinkLabel   = AboutHelper.Contributors.RvahilarioLinkLabel,
+                        LinkUrl     = AboutHelper.Contributors.RvahilarioLinkUrl,
+                        Description = AboutHelper.Contributors.RvahilarioDesc,
+                        SubText     = (string)null
+                    },
+                    new
+                    {
+                        Name        = AboutHelper.Contributors.XtrillaName,
+                        Url         = AboutHelper.Contributors.XtrillaUrl,
+                        LinkLabel   = AboutHelper.Contributors.XtrillaLinkLabel,
+                        LinkUrl     = AboutHelper.Contributors.XtrillaLinkUrl,
+                        Description = AboutHelper.Contributors.XtrillaDesc,
+                        SubText     = (string)null
+                    },
+                    new
+                    {
+                        Name        = AboutHelper.Contributors.ExytralName,
+                        Url         = AboutHelper.Contributors.ExytralUrl,
+                        LinkLabel   = (string)null,
+                        LinkUrl     = (string)null,
+                        Description = AboutHelper.Contributors.ExytralDesc,
+                        SubText     = "(community requests: custom profile icons by @ffgtthr)"
+                    },
+                };
 
                 foreach (var contributor in contributors)
                 {
-                    var entryPanel = new StackPanel { Margin = new Thickness(0, 2, 0, 2) };
+                    bool isBaseAuthor = contributor.Name == AboutHelper.Contributors.Zac15987Name || contributor.Name == AboutHelper.Contributors.ExytralName;
+
+                    // Render bullets only for the child contributors
+                    double leftIndent = isBaseAuthor ? 0 : 8;
+                    var entryPanel = new StackPanel { Margin = new Thickness(leftIndent, 2, 0, 2) };
+
                     var linePanel = new StackPanel { Orientation = Orientation.Horizontal };
 
-                    linePanel.Children.Add(new TextBlock
+                    if (!isBaseAuthor)
                     {
-                        Text = "• ",
-                        Style = (Style)FindResource("PrimaryTextBlockStyle"),
-                        FontSize = 12,
-                        Foreground = (Brush)FindResource("TertiaryTextBrush")
-                    });
+                        linePanel.Children.Add(new TextBlock
+                        {
+                            Text = "•",
+                            Style = (Style)FindResource("PrimaryTextBlockStyle"),
+                            FontSize = 12,
+                            Foreground = (Brush)FindResource("TertiaryTextBrush"),
+                            Margin = new Thickness(0, 0, 6, 0)
+                        });
+                    }
 
                     // Name hyperlink
-                    var nameLink = new System.Windows.Documents.Hyperlink(
-                        new System.Windows.Documents.Run(contributor.Name))
+                    var nameLink = new System.Windows.Documents.Hyperlink(new System.Windows.Documents.Run(contributor.Name))
                     {
                         NavigateUri = new Uri(contributor.Url),
                         Foreground = (Brush)FindResource("LinkBrush")
@@ -672,8 +638,7 @@ namespace DisplayProfileManager.UI.Windows
                     // Label hyperlink
                     if (!string.IsNullOrEmpty(contributor.LinkLabel))
                     {
-                        var refLink = new System.Windows.Documents.Hyperlink(
-                            new System.Windows.Documents.Run(contributor.LinkLabel))
+                        var refLink = new System.Windows.Documents.Hyperlink(new System.Windows.Documents.Run(contributor.LinkLabel))
                         {
                             NavigateUri = new Uri(contributor.LinkUrl),
                             Foreground = (Brush)FindResource("LinkBrush")
@@ -707,7 +672,7 @@ namespace DisplayProfileManager.UI.Windows
                     {
                         entryPanel.Children.Add(new TextBlock
                         {
-                            Text = "    " + contributor.SubText,
+                            Text = contributor.SubText,
                             Style = (Style)FindResource("PrimaryTextBlockStyle"),
                             FontSize = 11,
                             Foreground = (Brush)FindResource("TertiaryTextBrush"),

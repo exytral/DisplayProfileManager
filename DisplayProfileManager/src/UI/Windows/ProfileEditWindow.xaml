@@ -267,8 +267,7 @@
                         </Grid>
 
                         <controls:HotkeyEditorControl Grid.Row="6"
-                                                      x:Name="HotkeyEditor"
-                                                      HotkeyChanged="HotkeyEditor_HotkeyChanged"/>
+                                                      x:Name="HotkeyEditor"/>
                         <TextBlock Grid.Row="8"
                                    x:Name="ConflictWarning"
                                    Text="⚠ Already assigned to another profile"
@@ -336,7 +335,7 @@
                         </Border>
                         <TextBlock Grid.Column="2"
                                    Name="IconFilenameTextBlock"
-                                   Text="No icon"
+                                   Text="None"
                                    Style="{StaticResource PrimaryTextBlockStyle}"
                                    FontSize="11"
                                    Foreground="{DynamicResource TertiaryTextBrush}"
@@ -367,7 +366,9 @@
                                   VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled"
                                   Background="{DynamicResource TextBoxBackgroundBrush}"
-                                  Padding="14,8,0,8">
+                                  MinHeight="56"
+                                  Padding="14,8,0,8"
+                                  PreviewMouseWheel="IconScrollViewer_PreviewMouseWheel">
                         <WrapPanel Name="BuiltinIconsPanel"/>
                     </ScrollViewer>
                 </Grid>
@@ -397,23 +398,23 @@
                                 Style="{StaticResource SecondaryButtonStyle}"
                                 Width="60"
                                 Click="LoadDisplaysButton_Click"
-                                ToolTip="Load display settings to current state"/>
+                                ToolTip="Load display settings from current desktop state"/>
                     </StackPanel>
                 </Grid>
 
                 <Border Background="{DynamicResource ContentBackgroundBrush}"
                         BorderBrush="{DynamicResource BorderBrush}"
                         BorderThickness="1"
+                        MinHeight="56"
                         CornerRadius="4"
-                        MinHeight="200"
-                        Padding="16">
+                        Padding="16,16,16,4">
                     <StackPanel Name="DisplaySettingsPanel">
                         <TextBlock Text="No display settings configured. Click 'Load' to auto-populate from current desktop configuration."
                                    Style="{StaticResource PrimaryTextBlockStyle}"
                                    Foreground="{DynamicResource TertiaryTextBrush}"
                                    TextAlignment="Center"
                                    TextWrapping="Wrap"
-                                   Margin="32"/>
+                                   Margin="0,0,0,12"/>
                     </StackPanel>
                 </Border>
 
@@ -436,9 +437,8 @@
                             Style="{StaticResource SecondaryButtonStyle}"
                             Width="60"
                             Click="LoadAudioButton_Click"
-                            ToolTip="Load audio settings from current state"/>
+                            ToolTip="Load audio devices from current state"/>
                 </Grid>
-
 
                 <Border Background="{DynamicResource ContentBackgroundBrush}"
                         BorderBrush="{DynamicResource BorderBrush}"
@@ -468,7 +468,6 @@
                                       VerticalAlignment="Center"
                                       VerticalContentAlignment="Center"
                                       Foreground="{DynamicResource PrimaryTextBrush}"
-                                      ToolTip="If checked, this profile will change the output device"
                                       Checked="ApplyOutputDeviceCheckBox_Checked"
                                       Unchecked="ApplyOutputDeviceCheckBox_Unchecked"/>
 
@@ -511,7 +510,6 @@
                                       VerticalAlignment="Center"
                                       VerticalContentAlignment="Center"
                                       Foreground="{DynamicResource PrimaryTextBrush}"
-                                      ToolTip="If checked, this profile will change the input device"
                                       Checked="ApplyInputDeviceCheckBox_Checked"
                                       Unchecked="ApplyInputDeviceCheckBox_Unchecked"/>
 
@@ -569,7 +567,8 @@
                                 Style="{StaticResource SecondaryButtonStyle}"
                                 Width="60"
                                 Margin="0,0,8,0"
-                                Click="AddScriptButton_Click"/>
+                                Click="AddScriptButton_Click"
+                                ToolTip="Import a script file"/>
                         <Button Name="ClearAllScriptsButton"
                                 Content="Clear"
                                 Style="{StaticResource DangerButtonStyle}"
@@ -581,15 +580,14 @@
                 <Border Background="{DynamicResource ContentBackgroundBrush}"
                         BorderBrush="{DynamicResource BorderBrush}"
                         BorderThickness="1"
+                        MinHeight="56"
                         CornerRadius="4"
-                        Padding="16,12,16,16">
+                        Padding="16">
                     <StackPanel>
-                        <ItemsControl Name="ScriptsItemsControl"
-                            VirtualizingStackPanel.IsVirtualizing="True"
-                            VirtualizingStackPanel.VirtualizationMode="Recycling">
+                        <ItemsControl Name="ScriptsItemsControl" VirtualizingStackPanel.IsVirtualizing="True" VirtualizingStackPanel.VirtualizationMode="Recycling">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Grid Name="ScriptRow">
+                                    <Grid Name="ScriptRow" Margin="0,0,0,16">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <!-- File -->
@@ -601,22 +599,25 @@
 
                                         <!-- File Path (Read-Only) -->
                                         <StackPanel Grid.Column="0" Margin="0,0,16,0">
-                                            <TextBlock Text="File"
+                                            <TextBlock x:Name="FileLabel"
+                                                       Text="File"
                                                        Style="{StaticResource LabelTextBlockStyle}"
                                                        FontSize="12"
-                                                       Margin="0,4"/>
+                                                       Margin="0,4"
+                                                       Opacity="{Binding Tag, RelativeSource={RelativeSource AncestorType=ItemsControl}}"/>
                                             <TextBox x:Name="FileBox"
                                                      Text="{Binding FileName, Mode=OneWay}"
                                                      IsReadOnly="True"
                                                      Style="{StaticResource PrimaryTextBoxStyle}"
                                                      Background="{DynamicResource TextBoxBackgroundBrush}"
-                                                     Foreground="{DynamicResource TertiaryTextBrush}"/>
+                                                     Foreground="{DynamicResource TertiaryTextBrush}"
+                                                     Opacity="{Binding Tag, RelativeSource={RelativeSource AncestorType=ItemsControl}}"/>
                                         </StackPanel>
 
                                         <!-- Arguments (Editable) -->
-                                        <StackPanel Grid.Column="1"
-                                                    Margin="0,0,16,0">
-                                            <TextBlock Text="Arguments"
+                                        <StackPanel Grid.Column="1" Margin="0,0,16,0">
+                                            <TextBlock x:Name="ArgsLabel"
+                                                       Text="Arguments"
                                                        Style="{StaticResource LabelTextBlockStyle}"
                                                        FontSize="12"
                                                        Margin="0,4"/>
@@ -625,7 +626,7 @@
                                                      Style="{StaticResource PrimaryTextBoxStyle}"/>
                                         </StackPanel>
 
-                                        <!-- Delete Button -->
+                                        <!-- Delete / Restore Button -->
                                         <Button Grid.Column="2"
                                                 Content="&#xE74D;"
                                                 x:Name="DeleteButton"
@@ -639,10 +640,10 @@
                                     <DataTemplate.Triggers>
                                         <DataTrigger Binding="{Binding IsDeleted}" Value="True">
                                             <Setter TargetName="DeleteButton" Property="Content" Value="&#xE10E;"/>
-                                            <Setter TargetName="FileBox" Property="Background" Value="#1A1A1A"/>
-                                            <Setter TargetName="ArgsBox" Property="Background" Value="#1A1A1A"/>
-                                            <Setter TargetName="FileBox" Property="Foreground" Value="#888888"/>
-                                            <Setter TargetName="ArgsBox" Property="Foreground" Value="#888888"/>
+                                            <Setter TargetName="FileLabel" Property="Opacity" Value="0.5"/>
+                                            <Setter TargetName="FileBox" Property="Opacity" Value="0.5"/>
+                                            <Setter TargetName="ArgsLabel" Property="Opacity" Value="0.5"/>
+                                            <Setter TargetName="ArgsBox" Property="Opacity" Value="0.5"/>
                                             <Setter TargetName="FileBox" Property="IsEnabled" Value="False"/>
                                             <Setter TargetName="ArgsBox" Property="IsEnabled" Value="False"/>
                                             <Setter TargetName="DeleteButton" Property="IsEnabled" Value="True"/>
@@ -652,10 +653,13 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                         <TextBlock Name="NoScriptsTextBlock"
-                                   Text="No scripts linked to this profile."
+                                   Text="No scripts linked to this profile. Click 'Import' to add a script."
                                    Style="{StaticResource PrimaryTextBlockStyle}"
-                                   HorizontalAlignment="Center"
-                                   Visibility="Collapsed"/>
+                                   Foreground="{DynamicResource TertiaryTextBrush}"
+                                   TextAlignment="Center"
+                                   TextWrapping="Wrap"
+                                   VerticalAlignment="Center"
+                                   Visibility="Visible"/>
                     </StackPanel>
                 </Border>
             </StackPanel>

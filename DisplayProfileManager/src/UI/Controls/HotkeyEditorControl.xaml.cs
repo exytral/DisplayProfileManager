@@ -13,6 +13,7 @@ namespace DisplayProfileManager.UI.Controls
     public partial class HotkeyEditorControl : UserControl, INotifyPropertyChanged
     {
         private static readonly Logger logger = LoggerHelper.GetLogger();
+
         private HotkeyConfig _currentHotkey;
         private bool _isRecording;
         private bool _hasConflict;
@@ -108,21 +109,15 @@ namespace DisplayProfileManager.UI.Controls
         private static void OnConflictingProfileChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             if (d is HotkeyEditorControl control)
-            {
                 control.HasConflict = !string.IsNullOrEmpty(e.NewValue as string);
-            }
         }
 
         private void UpdateHotkeyText()
         {
             if (_currentHotkey?.Key == Key.None)
-            {
                 HotkeyText = string.Empty;
-            }
             else
-            {
                 HotkeyText = _currentHotkey?.ToString() ?? string.Empty;
-            }
         }
 
         private void HotkeyTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -131,7 +126,6 @@ namespace DisplayProfileManager.UI.Controls
 
             var key = e.Key == Key.System ? e.SystemKey : e.Key;
 
-            // Handle ESC to clear
             if (key == Key.Escape)
             {
                 ClearHotkey();
@@ -139,7 +133,6 @@ namespace DisplayProfileManager.UI.Controls
                 return;
             }
 
-            // Skip pure modifier keys
             if (Helpers.KeyConverter.IsModifierKey(key))
             {
                 if (!IsRecording)
@@ -150,13 +143,10 @@ namespace DisplayProfileManager.UI.Controls
                 return;
             }
 
-            // Record the key combination
             _pressedKeys.Add(key);
 
             var modifiers = Helpers.KeyConverter.GetCurrentModifiers();
             var newHotkey = new HotkeyConfig(key, modifiers, true);
-
-            // Check if it's a valid combination
             if (newHotkey.IsValid())
             {
                 SetHotkey(newHotkey);
@@ -172,19 +162,13 @@ namespace DisplayProfileManager.UI.Controls
             {
                 UpdateRecordingDisplay();
 
-                // If no modifiers are pressed and we're not capturing a key, stop recording
                 var currentModifiers = Helpers.KeyConverter.GetCurrentModifiers();
                 if (currentModifiers == ModifierKeys.None && _pressedKeys.Count == 0)
-                {
                     StopRecording();
-                }
             }
         }
 
-        private void HotkeyTextBox_GotFocus(object sender, RoutedEventArgs e)
-        {
-            logger.Debug("HotkeyEditorControl: Got focus");
-        }
+        private void HotkeyTextBox_GotFocus(object sender, RoutedEventArgs e) => logger.Debug("HotkeyEditorControl: Got focus");
 
         private void HotkeyTextBox_LostFocus(object sender, RoutedEventArgs e)
         {
@@ -195,15 +179,7 @@ namespace DisplayProfileManager.UI.Controls
         private void HotkeyTextBox_MouseDown(object sender, MouseButtonEventArgs e)
         {
             if (!HotkeyTextBox.IsFocused)
-            {
                 HotkeyTextBox.Focus();
-            }
-        }
-
-        private void ClearButton_Click(object sender, RoutedEventArgs e)
-        {
-            ClearHotkey();
-            HotkeyTextBox.Focus();
         }
 
         private void StartRecording()
@@ -235,7 +211,6 @@ namespace DisplayProfileManager.UI.Controls
             {
                 _recordingModifiers = currentModifiers;
 
-                // Build preview text
                 var parts = new List<string>();
 
                 if ((currentModifiers & ModifierKeys.Control) == ModifierKeys.Control)
@@ -248,13 +223,9 @@ namespace DisplayProfileManager.UI.Controls
                     parts.Add("Win");
 
                 if (parts.Count > 0)
-                {
                     HotkeyText = string.Join(" + ", parts) + " + ...";
-                }
                 else
-                {
                     HotkeyText = "";
-                }
             }
         }
 
@@ -268,7 +239,6 @@ namespace DisplayProfileManager.UI.Controls
             OnPropertyChanged(nameof(IsValid));
 
             HotkeyChanged?.Invoke(this, _currentHotkey);
-
             logger.Debug($"HotkeyEditorControl: Set hotkey to {_currentHotkey}");
         }
 
@@ -279,9 +249,6 @@ namespace DisplayProfileManager.UI.Controls
             _pressedKeys.Clear();
         }
 
-        protected virtual void OnPropertyChanged([System.Runtime.CompilerServices.CallerMemberName] string propertyName = null)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-        }
+        protected virtual void OnPropertyChanged([System.Runtime.CompilerServices.CallerMemberName] string propertyName = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }

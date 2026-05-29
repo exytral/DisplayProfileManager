@@ -16,7 +16,8 @@ This is a fork based on [zac15987/DisplayProfileManager](https://github.com/zac1
 **Profiles & switching**
 - 🗂️ **Unlimited display profiles** — save any combination of monitor settings as a named profile
 - 🖱️ **Multiple ways to switch** — GUI, global hotkey, system tray, or CLI
-- 📺 **Full per-monitor control** — resolution, refresh rate, rotation, HDR, DPI, position, enable/disable, primary
+- 📺 **Full per-monitor control** — resolution, refresh rate, rotation, DPI, color profile, enable/disable, primary, HDR/ACM
+- 🎨 **Color profile per display** — assign an `.icc` color profile to each monitor
 - 🪞 **Mirror display support** — clone monitors in pure or mixed extended/mirror configurations
 - 🖼️ **Custom profile icons** — assign a `.ico` icon to any profile; shown in the profile list, details panel, and system tray when active
 - 📋 **Profile duplication** — copy an existing profile as a starting point
@@ -44,7 +45,8 @@ This is a fork based on [zac15987/DisplayProfileManager](https://github.com/zac1
 4. Your current display settings are automatically saved as the "Default" profile on first launch
 
 **Requirements**
-- Windows 10 version 1709 or later (Windows 7/8 unsupported — HDR, mirror displays, and some UI elements will not work correctly)
+- Windows 10 version 1709+ (Windows 7/8 unsupported — mirror displays, HDR, DPI, and some UI elements will not work correctly)
+  - Full ACM support requires Windows 11 24H2+
 - [.NET Framework 4.8](https://dotnet.microsoft.com/en-us/download/dotnet-framework)
 - No administrator rights required for normal use. Admin is only needed once for Task Scheduler auto-start mode setup.
 
@@ -53,19 +55,16 @@ This is a fork based on [zac15987/DisplayProfileManager](https://github.com/zac1
 ## 📸 Screenshots
 
 ### Main Window
-![Main Window](./docs/img/main-window.png)
+![Main Window](./docs/img/main-window.webp)
 
 ### Profile Editor
-![Edit Window](./docs/img/edit-window.png)
-
-### Themes
-![Themes](./docs/img/themes.webp)
+![Edit Window](./docs/img/profile-editor.png)
 
 ---
 
 ## 📖 Documentation
 
-- [Creating and Managing Profiles](./docs/wiki/profiles.md) — profiles, hotkeys, mirror displays, audio
+- [Creating and Managing Profiles](./docs/wiki/profiles.md) — profiles, hotkeys, audio, etc
 - [Scripts](./docs/wiki/scripts.md) — supported types, execution, arguments, examples
 - [Settings](./docs/wiki/settings.md) — set theme and UX behavior, see configured hotkeys and attributions
 - [Themes & DPM Theme Builder](./docs/wiki/themes.md) — built-in themes, importing, generating custom themes
@@ -102,7 +101,7 @@ MIT + Commons Clause — see [LICENSE](LICENSE) for details. Third-party license
 - [Newtonsoft.Json](https://www.newtonsoft.com/json) (MIT) — JSON serialization
 - [NLog](https://nlog-project.org/) (BSD-3-Clause) — Logging
 - [windows-DPI-scaling-sample](https://github.com/lihas/windows-DPI-scaling-sample) (Unlicense) — DPI scaling foundation
-- [tinted-themes](https://github.com/tinted-theming/tinted-themes) (MIT) — Theme database for DPM Theme Builder
+- [tinted-themes](https://github.com/tinted-theming) (MIT) — Theme database for DPM Theme Builder
 - [Claude Code](https://claude.ai/code) — Built in collaboration with Anthropic's Claude Code
 
 ### 🤝 Contributors
@@ -112,7 +111,7 @@ MIT + Commons Clause — see [LICENSE](LICENSE) for details. Third-party license
 - [@jarandal](https://github.com/jarandal) ([PR #8](https://github.com/zac15987/DisplayProfileManager/pull/8)) — Initial HDR support, screen rotation
 - [@jonathanasdf](https://github.com/jonathanasdf) ([PR #14](https://github.com/zac15987/DisplayProfileManager/pull/14)) — Initial clone display support
 - [@rvahilario](https://github.com/rvahilario) ([PR #23](https://github.com/zac15987/DisplayProfileManager/pull/23)) — Partial clone fixes, clone UI, test infrastructure
-- [@xtrilla](https://github.com/xtrilla) ([fork](https://github.com/xtrilla/DisplayProfileManager)) — Safe file saves
+- [@xtrilla](https://github.com/xtrilla) ([fork](https://github.com/xtrilla/DisplayProfileManager)) — Safe file saves, stability improvements
 
 **Community**
 - [@Catriks](https://github.com/Catriks) ([#1](https://github.com/zac15987/DisplayProfileManager/issues/1)) — Requested audio device switching

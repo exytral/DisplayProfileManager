@@ -17,40 +17,28 @@ namespace DisplayProfileManager.Core
     {
         [JsonProperty("startWithWindows")]
         public bool StartWithWindows { get; set; } = false;
-
         [JsonProperty("startInSystemTray")]
         public bool StartInSystemTray { get; set; } = false;
-
         [JsonProperty("autoStartMode")]
         public AutoStartMode AutoStartMode { get; set; } = AutoStartMode.Registry;
-
         [JsonProperty("startupProfileId")]
         public string StartupProfileId { get; set; } = string.Empty;
-
         [JsonProperty("applyStartupProfile")]
         public bool ApplyStartupProfile { get; set; } = false;
-
         [JsonProperty("rememberCloseChoice")]
         public bool RememberCloseChoice { get; set; } = false;
-
         [JsonProperty("closeToTray")]
         public bool CloseToTray { get; set; } = true;
-
         [JsonProperty("showNotifications")]
         public bool ShowNotifications { get; set; } = true;
-
         [JsonProperty("theme")]
         public string Theme { get; set; } = "System";
-
         [JsonProperty("language")]
         public string Language { get; set; } = "en-US";
-
         [JsonProperty("firstRun")]
         public bool FirstRun { get; set; } = true;
-
         [JsonProperty("currentProfileId")]
         public string CurrentProfileId { get; set; } = string.Empty;
-
         [JsonProperty("lastUpdated")]
         public DateTime LastUpdated { get; set; } = DateTime.Now;
     }
@@ -58,11 +46,12 @@ namespace DisplayProfileManager.Core
     public class SettingsManager
     {
         private static readonly Logger logger = LoggerHelper.GetLogger();
-        private static SettingsManager _instance;
         private static readonly object _lock = new object();
 
+        private static SettingsManager _instance;
         private AppSettings _settings;
         private readonly string _settingsFilePath;
+
         private readonly string _appDataFolder;
 
         public static SettingsManager Instance
@@ -77,6 +66,7 @@ namespace DisplayProfileManager.Core
                             _instance = new SettingsManager();
                     }
                 }
+
                 return _instance;
             }
         }
@@ -109,12 +99,10 @@ namespace DisplayProfileManager.Core
         private void EnsureAppDataFolderExists()
         {
             if (!Directory.Exists(_appDataFolder))
-            {
                 Directory.CreateDirectory(_appDataFolder);
-            }
         }
 
-        private static void AtomicWriteAllText(string path, string content)
+        private static void AtomicWrite(string path, string content)
         {
             var tmp = path + ".tmp";
             File.WriteAllText(tmp, content);
@@ -123,6 +111,8 @@ namespace DisplayProfileManager.Core
             else
                 File.Move(tmp, path);
         }
+
+        #region Public Methods
 
         public async Task<bool> LoadSettingsAsync()
         {
@@ -145,6 +135,7 @@ namespace DisplayProfileManager.Core
             {
                 logger.Error(ex, "Error loading settings");
                 _settings = new AppSettings();
+
                 return false;
             }
         }
@@ -155,7 +146,7 @@ namespace DisplayProfileManager.Core
             {
                 _settings.LastUpdated = DateTime.Now;
                 var json = JsonConvert.SerializeObject(_settings, Formatting.Indented);
-                await Task.Run(() => AtomicWriteAllText(_settingsFilePath, json));
+                await Task.Run(() => AtomicWrite(_settingsFilePath, json));
 
                 SettingsChanged?.Invoke(this, _settings);
                 return true;
@@ -196,6 +187,7 @@ namespace DisplayProfileManager.Core
                     var value = property.GetValue(_settings);
                     return value != null ? (T)value : defaultValue;
                 }
+
                 return defaultValue;
             }
             catch (Exception ex)
@@ -244,13 +236,10 @@ namespace DisplayProfileManager.Core
                 {
                     logger.Error("Failed to save settings after task change");
                     if (startWithWindows)
-                    {
                         autoStartHelper.DisableAutoStart();
-                    }
                     else
-                    {
                         autoStartHelper.EnableAutoStart(_settings.AutoStartMode, _settings.StartInSystemTray);
-                    }
+
                     return false;
                 }
 
@@ -370,102 +359,50 @@ namespace DisplayProfileManager.Core
             return await SaveSettingsAsync();
         }
 
-        public async Task<bool> ResetSettingsAsync()
-        {
-            try
-            {
-                _settings = new AppSettings();
-                _settings.FirstRun = false;
-                return await SaveSettingsAsync();
-            }
-            catch (Exception ex)
-            {
-                logger.Error(ex, "Error resetting settings");
-                return false;
-            }
-        }
-
         public async Task<bool> CompleteFirstRunAsync()
         {
             _settings.FirstRun = false;
             return await SaveSettingsAsync();
         }
 
-        public string GetSettingsFilePath()
-        {
-            return _settingsFilePath;
-        }
+        #endregion
 
-        public string GetAppDataFolder()
-        {
-            return _appDataFolder;
-        }
+        #region Get Settings
 
-        public bool IsFirstRun()
-        {
-            return _settings.FirstRun;
-        }
+        public string GetSettingsFilePath() => _settingsFilePath;
+        
+        public string GetAppDataFolder() => _appDataFolder;
+        
+        public bool IsFirstRun() => _settings.FirstRun;
+        
+        public bool ShouldStartWithWindows() => _settings.StartWithWindows;
+        
+        public bool ShouldStartInSystemTray() => _settings.StartInSystemTray && _settings.StartWithWindows;
+        
+        public bool ShouldApplyStartupProfile() => _settings.ApplyStartupProfile && !string.IsNullOrEmpty(_settings.StartupProfileId);
+        
+        public string GetStartupProfileId() => _settings.StartupProfileId;
+        
+        public bool ShouldRememberCloseChoice() => _settings.RememberCloseChoice;
+        
+        public bool ShouldCloseToTray() => _settings.CloseToTray;
+        
+        public bool ShouldShowNotifications() => _settings.ShowNotifications;
+        
+        public string GetTheme() => _settings.Theme;
+        
+        public string GetLanguage() => _settings.Language;
+        
+        public DateTime GetLastUpdated() => _settings.LastUpdated;
+        
+        public string GetCurrentProfileId() => _settings.CurrentProfileId;
 
-        public bool ShouldStartWithWindows()
-        {
-            return _settings.StartWithWindows;
-        }
-
-        public bool ShouldStartInSystemTray()
-        {
-            return _settings.StartInSystemTray && _settings.StartWithWindows;
-        }
-
-        public bool ShouldApplyStartupProfile()
-        {
-            return _settings.ApplyStartupProfile && !string.IsNullOrEmpty(_settings.StartupProfileId);
-        }
-
-        public string GetStartupProfileId()
-        {
-            return _settings.StartupProfileId;
-        }
-
-        public bool ShouldRememberCloseChoice()
-        {
-            return _settings.RememberCloseChoice;
-        }
-
-        public bool ShouldCloseToTray()
-        {
-            return _settings.CloseToTray;
-        }
-
-        public bool ShouldShowNotifications()
-        {
-            return _settings.ShowNotifications;
-        }
-
-        public string GetTheme()
-        {
-            return _settings.Theme;
-        }
-
-        public string GetLanguage()
-        {
-            return _settings.Language;
-        }
-
-        public DateTime GetLastUpdated()
-        {
-            return _settings.LastUpdated;
-        }
-
-        public string GetCurrentProfileId()
-        {
-            return _settings.CurrentProfileId;
-        }
+        #endregion
 
         public async Task<bool> SetCurrentProfileIdAsync(string profileId)
         {
             _settings.CurrentProfileId = profileId;
             return await SaveSettingsAsync();
         }
-
     }
 }

@@ -25,11 +25,21 @@ if ($devProcs) {
     }
 }
 
-# Build targeting .csproj directly to skip test projects
+# Restore NuGet packages for the solution via MSBuild
+Write-Host "Restoring NuGet packages..." -ForegroundColor Cyan
+& $msbuild $sln /t:Restore /p:Configuration=$Configuration /p:Platform=$Platform /v:minimal
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Restore failed." -ForegroundColor Red
+    Start-Sleep -Seconds 5
+    exit 1
+}
+
+# Build using solution target filter to resolve dependencies while skipping tests
 Write-Host "Building $Configuration $Platform..." -ForegroundColor Cyan
-& $msbuild $proj /p:Configuration=$Configuration /p:Platform=$Platform /v:minimal /t:Build
+& $msbuild $sln /t:DisplayProfileManager /p:Configuration=$Configuration /p:Platform=$Platform /v:minimal
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Build failed." -ForegroundColor Red
+    Start-Sleep -Seconds 5
     exit 1
 }
 
@@ -39,5 +49,6 @@ if (Test-Path $exe) {
     Start-Process -FilePath $exe -ArgumentList "--dev"
 } else {
     Write-Host "Error: Executable not found at $exe" -ForegroundColor Red
+    Start-Sleep -Seconds 5
     exit 1
 }

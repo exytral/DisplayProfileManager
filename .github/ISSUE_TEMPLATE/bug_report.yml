@@ -7,7 +7,6 @@ body:
     attributes:
       value: |
         Before filing, please check [existing issues](../../issues) to see if this has already been reported.
-        For usage questions, open a [Discussion](../../discussions) instead.
 
   - type: textarea
     id: description
@@ -52,6 +51,6 @@ body:
     id: additional
     attributes:
       label: Anything else?
-      description: Steps to reproduce, workarounds you've found, relevant monitor setup details (connection type, HDR, clone/mirror groups), etc.
+      description: Steps to reproduce, workarounds you've found, relevant monitor setup details, etc.
     validations:
       required: false

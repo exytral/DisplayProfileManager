@@ -23,8 +23,6 @@ DisplayProfileManager.exe --profile "TV Setup"
 DisplayProfileManager.exe --profile # reapply current
 ```
 
-Default behavior (no flags): DPM starts normally and opens to the main window.
-
 ### `--headless` "name/ID"
 
 Apply a profile and exit — no window opens, no tray icon appears. DPM starts, applies the profile (or forwards to a running instance via IPC), and shuts down. If no instance is running, the profile is applied locally and DPM exits. This is the preferred flag for automation, scripts, and any context where you don't want DPM's UI appearing (e.g. while a game is running fullscreen).
@@ -48,7 +46,7 @@ If a running instance is found, the theme is applied live. If no instance is run
 
 ### `--refresh`
 
-Reload profiles and themes from disk. Useful after manually editing `.dpm` files or dropping new `.xaml` files into the themes folder. Requires a running instance — exits without effect if DPM is not running.
+Reload profiles and themes from disk. `--reload` and `-r` are accepted aliases. Useful after manually editing `.dpm` files or dropping new `.xaml` files into the themes folder. Requires a running instance — exits without effect if DPM is not running.
 
 ```
 DisplayProfileManager.exe --refresh
@@ -107,14 +105,14 @@ DisplayProfileManager.exe --theme "Dark" --headless "Night Mode"
 
 ### Apply a profile from Task Scheduler
 
-- **Program:** `%AppData%\Roaming\DisplayProfileManager\DisplayProfileManager.exe`
+- **Program:** `C:\Program Files\Display Profile Manager`
 - **Arguments:** `--headless "Work"`
 - **Trigger:** At log on, or on a schedule
 
 ### Apply a profile from PowerShell
 
 ```powershell
-$dpm = "$env:APPDATA\Roaming\DisplayProfileManager\DisplayProfileManager.exe"
+$dpm = "C:\Program Files\Display Profile Manager\DisplayProfileManager.exe"
 & $dpm --headless "Work"
 ```
 
@@ -123,7 +121,7 @@ $dpm = "$env:APPDATA\Roaming\DisplayProfileManager\DisplayProfileManager.exe"
 Set the shortcut target to:
 
 ```
-"%APPDATA%\Roaming\DisplayProfileManager\DisplayProfileManager.exe" --headless "TV Setup"
+"C:\Program Files\Display Profile Manager\DisplayProfileManager.exe" --headless "TV Setup"
 ```
 
 ### Chain a theme and profile switch
@@ -136,11 +134,11 @@ DisplayProfileManager.exe --theme "Dark" --headless "Night Mode"
 
 ## Steam Big Picture Mode watcher
 
-`BigPictureMode.ps1` is a background script that tails Steam's `webhelper.txt` log and detects when Big Picture Mode opens or closes, then calls DPM with `--headless` to switch profiles automatically. Run it at Windows startup via `shell:startup` — it does not attach to a profile, it runs independently and calls DPM.
+`BigPictureMode.ps1` is a background script that tails Steam's `webhelper.txt` log and detects when Big Picture Mode opens or closes, then calls DPM with `--headless` to switch profiles automatically. Run it at Windows startup via `shell:startup` — it does not attach to a profile; it runs independently and calls DPM.
 
 ```powershell
 $logFile = "${env:ProgramFiles(x86)}\Steam\logs\webhelper.txt"
-$appPath = "%AppData%\Roaming\DisplayProfileManager\DisplayProfileManager.exe"
+$appPath = "C:\Program Files\Display Profile Manager\DisplayProfileManager.exe"
 $global:BPM = $false
 
 Write-Host "Monitoring Big Picture Mode state..." -ForegroundColor Cyan

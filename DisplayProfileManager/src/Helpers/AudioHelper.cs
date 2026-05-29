@@ -3,18 +3,16 @@ using System;
 using System.Collections.Generic;
 using System.Management;
 using System.Runtime.InteropServices;
-using System.Runtime.InteropServices.ComTypes;
 
 namespace DisplayProfileManager.Helpers
 {
     public class AudioHelper
     {
         private static readonly Logger logger = LoggerHelper.GetLogger();
-
+        private static readonly object _lock = new object();
         private static readonly Dictionary<string, (string Name, DateTime Discovered)> _deviceCache = new Dictionary<string, (string Name, DateTime Discovered)>();
-        private static readonly object _cacheLock = new object();
 
-        #region COM interfaces
+        #region P/Invoke
 
         [ComImport, Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
         private interface IMMDeviceEnumerator
@@ -90,12 +88,11 @@ namespace DisplayProfileManager.Helpers
             [FieldOffset(8)] public IntPtr pwszVal;
         }
 
-        private enum EDataFlow { eRender, eCapture, eAll }
-        private enum ERole { eConsole, eMultimedia, eCommunications }
+        private enum EDataFlow { Render, Capture, All }
+        private enum ERole { Console, Multimedia, Communications }
 
-        private const uint DEVICE_STATE_ACTIVE = 0x00000001;
-        private const uint STGM_READ = 0x00000000;
-        private const uint CLSCTX_ALL = 0x1 | 0x2 | 0x4 | 0x10;
+        private const uint DeviceStateActive = 0x00000001;
+        private const uint StgmRead = 0x00000000;
 
         private static readonly PROPERTYKEY PKEY_Device_FriendlyName = new PROPERTYKEY
         {
@@ -121,10 +118,9 @@ namespace DisplayProfileManager.Helpers
 
         public enum DeviceType { Playback, Capture }
 
-        private static IMMDeviceEnumerator CreateEnumerator()
-        {
-            return (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
-        }
+        #region Device Enumeration
+
+        private static IMMDeviceEnumerator CreateEnumerator() => (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
 
         private static string GetDeviceFriendlyName(IMMDevice device)
         {
@@ -132,11 +128,13 @@ namespace DisplayProfileManager.Helpers
             PROPVARIANT pv = new PROPVARIANT();
             try
             {
-                if (device.OpenPropertyStore(STGM_READ, out store) != 0) return null;
+                if (device.OpenPropertyStore(StgmRead, out store) != 0) return null;
+
                 var key = PKEY_Device_FriendlyName;
                 if (store.GetValue(ref key, out pv) != 0) return null;
-                // vt 31 = VT_LPWSTR
+
                 if (pv.vt != 31 || pv.pwszVal == IntPtr.Zero) return null;
+
                 return Marshal.PtrToStringUni(pv.pwszVal);
             }
             catch (Exception ex)
@@ -147,7 +145,8 @@ namespace DisplayProfileManager.Helpers
             finally
             {
                 PropVariantClear(ref pv);
-                if (store != null) Marshal.ReleaseComObject(store);
+                if (store != null)
+                    Marshal.ReleaseComObject(store);
             }
         }
 
@@ -157,11 +156,9 @@ namespace DisplayProfileManager.Helpers
             device.GetState(out var state);
 
             var friendlyName = GetDeviceFriendlyName(device);
-
             // Bluetooth devices sometimes surface as "Unknown" — try WMI correlation
             if (string.IsNullOrEmpty(friendlyName) || friendlyName.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
                 friendlyName = TryGetBluetoothName(id) ?? friendlyName;
-
             if (!string.IsNullOrEmpty(friendlyName) && !friendlyName.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
                 CacheDeviceName(id, friendlyName);
 
@@ -170,7 +167,7 @@ namespace DisplayProfileManager.Helpers
                 Id = id,
                 Name = friendlyName,
                 SystemName = friendlyName,
-                IsActive = state == DEVICE_STATE_ACTIVE,
+                IsActive = state == DeviceStateActive,
                 Type = type
             };
         }
@@ -183,7 +180,7 @@ namespace DisplayProfileManager.Helpers
             try
             {
                 enumerator = CreateEnumerator();
-                if (enumerator.EnumAudioEndpoints(EDataFlow.eRender, DEVICE_STATE_ACTIVE, out collection) == 0)
+                if (enumerator.EnumAudioEndpoints(EDataFlow.Render, DeviceStateActive, out collection) == 0)
                 {
                     collection.GetCount(out var count);
                     for (uint i = 0; i < count; i++)
@@ -192,24 +189,32 @@ namespace DisplayProfileManager.Helpers
                         try
                         {
                             if (collection.Item(i, out device) == 0)
-                            {
                                 devices.Add(DeviceToInfo(device, DeviceType.Playback));
-                            }
                         }
-                        catch (Exception ex) { logger.Error(ex, "Error processing playback device"); }
+                        catch (Exception ex)
+                        {
+                            logger.Error(ex, "Error processing playback device");
+                        }
                         finally
                         {
-                            if (device != null) Marshal.ReleaseComObject(device);
+                            if (device != null)
+                                Marshal.ReleaseComObject(device);
                         }
                     }
                 }
             }
-            catch (Exception ex) { logger.Error(ex, "GetPlaybackDevices failed"); }
+            catch (Exception ex)
+            {
+                logger.Error(ex, "GetPlaybackDevices failed");
+            }
             finally
             {
-                if (collection != null) Marshal.ReleaseComObject(collection);
-                if (enumerator != null) Marshal.ReleaseComObject(enumerator);
+                if (collection != null)
+                    Marshal.ReleaseComObject(collection);
+                if (enumerator != null)
+                    Marshal.ReleaseComObject(enumerator);
             }
+
             return devices;
         }
 
@@ -221,7 +226,7 @@ namespace DisplayProfileManager.Helpers
             try
             {
                 enumerator = CreateEnumerator();
-                if (enumerator.EnumAudioEndpoints(EDataFlow.eCapture, DEVICE_STATE_ACTIVE, out collection) == 0)
+                if (enumerator.EnumAudioEndpoints(EDataFlow.Capture, DeviceStateActive, out collection) == 0)
                 {
                     collection.GetCount(out var count);
                     for (uint i = 0; i < count; i++)
@@ -230,11 +235,11 @@ namespace DisplayProfileManager.Helpers
                         try
                         {
                             if (collection.Item(i, out device) == 0)
-                            {
                                 devices.Add(DeviceToInfo(device, DeviceType.Capture));
-                            }
                         }
-                        catch (Exception ex) { logger.Error(ex, "Error processing capture device"); }
+                        catch (Exception ex) {
+                            logger.Error(ex, "Error processing capture device");
+                        }
                         finally
                         {
                             if (device != null) Marshal.ReleaseComObject(device);
@@ -242,12 +247,18 @@ namespace DisplayProfileManager.Helpers
                     }
                 }
             }
-            catch (Exception ex) { logger.Error(ex, "GetCaptureDevices failed"); }
+            catch (Exception ex)
+            {
+                logger.Error(ex, "GetCaptureDevices failed");
+            }
             finally
             {
-                if (collection != null) Marshal.ReleaseComObject(collection);
-                if (enumerator != null) Marshal.ReleaseComObject(enumerator);
+                if (collection != null)
+                    Marshal.ReleaseComObject(collection);
+                if (enumerator != null)
+                    Marshal.ReleaseComObject(enumerator);
             }
+
             return devices;
         }
 
@@ -258,14 +269,21 @@ namespace DisplayProfileManager.Helpers
             try
             {
                 enumerator = CreateEnumerator();
-                if (enumerator.GetDefaultAudioEndpoint(EDataFlow.eRender, ERole.eConsole, out device) != 0) return null;
+                if (enumerator.GetDefaultAudioEndpoint(EDataFlow.Render, ERole.Console, out device) != 0) return null;
+
                 return DeviceToInfo(device, DeviceType.Playback);
             }
-            catch (Exception ex) { logger.Error(ex, "GetDefaultPlaybackDevice failed"); return null; }
+            catch (Exception ex)
+            {
+                logger.Error(ex, "GetDefaultPlaybackDevice failed");
+                return null;
+            }
             finally
             {
-                if (device != null) Marshal.ReleaseComObject(device);
-                if (enumerator != null) Marshal.ReleaseComObject(enumerator);
+                if (device != null)
+                    Marshal.ReleaseComObject(device);
+                if (enumerator != null)
+                    Marshal.ReleaseComObject(enumerator);
             }
         }
 
@@ -276,16 +294,27 @@ namespace DisplayProfileManager.Helpers
             try
             {
                 enumerator = CreateEnumerator();
-                if (enumerator.GetDefaultAudioEndpoint(EDataFlow.eCapture, ERole.eConsole, out device) != 0) return null;
+                if (enumerator.GetDefaultAudioEndpoint(EDataFlow.Capture, ERole.Console, out device) != 0) return null;
+
                 return DeviceToInfo(device, DeviceType.Capture);
             }
-            catch (Exception ex) { logger.Error(ex, "GetDefaultCaptureDevice failed"); return null; }
+            catch (Exception ex)
+            {
+                logger.Error(ex, "GetDefaultCaptureDevice failed");
+                return null;
+            }
             finally
             {
-                if (device != null) Marshal.ReleaseComObject(device);
-                if (enumerator != null) Marshal.ReleaseComObject(enumerator);
+                if (device != null)
+                    Marshal.ReleaseComObject(device);
+                if (enumerator != null)
+                    Marshal.ReleaseComObject(enumerator);
             }
         }
+
+        #endregion
+
+        #region Apply
 
         private static bool SetDefaultEndpoint(string deviceId)
         {
@@ -293,20 +322,26 @@ namespace DisplayProfileManager.Helpers
             try
             {
                 policyConfig = (IPolicyConfig)new PolicyConfigClientComObject();
-                var hr1 = policyConfig.SetDefaultEndpoint(deviceId, ERole.eConsole);
-                var hr2 = policyConfig.SetDefaultEndpoint(deviceId, ERole.eMultimedia);
-                var hr3 = policyConfig.SetDefaultEndpoint(deviceId, ERole.eCommunications);
+                var hr1 = policyConfig.SetDefaultEndpoint(deviceId, ERole.Console);
+                var hr2 = policyConfig.SetDefaultEndpoint(deviceId, ERole.Multimedia);
+                var hr3 = policyConfig.SetDefaultEndpoint(deviceId, ERole.Communications);
                 if (hr1 != 0 || hr2 != 0 || hr3 != 0)
                 {
                     logger.Warn($"SetDefaultEndpoint partial failure — HRESULT console={hr1:X} multimedia={hr2:X} comms={hr3:X}");
                     return false;
                 }
+
                 return true;
             }
-            catch (Exception ex) { logger.Error(ex, $"SetDefaultEndpoint failed for {deviceId}"); return false; }
+            catch (Exception ex)
+            {
+                logger.Error(ex, $"SetDefaultEndpoint failed for {deviceId}");
+                return false;
+            }
             finally
             {
-                if (policyConfig != null) Marshal.ReleaseComObject(policyConfig);
+                if (policyConfig != null)
+                    Marshal.ReleaseComObject(policyConfig);
             }
         }
 
@@ -321,7 +356,6 @@ namespace DisplayProfileManager.Helpers
             IMMDevice device = null;
             try
             {
-                // Verify device exists and is active before attempting switch
                 enumerator = CreateEnumerator();
                 if (enumerator.GetDevice(deviceId, out device) != 0 || device == null)
                 {
@@ -334,13 +368,20 @@ namespace DisplayProfileManager.Helpers
                     device.GetId(out var id);
                     logger.Info($"Set default playback device: {GetCachedName(id) ?? deviceId}");
                 }
+
                 return result;
             }
-            catch (Exception ex) { logger.Error(ex, $"SetDefaultPlaybackDevice failed: {deviceId}"); return false; }
+            catch (Exception ex)
+            {
+                logger.Error(ex, $"SetDefaultPlaybackDevice failed: {deviceId}");
+                return false;
+            }
             finally
             {
-                if (device != null) Marshal.ReleaseComObject(device);
-                if (enumerator != null) Marshal.ReleaseComObject(enumerator);
+                if (device != null)
+                    Marshal.ReleaseComObject(device);
+                if (enumerator != null)
+                    Marshal.ReleaseComObject(enumerator);
             }
         }
 
@@ -367,13 +408,20 @@ namespace DisplayProfileManager.Helpers
                     device.GetId(out var id);
                     logger.Info($"Set default capture device: {GetCachedName(id) ?? deviceId}");
                 }
+
                 return result;
             }
-            catch (Exception ex) { logger.Error(ex, $"SetDefaultCaptureDevice failed: {deviceId}"); return false; }
+            catch (Exception ex)
+            {
+                logger.Error(ex, $"SetDefaultCaptureDevice failed: {deviceId}");
+                return false;
+            }
             finally
             {
-                if (device != null) Marshal.ReleaseComObject(device);
-                if (enumerator != null) Marshal.ReleaseComObject(enumerator);
+                if (device != null)
+                    Marshal.ReleaseComObject(device);
+                if (enumerator != null)
+                    Marshal.ReleaseComObject(enumerator);
             }
         }
 
@@ -381,12 +429,11 @@ namespace DisplayProfileManager.Helpers
         {
             if (audioSettings == null)
             {
-                logger.Debug("No audio settings to apply.");
+                logger.Debug("No audio settings to apply");
                 return true;
             }
 
             bool allSucceeded = true;
-
             try
             {
                 if (audioSettings.ApplyPlaybackDevice)
@@ -400,14 +447,10 @@ namespace DisplayProfileManager.Helpers
                         }
                     }
                     else
-                    {
-                        logger.Debug("Playback apply enabled but no device configured.");
-                    }
+                        logger.Debug("Playback apply enabled but no device configured");
                 }
                 else
-                {
-                    logger.Debug("Playback device apply disabled for this profile.");
-                }
+                    logger.Debug("Playback device apply disabled");
 
                 if (audioSettings.ApplyCaptureDevice)
                 {
@@ -420,34 +463,32 @@ namespace DisplayProfileManager.Helpers
                         }
                     }
                     else
-                    {
-                        logger.Debug("Capture apply enabled but no device configured.");
-                    }
+                        logger.Debug("Capture apply enabled but no device configured");
                 }
                 else
-                {
-                    logger.Debug("Capture device apply disabled for this profile.");
-                }
+                    logger.Debug("Capture device apply disabled");
 
-                if (!allSucceeded) logger.Warn("Some audio settings could not be applied.");
+                if (!allSucceeded) logger.Warn("Some audio settings failed to apply");
+
                 return allSucceeded;
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Unexpected error applying audio settings.");
+                logger.Error(ex, "Error applying audio settings");
                 return false;
             }
         }
+
+        #endregion
 
         #region Bluetooth name resolution
 
         private static string TryGetBluetoothName(string deviceId)
         {
-            lock (_cacheLock)
-            {
+            lock (_lock)
                 if (_deviceCache.TryGetValue(deviceId, out var entry))
                     return entry.Name;
-            }
+
             return GetDeviceNameViaWmi(deviceId);
         }
 
@@ -463,12 +504,15 @@ namespace DisplayProfileManager.Helpers
                     {
                         var name = wmiDevice["Name"]?.ToString();
                         var wmiId = wmiDevice["DeviceID"]?.ToString();
-                        if (IsBluetoothDevice(name) && IsDeviceRelated(deviceId, wmiId))
-                            return name;
+                        if (IsBluetoothDevice(name) && IsDeviceRelated(deviceId, wmiId)) return name;
                     }
                 }
             }
-            catch (Exception ex) { logger.Error(ex, "WMI Bluetooth name lookup failed"); }
+            catch (Exception ex)
+            {
+                logger.Error(ex, "WMI Bluetooth name lookup failed");
+            }
+
             return null;
         }
 
@@ -478,15 +522,18 @@ namespace DisplayProfileManager.Helpers
             foreach (var wmiGuid in ExtractGuids(wmiDeviceId))
                 foreach (var targetGuid in ExtractGuids(deviceId))
                     if (wmiGuid.Equals(targetGuid, StringComparison.OrdinalIgnoreCase)) return true;
+
             return false;
         }
 
         private static bool IsBluetoothDevice(string deviceName)
         {
             if (string.IsNullOrEmpty(deviceName)) return false;
+
             var lower = deviceName.ToLower();
             foreach (var indicator in new[] { "bluetooth", "bt", "wireless", "airpods", "headset", "earbuds", "buds", "headphones", "stereo", "hands-free", "hfp", "a2dp", "sco" })
                 if (lower.Contains(indicator)) return true;
+
             return false;
         }
 
@@ -500,37 +547,45 @@ namespace DisplayProfileManager.Helpers
                 var mac = match.Value.ToUpper();
                 return $"{mac[0]}{mac[1]}:{mac[2]}{mac[3]}:{mac[4]}{mac[5]}:{mac[6]}{mac[7]}:{mac[8]}{mac[9]}:{mac[10]}{mac[11]}";
             }
-            catch { return null; }
+            catch
+            {
+                return null;
+            }
         }
 
         private static List<string> ExtractGuids(string input)
         {
             var guids = new List<string>();
             if (string.IsNullOrEmpty(input)) return guids;
+
             var fullGuids = System.Text.RegularExpressions.Regex.Matches(input, @"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b");
             foreach (System.Text.RegularExpressions.Match m in fullGuids) guids.Add(m.Value);
+
             var hexParts = System.Text.RegularExpressions.Regex.Matches(input, @"\b[0-9a-fA-F]{8}\b");
             foreach (System.Text.RegularExpressions.Match m in hexParts) guids.Add(m.Value);
+
             return guids;
         }
 
         #endregion
 
-        #region Device name cache
+        #region Device Name Cache
 
         private static void CacheDeviceName(string deviceId, string name)
         {
             if (string.IsNullOrEmpty(deviceId) || string.IsNullOrEmpty(name)) return;
-            lock (_cacheLock)
+
+            lock (_lock)
             {
                 _deviceCache[deviceId] = (name, DateTime.Now);
-                if (_deviceCache.Count > 100) TrimCache();
+                if (_deviceCache.Count > 100)
+                    TrimCache();
             }
         }
 
         private static string GetCachedName(string deviceId)
         {
-            lock (_cacheLock)
+            lock (_lock)
             {
                 return _deviceCache.TryGetValue(deviceId, out var entry) ? entry.Name : null;
             }

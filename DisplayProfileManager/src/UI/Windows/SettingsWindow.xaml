@@ -6,7 +6,7 @@
         xmlns:local="clr-namespace:DisplayProfileManager.UI.Windows"
         xmlns:converters="clr-namespace:DisplayProfileManager.UI.Converters"
         mc:Ignorable="d"
-        Title="Settings" Height="600" Width="500" MinHeight="500" MinWidth="450"
+        Title="Settings" Width="500" Height="600" MinWidth="450" MinHeight="500"
         WindowStartupLocation="CenterOwner" ResizeMode="CanResize"
         WindowStyle="SingleBorderWindow"
         Loaded="Window_Loaded">
@@ -77,8 +77,6 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
-
-
 
         <Style x:Key="PrimaryTextBlockStyle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="14"/>
@@ -213,7 +211,10 @@
                         <TextBlock Text="Language"
                                    Style="{StaticResource LabelTextBlockStyle}"
                                    Margin="0,12,0,4"/>
-                        <ComboBox Name="LanguageComboBox" Style="{StaticResource PrimaryComboBoxStyle}" SelectionChanged="LanguageComboBox_SelectionChanged">
+                        <ComboBox Name="LanguageComboBox"
+                                  Style="{StaticResource PrimaryComboBoxStyle}"
+                                  IsEnabled="False"
+                                  SelectionChanged="LanguageComboBox_SelectionChanged">
                             <ComboBoxItem Content="English (US)" Tag="en-US"/>
                         </ComboBox>
                     </StackPanel>
@@ -251,25 +252,25 @@
                                          Padding="6,0,0,0"
                                          GroupName="AutoStartMode"
                                          Checked="AutoStartModeRadio_Changed"/>
-                            <TextBlock Style="{StaticResource PrimaryTextBlockStyle}"
+                            <TextBlock Text="Uses Windows Registry. Normal startup speed."
+                                       Style="{StaticResource PrimaryTextBlockStyle}"
                                        FontSize="11"
                                        Foreground="{DynamicResource TertiaryTextBrush}"
                                        Margin="20,0,0,4"
                                        TextWrapping="Wrap">
-                                       Uses Windows Registry. Normal startup speed.
                             </TextBlock>
 
                             <RadioButton Name="TaskSchedulerModeRadio"
-                                         Content="Quick Launch (Requires admin for setup)"
+                                         Content="Quick Launch (One-time admin for setup)"
                                          Padding="6,0,0,0"
                                          GroupName="AutoStartMode"
                                          Checked="AutoStartModeRadio_Changed"/>
-                            <TextBlock Style="{StaticResource PrimaryTextBlockStyle}"
+                            <TextBlock Text="Uses Windows Task Scheduler. Faster/higher priority startup."
+                                       Style="{StaticResource PrimaryTextBlockStyle}"
                                        FontSize="11"
                                        Foreground="{DynamicResource TertiaryTextBrush}"
                                        Margin="20,0,0,4"
                                        TextWrapping="Wrap">
-                                       Uses Windows Task Scheduler. Faster/higher priority startup. Requires admin privileges for initial setup only.
                             </TextBlock>
                         </StackPanel>
 
@@ -401,11 +402,7 @@
                                            Style="{StaticResource PrimaryTextBlockStyle}"/>
                             </StackPanel>
 
-                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                                <TextBlock Text="Settings Location: "
-                                           Style="{StaticResource PrimaryTextBlockStyle}"
-                                           FontSize="12"
-                                           Foreground="{DynamicResource TertiaryTextBrush}"/>
+                            <StackPanel Orientation="Horizontal">
                                 <TextBlock Name="SettingsPathTextBlock"
                                            Style="{StaticResource PrimaryTextBlockStyle}"
                                            FontSize="12"

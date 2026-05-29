@@ -11,7 +11,7 @@ namespace DisplayProfileManager.Tests.Tests
         [TestCategory("Unit")]
         public void CloneGroupId_DoesNotExistAsProperty()
         {
-            var prop = typeof(DisplayConfigHelper.DISPLAYCONFIG_PATH_SOURCE_INFO)
+            var prop = typeof(DisplayConfigHelper.DisplayConfigPathSourceInfo)
                 .GetProperty("CloneGroupId", BindingFlags.Public | BindingFlags.Instance);
 
             Assert.IsNull(prop,
@@ -22,7 +22,7 @@ namespace DisplayProfileManager.Tests.Tests
         [TestCategory("Unit")]
         public void ModeInfoIdx_Lower16Bits_IsCloneGroupId()
         {
-            var src = new DisplayConfigHelper.DISPLAYCONFIG_PATH_SOURCE_INFO { modeInfoIdx = 0xABCD_1234 };
+            var src = new DisplayConfigHelper.DisplayConfigPathSourceInfo { modeInfoIdx = 0xABCD_1234 };
 
             Assert.AreEqual(0x1234u, src.modeInfoIdx & 0xFFFF);
         }
@@ -31,7 +31,7 @@ namespace DisplayProfileManager.Tests.Tests
         [TestCategory("Unit")]
         public void ModeInfoIdx_Upper16Bits_IsSourceModeIndex()
         {
-            var src = new DisplayConfigHelper.DISPLAYCONFIG_PATH_SOURCE_INFO { modeInfoIdx = 0xABCD_1234 };
+            var src = new DisplayConfigHelper.DisplayConfigPathSourceInfo { modeInfoIdx = 0xABCD_1234 };
 
             Assert.AreEqual(0xABCDu, src.modeInfoIdx >> 16);
         }
@@ -49,7 +49,7 @@ namespace DisplayProfileManager.Tests.Tests
         [TestCategory("Unit")]
         public void ResetModeAndSetCloneGroup_SetsUpperBitsToInvalid()
         {
-            var src = new DisplayConfigHelper.DISPLAYCONFIG_PATH_SOURCE_INFO();
+            var src = new DisplayConfigHelper.DisplayConfigPathSourceInfo();
             src.ResetModeAndSetCloneGroup(2);
 
             Assert.AreEqual(0xFFFFu, src.modeInfoIdx >> 16,
@@ -60,7 +60,7 @@ namespace DisplayProfileManager.Tests.Tests
         [TestCategory("Unit")]
         public void ResetModeAndSetCloneGroup_SetsLowerBitsToCloneGroup()
         {
-            var src = new DisplayConfigHelper.DISPLAYCONFIG_PATH_SOURCE_INFO();
+            var src = new DisplayConfigHelper.DisplayConfigPathSourceInfo();
             src.ResetModeAndSetCloneGroup(5);
 
             Assert.AreEqual(5u, src.modeInfoIdx & 0xFFFF);
@@ -70,7 +70,7 @@ namespace DisplayProfileManager.Tests.Tests
         [TestCategory("Unit")]
         public void ResetModeAndSetCloneGroup_ProducesExpectedRawValue()
         {
-            var src = new DisplayConfigHelper.DISPLAYCONFIG_PATH_SOURCE_INFO();
+            var src = new DisplayConfigHelper.DisplayConfigPathSourceInfo();
             src.ResetModeAndSetCloneGroup(3);
 
             Assert.AreEqual(0xFFFF_0003u, src.modeInfoIdx);
@@ -80,7 +80,7 @@ namespace DisplayProfileManager.Tests.Tests
         [TestCategory("Unit")]
         public void ResetModeAndSetCloneGroup_CalledTwice_ReplacesNotAccumulates()
         {
-            var src = new DisplayConfigHelper.DISPLAYCONFIG_PATH_SOURCE_INFO();
+            var src = new DisplayConfigHelper.DisplayConfigPathSourceInfo();
             src.ResetModeAndSetCloneGroup(1);
             src.ResetModeAndSetCloneGroup(7);
 
@@ -92,7 +92,7 @@ namespace DisplayProfileManager.Tests.Tests
         [TestCategory("Unit")]
         public void ResetModeAndSetCloneGroup_ZeroGroup_ProducesInvalidIndexOnly()
         {
-            var src = new DisplayConfigHelper.DISPLAYCONFIG_PATH_SOURCE_INFO();
+            var src = new DisplayConfigHelper.DisplayConfigPathSourceInfo();
             src.ResetModeAndSetCloneGroup(0);
 
             Assert.AreEqual(0xFFFF_0000u, src.modeInfoIdx);
@@ -102,7 +102,7 @@ namespace DisplayProfileManager.Tests.Tests
         [TestCategory("Unit")]
         public void DirectAssignment_OverwritesEntireField()
         {
-            var src = new DisplayConfigHelper.DISPLAYCONFIG_PATH_SOURCE_INFO { modeInfoIdx = 0xFFFF_0003 };
+            var src = new DisplayConfigHelper.DisplayConfigPathSourceInfo { modeInfoIdx = 0xFFFF_0003 };
 
             src.modeInfoIdx = 2;
 
@@ -114,7 +114,7 @@ namespace DisplayProfileManager.Tests.Tests
         [TestCategory("Unit")]
         public void DirectAssignment_WithZero_ClearsEntireField()
         {
-            var src = new DisplayConfigHelper.DISPLAYCONFIG_PATH_SOURCE_INFO { modeInfoIdx = 0xFFFF_0007 };
+            var src = new DisplayConfigHelper.DisplayConfigPathSourceInfo { modeInfoIdx = 0xFFFF_0007 };
 
             src.modeInfoIdx = 0;
 

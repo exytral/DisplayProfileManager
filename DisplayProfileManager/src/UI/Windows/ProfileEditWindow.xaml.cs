@@ -20,15 +20,18 @@ namespace DisplayProfileManager.UI.Windows
     public partial class ProfileEditWindow : Window
     {
         private static readonly Logger logger = LoggerHelper.GetLogger();
+
         private ProfileManager _profileManager;
         private Profile _profile;
-        private bool _isEditMode;
+
         private List<DisplaySettingControl> _displayControls;
         private CancellationTokenSource _audioLoadCts;
         private ObservableCollection<AudioHelper.AudioDeviceInfo> _playbackDevices;
         private ObservableCollection<AudioHelper.AudioDeviceInfo> _captureDevices;
-        private ObservableCollection<dynamic> _scriptList = new ObservableCollection<dynamic>();
+        private ObservableCollection<ScriptListEntry> _scriptList = new ObservableCollection<ScriptListEntry>();
+
         private string _pendingIconFilename;
+        private bool _isEditMode;
 
         public ProfileEditWindow(Profile profileToEdit = null)
         {
@@ -39,11 +42,9 @@ namespace DisplayProfileManager.UI.Windows
             _isEditMode = profileToEdit != null;
             _profile = profileToEdit ?? new Profile();
 
-            // Data initialization
             _playbackDevices = new ObservableCollection<AudioHelper.AudioDeviceInfo>();
             _captureDevices = new ObservableCollection<AudioHelper.AudioDeviceInfo>();
 
-            // Audio binding
             OutputDeviceComboBox.ItemsSource = _playbackDevices;
             InputDeviceComboBox.ItemsSource = _captureDevices;
 
@@ -52,14 +53,19 @@ namespace DisplayProfileManager.UI.Windows
 
         private void InitializeWindow()
         {
-            // Script collection setup
             if (_scriptList == null)
-            {
-                _scriptList = new ObservableCollection<dynamic>();
-            }
-            ScriptsItemsControl.ItemsSource = _scriptList;
+                _scriptList = new ObservableCollection<ScriptListEntry>();
 
-            // Mode-specific UI state
+            ScriptsItemsControl.ItemsSource = _scriptList;
+            HotkeyEditor.HotkeyChanged += (_, __) =>
+            {
+                // Auto-enable when user assigns a key; auto-disable when key is cleared.
+                bool hasKey = HotkeyEditor?.HotkeyConfig?.Key != Key.None;
+                if (hasKey && !(EnableHotkeyCheckBox.IsChecked ?? false))
+                    EnableHotkeyCheckBox.IsChecked = true;
+                UpdateHotkeyControlsState();
+            };
+
             if (_isEditMode)
             {
                 TitleBarTextBlock.Text = "Edit Profile";
@@ -71,9 +77,6 @@ namespace DisplayProfileManager.UI.Windows
                 TitleBarTextBlock.Text = "Create New Profile";
                 Title = "Create New Profile";
                 _scriptList.Clear();
-                AddScriptButton.IsEnabled = false;
-                ScriptsItemsControl.IsEnabled = false;
-
                 _pendingIconFilename = null;
                 RefreshIconPreview();
                 _ = PopulateIconGridAsync();
@@ -85,25 +88,19 @@ namespace DisplayProfileManager.UI.Windows
             DisplaySettingsPanel.Children.Clear();
             _displayControls.Clear();
 
-            if (settings.Count == 0)
-                return;
+            if (settings.Count == 0) return;
 
-            // Display grouping logic
-            var displayGroups = DisplayGroupingHelper.GroupDisplaysForUI(settings);
+            var displayGroups = DisplayGroupHelper.GroupDisplaysForUI(settings);
             var cloneGroupCount = displayGroups.Count(g => g.IsCloneGroup);
 
-            // Logging
-            var logger = LoggerHelper.GetLogger();
             if (cloneGroupCount > 0)
             {
                 var cloneGroupDisplayCount = displayGroups.Where(g => g.IsCloneGroup).Sum(g => g.AllMembers.Count);
                 logger.Info($"Loading {settings.Count} displays with {cloneGroupCount} clone group(s)");
             }
 
-            // Query WMI once for all controls rather than once per display
             var monitorIds = DisplayHelper.GetMonitorIDsFromWmiMonitorID();
             var displayConfigs = DisplayConfigHelper.GetDisplayConfigs();
-
             int monitorIndex = 1;
             foreach (var group in displayGroups)
             {
@@ -116,34 +113,17 @@ namespace DisplayProfileManager.UI.Windows
                 monitorIndex++;
             }
 
-            // Remove bottom margin of mainPanel's last child
-            if (_displayControls.Count > 0)
-            {
-                var lastControl = _displayControls[_displayControls.Count - 1];
-
-                if (lastControl.Content is StackPanel panel && panel.Children.Count > 0)
-                {
-                    var last = panel.Children[panel.Children.Count - 1] as FrameworkElement;
-                    if (last != null) last.Margin = new Thickness(0, 0, 0, -24);
-                }
-            }
-
-            // Status bar update
             if (cloneGroupCount > 0)
             {
                 var cloneGroupDisplayCount = displayGroups.Where(g => g.IsCloneGroup).Sum(g => g.AllMembers.Count);
-                StatusTextBlock.Text = $"Loaded {_displayControls.Count} display(s) " +
-                                     $"({cloneGroupCount} clone group(s) with {cloneGroupDisplayCount} displays)";
+                StatusTextBlock.Text = $"Loaded {_displayControls.Count} display(s) " + $"({cloneGroupCount} clone group(s) with {cloneGroupDisplayCount} displays)";
             }
             else
-            {
                 StatusTextBlock.Text = $"Loaded {settings.Count} display(s)";
-            }
         }
 
         private async void PopulateFields()
         {
-            // Basic info
             ProfileNameTextBox.Text = _profile.Name;
             ProfileDescriptionTextBox.Text = _profile.Description;
             DefaultProfileCheckBox.IsChecked = _profile.IsDefault;
@@ -151,10 +131,8 @@ namespace DisplayProfileManager.UI.Windows
             RefreshIconPreview();
             _ = PopulateIconGridAsync();
 
-            // Displays
             LoadDisplaySettings(_profile.DisplaySettings);
 
-            // Hotkey configuration
             if (_profile.HotkeyConfig != null)
             {
                 HotkeyEditor.HotkeyConfig = _profile.HotkeyConfig.Clone();
@@ -168,41 +146,34 @@ namespace DisplayProfileManager.UI.Windows
 
             CheckForHotkeyConflicts();
 
-            // Audio
             _ = LoadAudioDevices();
 
-            // Scripting state
             EnableScriptsCheckBox.IsChecked = _profile.EnableScripts;
-            AddScriptButton.IsEnabled = _profile.EnableScripts;
-            ScriptsItemsControl.IsEnabled = _profile.EnableScripts;
 
-            // Script collection processing
             _scriptList.Clear();
             if (_profile.Scripts != null)
             {
                 string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
                 string scriptsFolder = System.IO.Path.Combine(appDataPath, "DisplayProfileManager", "Scripts");
 
-                foreach (var scriptString in _profile.Scripts)
+                foreach (var script in _profile.Scripts)
                 {
-                    var (pathOrName, args) = ScriptHelper.ParseScriptString(scriptString);
-
-                    string fullPath = System.IO.Path.IsPathRooted(pathOrName)
-                        ? pathOrName
-                        : System.IO.Path.Combine(scriptsFolder, pathOrName);
-
-                    dynamic entry = new System.Dynamic.ExpandoObject();
-                    entry.FilePath = fullPath;
-                    entry.FileName = System.IO.Path.GetFileName(fullPath);
-                    entry.Arguments = args;
-                    entry.IsDeleted = false;
-
-                    _scriptList.Add(entry);
+                    string fullPath = System.IO.Path.IsPathRooted(script.FileName) ? script.FileName : System.IO.Path.Combine(scriptsFolder, script.FileName);
+                    _scriptList.Add(new ScriptListEntry
+                    {
+                        FilePath = fullPath,
+                        FileName = System.IO.Path.GetFileName(fullPath),
+                        Arguments = script.Arguments ?? string.Empty,
+                        IsEnabled = script.IsEnabled,
+                        IsDeleted = false
+                    });
                 }
             }
 
             ScriptsItemsControl.ItemsSource = _scriptList;
             UpdateScriptsVisibility();
+            UpdateScriptControlsState();
+            UpdateHotkeyControlsState();
         }
 
         private async void LoadDisplaysButton_Click(object sender, RoutedEventArgs e)
@@ -213,28 +184,13 @@ namespace DisplayProfileManager.UI.Windows
                 LoadDisplaysButton.IsEnabled = false;
 
                 var currentSettings = await _profileManager.GetCurrentDisplaySettingsAsync();
-
-                bool hasPrimary = currentSettings.Any(s => s.IsPrimary && s.IsEnabled);
-                if (!hasPrimary)
-                {
-                    var firstEnabled = currentSettings.FirstOrDefault(s => s.IsEnabled);
-                    if (firstEnabled != null)
-                    {
-                        firstEnabled.IsPrimary = true;
-                    }
-                }
-
                 LoadDisplaySettings(currentSettings);
-
-                var logger = LoggerHelper.GetLogger();
-                logger.Info($"Load: {currentSettings.Count} physical displays loaded, " +
-                          $"{_displayControls.Count} controls created");
+                logger.Info($"Load: {currentSettings.Count} physical displays loaded, " + $"{_displayControls.Count} controls created");
             }
             catch (Exception ex)
             {
                 StatusTextBlock.Text = "Error loading displays";
-                MessageBox.Show($"Error loading current display settings: {ex.Message}", "Error",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Error loading current display settings: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
@@ -242,15 +198,10 @@ namespace DisplayProfileManager.UI.Windows
             }
         }
 
-        private void AddDisplaySettingControl(DisplaySetting setting, int monitorIndex = 0,
-            bool isCloneGroup = false, List<DisplaySetting> cloneGroupMembers = null,
-            List<DisplayHelper.MonitorIdInfo> monitorIds = null)
+        private void AddDisplaySettingControl(DisplaySetting setting, int monitorIndex = 0, bool isCloneGroup = false, List<DisplaySetting> cloneGroupMembers = null, List<DisplayHelper.MonitorIdInfo> monitorIds = null)
         {
-            if (DisplaySettingsPanel.Children.Count == 1 &&
-                DisplaySettingsPanel.Children[0] is TextBlock)
-            {
+            if (DisplaySettingsPanel.Children.Count == 1 && DisplaySettingsPanel.Children[0] is TextBlock)
                 DisplaySettingsPanel.Children.Clear();
-            }
 
             if (monitorIndex == 0)
                 monitorIndex = _displayControls.Count + 1;
@@ -263,17 +214,18 @@ namespace DisplayProfileManager.UI.Windows
 
         private void RebuildDisplayControls()
         {
-            // Physical ID sorting
-            var allSettings = _displayControls
-                .SelectMany(c => c.GetDisplaySettings())
-                .OrderBy(s => s.TargetId)
-                .ToList();
+            // Capture order from the settings list before rebuild — _cloneGroupMembers groups source before attached
+            var deviceOrder = _profile.DisplaySettings
+                .Select(s => s.DeviceName)
+                .Distinct()
+                .Select((name, idx) => (name, idx))
+                .ToDictionary(x => x.name, x => x.idx);
 
-            // Synchronization
             _profile.DisplaySettings.Clear();
-            _profile.DisplaySettings.AddRange(allSettings);
+            _profile.DisplaySettings.AddRange(
+                _displayControls.SelectMany(c => c.GetDisplaySettings())
+                    .OrderBy(s => deviceOrder.TryGetValue(s.DeviceName, out var i) ? i : int.MaxValue));
 
-            // UI Refresh
             LoadDisplaySettings(_profile.DisplaySettings);
         }
 
@@ -281,13 +233,12 @@ namespace DisplayProfileManager.UI.Windows
         {
             try
             {
-                // UI feedback
                 StatusTextBlock.Text = "Identifying monitors...";
                 IdentifyDisplaysButton.IsEnabled = false;
 
                 List<DisplaySetting> displaySettings = new List<DisplaySetting>();
 
-                // Data source selection
+                // Prefer current control state; fall back to live query if no controls loaded
                 if (_displayControls.Count > 0)
                 {
                     displaySettings = _profile.DisplaySettings;
@@ -298,20 +249,15 @@ namespace DisplayProfileManager.UI.Windows
                         {
                             var settings = control.GetDisplaySettings();
                             foreach (var setting in settings)
-                            {
                                 displaySettings.Add(setting);
-                            }
                         }
                     }
                 }
                 else
-                {
                     displaySettings = await _profileManager.GetCurrentDisplaySettingsAsync();
-                }
 
                 var identifyWindows = new List<MonitorIdentifyWindow>();
 
-                // Overlay generation
                 int index = 1;
                 foreach (var setting in displaySettings)
                 {
@@ -320,10 +266,8 @@ namespace DisplayProfileManager.UI.Windows
                         if (DisplayHelper.IsMonitorConnected(setting.DeviceName))
                         {
                             var targetScreen = System.Windows.Forms.Screen.AllScreens.FirstOrDefault(x => x.DeviceName == setting.DeviceName);
-
                             if (targetScreen != null)
                             {
-                                // Coordinate mapping
                                 var identifyWindow = new MonitorIdentifyWindow(index, targetScreen.Bounds.Left, targetScreen.Bounds.Top);
                                 identifyWindows.Add(identifyWindow);
                             }
@@ -332,13 +276,10 @@ namespace DisplayProfileManager.UI.Windows
                     index++;
                 }
 
-                // Window activation
                 foreach (var window in identifyWindows)
                 {
                     window.Show();
-
-                    logger.Debug("Showing identify window for monitor {Index} at position Left:{Left}, Top:{Top}",
-                        window.MonitorIndex, window.Left, window.Top);
+                    logger.Debug("Showing identify window for monitor {Index} at position Left:{Left}, Top:{Top}", window.MonitorIndex, window.Left, window.Top);
                 }
 
                 StatusTextBlock.Text = $"Showing identifiers on {identifyWindows.Count} monitor(s)";
@@ -346,8 +287,7 @@ namespace DisplayProfileManager.UI.Windows
             catch (Exception ex)
             {
                 StatusTextBlock.Text = "Error identifying displays";
-                MessageBox.Show($"Error identifying displays: {ex.Message}", "Error",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Error identifying displays: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
@@ -359,29 +299,25 @@ namespace DisplayProfileManager.UI.Windows
         {
             try
             {
-                if (!ValidateInput())
-                    return;
+                if (!ValidateInput()) return;
 
-                // UI feedback
                 SaveButton.IsEnabled = false;
                 StatusTextBlock.Text = "Saving profile...";
 
-                // Metadata mapping
                 _profile.Name = ProfileNameTextBox.Text.Trim();
                 _profile.Description = ProfileDescriptionTextBox.Text.Trim();
+                _profile.Icon = _pendingIconFilename;
 
-                // Display persistence
+                // Display settings
                 _profile.DisplaySettings.Clear();
                 foreach (var control in _displayControls)
                 {
                     var settings = control.GetDisplaySettings();
                     foreach (var setting in settings)
-                    {
                         _profile.DisplaySettings.Add(setting);
-                    }
                 }
 
-                // Audio persistence
+                // Audio settings
                 if (_profile.AudioSettings == null) _profile.AudioSettings = new AudioSetting();
                 _profile.AudioSettings.ApplyPlaybackDevice = ApplyOutputDeviceCheckBox.IsChecked ?? false;
                 _profile.AudioSettings.ApplyCaptureDevice = ApplyInputDeviceCheckBox.IsChecked ?? false;
@@ -398,9 +334,7 @@ namespace DisplayProfileManager.UI.Windows
                     _profile.AudioSettings.CaptureDeviceName = selectedInput.SystemName;
                 }
 
-                // Script processing
-                _profile.EnableScripts = EnableScriptsCheckBox.IsChecked ?? false;
-
+                // Scripts — strip deleted entries and build the final list
                 string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
                 string scriptsFolder = System.IO.Path.Combine(appDataPath, "DisplayProfileManager", "Scripts");
 
@@ -408,30 +342,25 @@ namespace DisplayProfileManager.UI.Windows
                     System.IO.Directory.CreateDirectory(scriptsFolder);
 
                 _profile.Scripts = _scriptList
-                    .Where(s =>
+                    .Where(s => !s.IsDeleted && !string.IsNullOrWhiteSpace(s.FilePath))
+                    .Select(s => new Script
                     {
-                        var d = (dynamic)s;
-                        bool deleted = d.IsDeleted ?? false;
-                        string path = (string)d.FilePath;
-                        return !deleted && !string.IsNullOrWhiteSpace(path);
-                    })
-                    .Select(s =>
-                    {
-                        var d = (dynamic)s;
-                        string fileName = System.IO.Path.GetFileName((string)d.FilePath);
-                        string args = ((string)d.Arguments).Trim();
-                        return ScriptManager.Instance.FormatCommand(fileName, args);
+                        FileName = System.IO.Path.GetFileName(s.FilePath),
+                        Arguments = s.Arguments?.Trim() ?? string.Empty,
+                        IsEnabled = s.IsEnabled
                     })
                     .ToList();
 
-                _profile.Icon = _pendingIconFilename;
+                // Auto-disable scripts if none survive the deletion pass
+                _profile.EnableScripts = (EnableScriptsCheckBox.IsChecked ?? false) && _profile.Scripts.Count > 0;
 
-                // Hotkey persistence
-                if (_profile.HotkeyConfig == null) _profile.HotkeyConfig = new HotkeyConfig();
+                // Hotkey — auto-disable if no key is assigned
+                if (_profile.HotkeyConfig == null)
+                    _profile.HotkeyConfig = new HotkeyConfig();
                 _profile.HotkeyConfig = HotkeyEditor.HotkeyConfig?.Clone() ?? new HotkeyConfig();
-                _profile.HotkeyConfig.IsEnabled = EnableHotkeyCheckBox.IsChecked ?? false;
+                bool hotkeyAssigned = _profile.HotkeyConfig.Key != Key.None;
+                _profile.HotkeyConfig.IsEnabled = (EnableHotkeyCheckBox.IsChecked ?? false) && hotkeyAssigned;
 
-                // Default state logic
                 if (DefaultProfileCheckBox.IsChecked == true && !_profile.IsDefault)
                 {
                     _profile.IsDefault = true;
@@ -442,10 +371,7 @@ namespace DisplayProfileManager.UI.Windows
                     _profile.IsDefault = false;
                 }
 
-                // Database commit
-                bool success = _isEditMode
-                    ? await _profileManager.UpdateProfileAsync(_profile)
-                    : await _profileManager.AddProfileAsync(_profile);
+                bool success = _isEditMode ? await _profileManager.UpdateProfileAsync(_profile) : await _profileManager.AddProfileAsync(_profile);
 
                 if (success)
                 {
@@ -471,58 +397,47 @@ namespace DisplayProfileManager.UI.Windows
 
         private bool ValidateInput()
         {
-            // Profile name validation
             if (string.IsNullOrWhiteSpace(ProfileNameTextBox.Text))
             {
-                MessageBox.Show("Please enter a profile name.", "Validation Error",
-                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("Please enter a profile name.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                 ProfileNameTextBox.Focus();
                 return false;
             }
 
-            // Duplicate name check
+            // Reject duplicate names (case-insensitive, excluding the current profile in edit mode)
             var trimmedName = ProfileNameTextBox.Text.Trim();
             if (!_isEditMode || !trimmedName.Equals(_profile.Name, StringComparison.OrdinalIgnoreCase))
             {
                 if (_profileManager.HasProfile(trimmedName))
                 {
-                    MessageBox.Show("A profile with this name already exists. Please choose a different name.",
-                        "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show("A profile with this name already exists. Please choose a different name.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                     ProfileNameTextBox.Focus();
                     return false;
                 }
             }
 
-            // Display count validation
             if (_displayControls.Count == 0)
             {
-                MessageBox.Show("Please add at least one display setting.", "Validation Error",
-                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("Please add at least one display setting.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return false;
             }
 
-            // Individual control validation
             foreach (var control in _displayControls)
             {
                 if (!control.ValidateInput())
-                {
                     return false;
-                }
             }
 
-            // Audio selection validation
             if (ApplyOutputDeviceCheckBox.IsChecked == true && OutputDeviceComboBox.SelectedItem == null)
             {
-                MessageBox.Show("Please select an audio output device.", "Validation Error",
-                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("Please select an audio output device.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                 ApplyOutputDeviceCheckBox.Focus();
                 return false;
             }
 
             if (ApplyInputDeviceCheckBox.IsChecked == true && InputDeviceComboBox.SelectedItem == null)
             {
-                MessageBox.Show("Please select an audio input device.", "Validation Error",
-                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("Please select an audio input device.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                 ApplyInputDeviceCheckBox.Focus();
                 return false;
             }
@@ -549,7 +464,7 @@ namespace DisplayProfileManager.UI.Windows
                 Top = Owner.Top + (Owner.ActualHeight - Height) / 2;
             }
 
-            // Hotkey interference prevention
+            // Disable hotkeys while editor is open to avoid conflicts during capture
             try
             {
                 var app = Application.Current as App;
@@ -562,15 +477,9 @@ namespace DisplayProfileManager.UI.Windows
             }
         }
 
-        private void MinimizeButton_Click(object sender, RoutedEventArgs e)
-        {
-            WindowState = WindowState.Minimized;
-        }
+        private void MinimizeButton_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
 
-        private void CloseButton_Click(object sender, RoutedEventArgs e)
-        {
-            Close();
-        }
+        private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
 
         protected override void OnStateChanged(EventArgs e)
         {
@@ -584,13 +493,11 @@ namespace DisplayProfileManager.UI.Windows
             {
                 if (WindowState == WindowState.Maximized)
                 {
-                    // Maximized layout compensation
                     TitleBarGrid.Margin = new Thickness(8, 8, 6, 0);
                     UpdateTitleBarHeight(40);
                 }
                 else
                 {
-                    // Normal layout reset
                     TitleBarGrid.Margin = new Thickness(0, 0, 0, 0);
                     UpdateTitleBarHeight(32);
                 }
@@ -599,33 +506,47 @@ namespace DisplayProfileManager.UI.Windows
 
         private void UpdateTitleBarHeight(double height)
         {
-            // Layout sync
             if (TitleBarRowDefinition != null)
-            {
                 TitleBarRowDefinition.Height = new GridLength(height);
-            }
 
-            // Chrome sync
             var windowChrome = WindowChrome.GetWindowChrome(this);
             if (windowChrome != null)
-            {
                 windowChrome.CaptionHeight = height;
+        }
+
+        private void IconScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            var sv = (ScrollViewer)sender;
+            bool scrollingDown = e.Delta < 0;
+            bool atBottom = sv.VerticalOffset >= sv.ScrollableHeight;
+            bool atTop = sv.VerticalOffset <= 0;
+
+            if ((scrollingDown && atBottom) || (!scrollingDown && atTop))
+            {
+                e.Handled = true;
+
+                var parent = VisualTreeHelper.GetParent(sv);
+                while (parent != null && !(parent is ScrollViewer))
+                    parent = VisualTreeHelper.GetParent(parent);
+
+                var outer = parent as ScrollViewer;
+                outer?.ScrollToVerticalOffset(outer.VerticalOffset - e.Delta / 2.5);
             }
         }
 
-        private void RefreshIconPreview()
+        private void RefreshIconPreview(bool refresh = false)
         {
             if (string.IsNullOrWhiteSpace(_pendingIconFilename))
             {
                 IconPreviewImage.Source = null;
                 IconFilenameTextBlock.Text = "No icon";
-                ClearIconButton.IsEnabled = false;
+                if (refresh) StatusTextBlock.Text = "Icon cleared";
             }
             else
             {
                 IconPreviewImage.Source = IconHelper.LoadImageSource(_pendingIconFilename);
                 IconFilenameTextBlock.Text = _pendingIconFilename;
-                ClearIconButton.IsEnabled = true;
+                if (refresh) StatusTextBlock.Text = $"Icon set to '{_pendingIconFilename}'";
             }
         }
 
@@ -678,7 +599,7 @@ namespace DisplayProfileManager.UI.Windows
             if (sender is ToggleButton btn)
             {
                 _pendingIconFilename = btn.Tag as string;
-                RefreshIconPreview();
+                RefreshIconPreview(true);
                 SyncIconSelection();
             }
         }
@@ -696,13 +617,11 @@ namespace DisplayProfileManager.UI.Windows
 
             ImportIconButton.IsEnabled = false;
             StatusTextBlock.Text = "Importing icon...";
-
             try
             {
                 _pendingIconFilename = await IconHelper.ImportIconAsync(dlg.FileName);
-                StatusTextBlock.Text = $"Icon '{_pendingIconFilename}' imported";
                 await PopulateIconGridAsync();
-                RefreshIconPreview();
+                RefreshIconPreview(true);
                 SyncIconSelection();
             }
             catch (InvalidOperationException ex)
@@ -724,7 +643,7 @@ namespace DisplayProfileManager.UI.Windows
         private void ClearIconButton_Click(object sender, RoutedEventArgs e)
         {
             _pendingIconFilename = null;
-            RefreshIconPreview();
+            RefreshIconPreview(true);
             SyncIconSelection();
         }
 
@@ -739,18 +658,14 @@ namespace DisplayProfileManager.UI.Windows
                 _playbackDevices.Clear();
                 _captureDevices.Clear();
 
-                // Device discovery off the UI thread — WithController + WMI can block for seconds
                 var playbackDevices = await Task.Run(() => AudioHelper.GetPlaybackDevices(), token);
                 token.ThrowIfCancellationRequested();
 
                 var captureDevices = await Task.Run(() => AudioHelper.GetCaptureDevices(), token);
                 token.ThrowIfCancellationRequested();
 
-                foreach (var device in playbackDevices)
-                    _playbackDevices.Add(device);
-
-                foreach (var device in captureDevices)
-                    _captureDevices.Add(device);
+                foreach (var device in playbackDevices) _playbackDevices.Add(device);
+                foreach (var device in captureDevices) _captureDevices.Add(device);
 
                 if (_isEditMode && _profile.AudioSettings != null)
                 {
@@ -804,13 +719,13 @@ namespace DisplayProfileManager.UI.Windows
             if (defaultPlayback != null)
             {
                 var deviceInList = _playbackDevices.FirstOrDefault(d => d.Id == defaultPlayback.Id);
-                if (deviceInList != null) OutputDeviceComboBox.SelectedItem = deviceInList;
-                else if (_playbackDevices.Count > 0) OutputDeviceComboBox.SelectedIndex = 0;
+                if (deviceInList != null)
+                    OutputDeviceComboBox.SelectedItem = deviceInList;
+                else if (_playbackDevices.Count > 0)
+                    OutputDeviceComboBox.SelectedIndex = 0;
             }
             else if (_playbackDevices.Count > 0)
-            {
                 OutputDeviceComboBox.SelectedIndex = 0;
-            }
         }
 
         private async Task SelectDefaultCaptureDeviceAsync()
@@ -823,9 +738,7 @@ namespace DisplayProfileManager.UI.Windows
                 else if (_captureDevices.Count > 0) InputDeviceComboBox.SelectedIndex = 0;
             }
             else if (_captureDevices.Count > 0)
-            {
                 InputDeviceComboBox.SelectedIndex = 0;
-            }
         }
 
         private async void LoadAudioButton_Click(object sender, RoutedEventArgs e)
@@ -845,83 +758,65 @@ namespace DisplayProfileManager.UI.Windows
         private void OutputDeviceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (OutputDeviceComboBox.SelectedItem is AudioHelper.AudioDeviceInfo device)
-            {
                 if (!string.IsNullOrEmpty(device.Id))
-                {
                     StatusTextBlock.Text = $"Output device: {device.SystemName}";
-                }
-            }
         }
 
         private void InputDeviceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (InputDeviceComboBox.SelectedItem is AudioHelper.AudioDeviceInfo device)
-            {
                 if (!string.IsNullOrEmpty(device.Id))
-                {
                     StatusTextBlock.Text = $"Input device: {device.SystemName}";
-                }
-            }
         }
 
         private void ApplyOutputDeviceCheckBox_Checked(object sender, RoutedEventArgs e)
         {
             OutputDeviceComboBox.IsEnabled = true;
-            StatusTextBlock.Text = "Output device will be applied for this profile";
+            StatusTextBlock.Text = "Output device enabled";
         }
 
         private void ApplyOutputDeviceCheckBox_Unchecked(object sender, RoutedEventArgs e)
         {
             OutputDeviceComboBox.IsEnabled = false;
-            StatusTextBlock.Text = "Output device will not be applied for this profile";
+            StatusTextBlock.Text = "Output device disabled";
         }
 
         private void ApplyInputDeviceCheckBox_Checked(object sender, RoutedEventArgs e)
         {
             InputDeviceComboBox.IsEnabled = true;
-            StatusTextBlock.Text = "Input device will be applied for this profile";
+            StatusTextBlock.Text = "Input device enabled";
         }
 
         private void ApplyInputDeviceCheckBox_Unchecked(object sender, RoutedEventArgs e)
         {
             InputDeviceComboBox.IsEnabled = false;
-            StatusTextBlock.Text = "Input device will not be applied for this profile";
+            StatusTextBlock.Text = "Input device disabled";
         }
 
         private void EnableScriptsCheckBox_Checked(object sender, RoutedEventArgs e)
         {
-            AddScriptButton.IsEnabled = true;
-            ScriptsItemsControl.IsEnabled = true;
-            StatusTextBlock.Text = "Scripts will be executed for this profile";
+            UpdateScriptControlsState();
+            StatusTextBlock.Text = "Scripts enabled";
         }
 
         private void EnableScriptsCheckBox_Unchecked(object sender, RoutedEventArgs e)
         {
-            AddScriptButton.IsEnabled = false;
-            ScriptsItemsControl.IsEnabled = false;
-            StatusTextBlock.Text = "Scripts will not be executed for this profile";
+            UpdateScriptControlsState();
+            StatusTextBlock.Text = "Scripts disabled";
         }
 
         private async void AddScriptButton_Click(object sender, RoutedEventArgs e)
         {
-            // Path resolution
             string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
             string profileManagerPath = System.IO.Path.Combine(appDataPath, "DisplayProfileManager");
             string scriptsPath = System.IO.Path.Combine(profileManagerPath, "Scripts");
 
             if (!System.IO.Directory.Exists(scriptsPath))
             {
-                try
-                {
-                    System.IO.Directory.CreateDirectory(scriptsPath);
-                }
-                catch
-                {
-                    scriptsPath = profileManagerPath;
-                }
+                try { System.IO.Directory.CreateDirectory(scriptsPath); }
+                catch { scriptsPath = profileManagerPath; }
             }
 
-            // Dialog configuration
             var openFileDialog = new Microsoft.Win32.OpenFileDialog
             {
                 InitialDirectory = scriptsPath,
@@ -932,7 +827,7 @@ namespace DisplayProfileManager.UI.Windows
 
             if (openFileDialog.ShowDialog() == true)
             {
-                // Sandbox import — copies file, creates .lnk for .exe
+                // Copy into sandbox; .exe is converted to .lnk
                 string importedFileName = await ScriptManager.Instance.ImportScriptAsync(openFileDialog.FileName);
 
                 if (importedFileName == null)
@@ -943,81 +838,91 @@ namespace DisplayProfileManager.UI.Windows
                     return;
                 }
 
-                // Entry creation
                 string fullPath = System.IO.Path.Combine(scriptsPath, importedFileName);
 
-                dynamic newEntry = new System.Dynamic.ExpandoObject();
-                newEntry.FilePath = fullPath;
-                newEntry.FileName = importedFileName;
-                newEntry.Arguments = string.Empty;
-                newEntry.IsDeleted = false;
+                _scriptList.Add(new ScriptListEntry
+                {
+                    FilePath = fullPath,
+                    FileName = System.IO.Path.GetFileName(fullPath),
+                    Arguments = string.Empty,
+                    IsEnabled = true,
+                    IsDeleted = false
+                });
 
-                _scriptList.Add(newEntry);
+                // Auto-enable scripts when the first entry is added
+                if (_scriptList.Count == 1)
+                    EnableScriptsCheckBox.IsChecked = true;
 
-                // Alphabetical sorting
-                var sorted = _scriptList
-                    .OrderBy(s => System.IO.Path.GetFileName((string)s.FilePath))
-                    .ToList();
+                var sorted = _scriptList.OrderBy(s => System.IO.Path.GetFileName((string)s.FilePath)).ToList();
 
                 _scriptList.Clear();
-                foreach (var item in sorted)
-                {
-                    _scriptList.Add(item);
-                }
+                foreach (var item in sorted) _scriptList.Add(item);
 
-                // View update
                 UpdateScriptsVisibility();
+                UpdateScriptControlsState();
                 StatusTextBlock.Text = $"'{importedFileName}' added";
             }
         }
 
         private void RemoveScriptButton_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is Button btn && btn.DataContext is System.Dynamic.ExpandoObject entry)
+            if (sender is Button btn && btn.DataContext is ScriptListEntry entry)
             {
-                dynamic dEntry = entry;
-                dEntry.IsDeleted = !(bool)(dEntry.IsDeleted ?? false);
-                bool isNowDeleted = (bool)dEntry.IsDeleted;
-
+                entry.IsDeleted = !entry.IsDeleted;
                 ScriptsItemsControl.Items.Refresh();
-                StatusTextBlock.Text = isNowDeleted ? $"{dEntry.FileName} removed" : $"{dEntry.FileName} restored";
+                UpdateScriptControlsState();
+                StatusTextBlock.Text = entry.IsDeleted ? $"{entry.FileName} removed" : $"{entry.FileName} restored";
             }
         }
 
         private void ClearAllScriptsButton_Click(object sender, RoutedEventArgs e)
         {
-            bool anyActive = _scriptList.Any(s => !(bool)(((dynamic)s).IsDeleted ?? false));
+            bool anyActive = _scriptList.Any(s => !s.IsDeleted);
             if (!anyActive) return;
 
-            foreach (dynamic entry in _scriptList)
+            foreach (var entry in _scriptList)
                 entry.IsDeleted = true;
 
             ScriptsItemsControl.Items.Refresh();
-            StatusTextBlock.Text = "All scripts marked for deletion";
+            UpdateScriptControlsState();
+            StatusTextBlock.Text = $"{_scriptList.Count} script(s) marked for deletion";
         }
 
         private void ClearArgs_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is Button btn && btn.DataContext is System.Dynamic.ExpandoObject entry)
-            {
-                ((dynamic)entry).Arguments = string.Empty;
-            }
+            if (sender is Button btn && btn.DataContext is ScriptListEntry entry)
+                entry.Arguments = string.Empty;
         }
 
-        private void UpdateScriptsVisibility()
+        private void UpdateScriptsVisibility() => NoScriptsTextBlock.Visibility = _scriptList.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        private void UpdateScriptControlsState()
         {
-            NoScriptsTextBlock.Visibility = _scriptList.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            bool anyActive = _scriptList.Any(s => !s.IsDeleted);
+            bool scriptsOn = EnableScriptsCheckBox.IsChecked == true;
+
+            ScriptsItemsControl.Tag = scriptsOn ? 1.0 : 0.5;
+
+            EnableScriptsCheckBox.IsHitTestVisible = anyActive;
+            EnableScriptsCheckBox.Opacity = anyActive ? 1.0 : 0.5;
         }
 
-        private void HotkeyEditor_HotkeyChanged(object sender, HotkeyConfig e)
+        private void UpdateHotkeyControlsState()
         {
+            bool hasKey = HotkeyEditor?.HotkeyConfig?.Key != Key.None;
+
+            EnableHotkeyCheckBox.IsHitTestVisible = hasKey;
+            EnableHotkeyCheckBox.Opacity = hasKey ? 1.0 : 0.5;
+
+            if (!hasKey)
+                EnableHotkeyCheckBox.IsChecked = false;
+
             CheckForHotkeyConflicts();
         }
 
         private void CheckForHotkeyConflicts()
         {
-            if (HotkeyEditor?.HotkeyConfig == null ||
-                HotkeyEditor.HotkeyConfig.Key == Key.None)
+            if (HotkeyEditor?.HotkeyConfig == null || HotkeyEditor.HotkeyConfig.Key == Key.None)
             {
                 ConflictWarning.Visibility = Visibility.Collapsed;
                 HotkeyEditor.ConflictingProfile = null;
@@ -1042,27 +947,20 @@ namespace DisplayProfileManager.UI.Windows
         private Profile FindConflictingProfile(HotkeyConfig hotkey)
         {
             var allProfiles = _profileManager.GetAllProfiles();
-            return allProfiles.FirstOrDefault(p =>
-                p.Id != _profile.Id &&
-                p.HotkeyConfig != null &&
-                p.HotkeyConfig.Key != Key.None &&
-                p.HotkeyConfig.Equals(hotkey));
+            return allProfiles.FirstOrDefault(p =>  p.Id != _profile.Id && p.HotkeyConfig != null && p.HotkeyConfig.Key != Key.None && p.HotkeyConfig.Equals(hotkey));
         }
 
-        private void EnableHotkeyCheckBox_Checked(object sender, RoutedEventArgs e)
-        {
-            StatusTextBlock.Text = "Global hotkey enabled for this profile";
-        }
+        private void EnableHotkeyCheckBox_Checked(object sender, RoutedEventArgs e) => 
+            StatusTextBlock.Text = "Global hotkey enabled";
 
-        private void EnableHotkeyCheckBox_Unchecked(object sender, RoutedEventArgs e)
-        {
-            StatusTextBlock.Text = "Global hotkey disabled for this profile";
-        }
+        private void EnableHotkeyCheckBox_Unchecked(object sender, RoutedEventArgs e) =>
+            StatusTextBlock.Text = "Global hotkey disabled";
 
         private void ClearHotkeyButton_Click(object sender, RoutedEventArgs e)
         {
             HotkeyEditor.HotkeyConfig = new HotkeyConfig();
             EnableHotkeyCheckBox.IsChecked = false;
+            UpdateHotkeyControlsState();
         }
 
         protected override void OnClosed(EventArgs e)
@@ -1084,11 +982,19 @@ namespace DisplayProfileManager.UI.Windows
         }
     }
 
+    public class ScriptListEntry
+    {
+        public string FilePath { get; set; } = string.Empty;
+        public string FileName { get; set; } = string.Empty;
+        public string Arguments { get; set; } = string.Empty;
+        public bool IsEnabled { get; set; } = true;
+        public bool IsDeleted { get; set; } = false;
+    }
+
     public class DisplaySettingControl : UserControl
     {
         private DisplaySetting _setting;
         private int _monitorIndex;
-        private TextBox _deviceTextBox;
 
         private static Style BuildPrimaryButtonStyle()
         {
@@ -1218,20 +1124,21 @@ namespace DisplayProfileManager.UI.Windows
             return style;
         }
 
+
+        public List<DisplaySetting> _cloneGroupMembers;
+        private bool _isCloneGroup;
         private ComboBox _resolutionComboBox;
         private ComboBox _refreshRateComboBox;
-        private ComboBox _dpiComboBox;
         private CheckBox _primaryCheckBox;
         private CheckBox _enabledCheckBox;
         private CheckBox _hdrCheckBox;
+        private CheckBox _acmCheckBox;
         private ComboBox _rotationComboBox;
-        private List<DisplaySetting> _cloneGroupMembers;
-        private bool _isCloneGroup;
+        private ComboBox _dpiComboBox;
+        private ComboBox _colorProfileComboBox;
+        private TextBlock _colorProfileLabel;
 
-        public DisplaySettingControl(DisplaySetting setting, int monitorIndex = 1,
-            bool isCloneGroup = false, List<DisplaySetting> cloneGroupMembers = null,
-            List<DisplayHelper.MonitorIdInfo> monitorIds = null,
-            List<DisplayConfigHelper.DisplayConfigInfo> displayConfigs = null)
+        public DisplaySettingControl(DisplaySetting setting, int monitorIndex = 1, bool isCloneGroup = false, List<DisplaySetting> cloneGroupMembers = null, List<DisplayHelper.MonitorIdInfo> monitorIds = null, List<DisplayConfigHelper.DisplayConfigInfo> displayConfigs = null)
         {
             // Skip WMI resolution if identity and native resolution are already populated
             if (string.IsNullOrEmpty(setting.DeviceName) || setting.NativeWidth == 0 || setting.NativeHeight == 0)
@@ -1247,16 +1154,20 @@ namespace DisplayProfileManager.UI.Windows
 
         private void InitializeControl()
         {
-            var mainPanel = new StackPanel();
+            // Build the full display control: header row + settings row
+            var mainPanel = new StackPanel { Margin = new Thickness(0, 0, 0, 20) };
 
             var primaryFg = (Brush)Application.Current.Resources["PrimaryTextBrush"];
             var secondaryFg = (Brush)Application.Current.Resources["SecondaryTextBrush"];
+            var accentFg = (Brush)Application.Current.Resources["ButtonBackgroundBrush"];
 
             FrameworkElement nameRow;
+
             if (_isCloneGroup && _cloneGroupMembers.Count > 1)
             {
-                // Clone group: 🔗 icon (large) + stacked member names + CLONE badge
+                // Clone group header row — icon, stacked device names, checkboxes, Break Clone button
                 var nameGrid = new Grid { Margin = new Thickness(0, 0, 0, 8) };
+                nameGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
                 nameGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
                 nameGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 nameGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -1266,19 +1177,22 @@ namespace DisplayProfileManager.UI.Windows
                     Text = "\uE71B",
                     FontFamily = new FontFamily("Segoe MDL2 Assets"),
                     FontSize = 18,
-                    Foreground = new SolidColorBrush(Color.FromRgb(0x4F, 0xC3, 0xF7)),
+                    Foreground = accentFg,
                     VerticalAlignment = VerticalAlignment.Center,
                     Margin = new Thickness(0, 0, 10, 0)
                 };
                 Grid.SetColumn(icon, 0);
                 nameGrid.Children.Add(icon);
 
-                var namesPanel = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+                var leftContentPanel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+
+                var namesPanel = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
                 foreach (var member in _cloneGroupMembers)
                 {
+                    var nameText = member.IsCloneSource ? $"{member.ReadableDeviceName}  (Source)" : $"{member.ReadableDeviceName}  (Clone)";
                     namesPanel.Children.Add(new TextBlock
                     {
-                        Text = member.ReadableDeviceName,
+                        Text = nameText,
                         FontWeight = FontWeights.Medium,
                         FontSize = 14,
                         Foreground = primaryFg,
@@ -1286,8 +1200,73 @@ namespace DisplayProfileManager.UI.Windows
                         TextTrimming = TextTrimming.CharacterEllipsis
                     });
                 }
-                Grid.SetColumn(namesPanel, 1);
-                nameGrid.Children.Add(namesPanel);
+                leftContentPanel.Children.Add(namesPanel);
+
+                _enabledCheckBox = new CheckBox
+                {
+                    Content = "Enable",
+                    IsChecked = _setting.IsEnabled,
+                    FontSize = 14,
+                    Padding = new Thickness(6, 0, 0, 0),
+                    Margin = new Thickness(0, 0, 10, 0),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Foreground = primaryFg
+                };
+                _enabledCheckBox.Checked += EnabledCheckBox_CheckedChanged;
+                _enabledCheckBox.Unchecked += EnabledCheckBox_CheckedChanged;
+                leftContentPanel.Children.Add(_enabledCheckBox);
+
+                _primaryCheckBox = new CheckBox
+                {
+                    Content = "Primary",
+                    IsChecked = _setting.IsPrimary,
+                    FontSize = 14,
+                    Padding = new Thickness(6, 0, 0, 0),
+                    Margin = new Thickness(0, 0, 10, 0),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Foreground = primaryFg
+                };
+                _primaryCheckBox.Checked += PrimaryCheckBox_Checked;
+                _primaryCheckBox.Unchecked += PrimaryCheckBox_Unchecked;
+                leftContentPanel.Children.Add(_primaryCheckBox);
+
+                _hdrCheckBox = new CheckBox
+                {
+                    Content = _setting.IsHdrSupported ? "HDR" : "HDR (Not Supported)",
+                    IsChecked = _setting.IsHdrEnabled && _setting.IsHdrSupported,
+                    IsEnabled = _setting.IsHdrSupported,
+                    FontSize = 14,
+                    Padding = new Thickness(6, 0, 0, 0),
+                    Margin = new Thickness(0, 0, 10, 0),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Foreground = primaryFg,
+                    ToolTip = _setting.IsHdrSupported ? "Enable HDR for this monitor" : "This monitor does not support HDR"
+                };
+                _hdrCheckBox.Checked += HdrCheckBox_CheckedChanged;
+                _hdrCheckBox.Unchecked += HdrCheckBox_CheckedChanged;
+                leftContentPanel.Children.Add(_hdrCheckBox);
+
+                bool acmSupported = DisplayConfigHelper.IsAcmSupported(_setting.TargetId);
+                _acmCheckBox = new CheckBox // Grayed out and force-checked when HDR is active; hidden entirely when ACM is not supported
+                {
+                    Content = "ACM",
+                    IsChecked = _setting.IsAcmEnabled || (_setting.IsHdrEnabled && _setting.IsHdrSupported),
+                    
+                    IsEnabled = acmSupported && !(_setting.IsHdrEnabled && _setting.IsHdrSupported),
+                    Visibility = acmSupported ? Visibility.Visible : Visibility.Collapsed,
+                    FontSize = 14,
+                    Padding = new Thickness(6, 0, 0, 0),
+                    Margin = new Thickness(0, 0, 10, 0),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Foreground = primaryFg,
+                    ToolTip = "Auto Color Management"
+                };
+                _acmCheckBox.Checked += AcmCheckBox_CheckedChanged;
+                _acmCheckBox.Unchecked += AcmCheckBox_CheckedChanged;
+                leftContentPanel.Children.Add(_acmCheckBox);
+
+                Grid.SetColumn(leftContentPanel, 1);
+                nameGrid.Children.Add(leftContentPanel);
 
                 var breakBtnContent = new StackPanel { Orientation = Orientation.Horizontal };
                 breakBtnContent.Children.Add(new TextBlock
@@ -1298,11 +1277,8 @@ namespace DisplayProfileManager.UI.Windows
                     VerticalAlignment = VerticalAlignment.Center,
                     Margin = new Thickness(0, 2, 6, 0)
                 });
-                breakBtnContent.Children.Add(new TextBlock
-                {
-                    Text = "Break Clone",
-                    VerticalAlignment = VerticalAlignment.Center
-                });
+                breakBtnContent.Children.Add(new TextBlock { Text = "Break Clone", VerticalAlignment = VerticalAlignment.Center });
+
                 var breakBtn = new Button
                 {
                     Content = breakBtnContent,
@@ -1318,8 +1294,9 @@ namespace DisplayProfileManager.UI.Windows
             }
             else
             {
-                // Single display: name + checkboxes left, clone dropdown right
+                // Single display header row — name, checkboxes, Clone dropdown button
                 var singleGrid = new Grid { Margin = new Thickness(0, 0, 0, 8) };
+                singleGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
                 singleGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 singleGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
@@ -1329,7 +1306,7 @@ namespace DisplayProfileManager.UI.Windows
                 {
                     Text = $"{_setting.ReadableDeviceName}",
                     FontWeight = FontWeights.Medium,
-                    FontSize = 14,
+                    FontSize = 18,
                     Foreground = primaryFg,
                     VerticalAlignment = VerticalAlignment.Center,
                     TextTrimming = TextTrimming.CharacterEllipsis,
@@ -1372,6 +1349,7 @@ namespace DisplayProfileManager.UI.Windows
                     IsEnabled = _setting.IsHdrSupported,
                     FontSize = 14,
                     Padding = new Thickness(6, 0, 0, 0),
+                    Margin = new Thickness(0, 0, 10, 0),
                     VerticalAlignment = VerticalAlignment.Center,
                     Foreground = primaryFg,
                     ToolTip = _setting.IsHdrSupported ? "Enable HDR for this monitor" : "This monitor does not support HDR"
@@ -1380,15 +1358,29 @@ namespace DisplayProfileManager.UI.Windows
                 _hdrCheckBox.Unchecked += HdrCheckBox_CheckedChanged;
                 leftPanel.Children.Add(_hdrCheckBox);
 
+                bool acmSupported = DisplayConfigHelper.IsAcmSupported(_setting.TargetId);
+                _acmCheckBox = new CheckBox // Grayed out and force-checked when HDR is active; hidden entirely when ACM is not supported
+                {
+                    Content = "ACM",
+                    IsChecked = _setting.IsAcmEnabled || (_setting.IsHdrEnabled && _setting.IsHdrSupported),
+                    IsEnabled = acmSupported && !(_setting.IsHdrEnabled && _setting.IsHdrSupported),
+                    Visibility = acmSupported ? Visibility.Visible : Visibility.Collapsed,
+                    FontSize = 14,
+                    Padding = new Thickness(6, 0, 0, 0),
+                    Margin = new Thickness(0, 0, 10, 0),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Foreground = primaryFg,
+                    ToolTip = "Auto Color Management"
+                };
+                _acmCheckBox.Checked += AcmCheckBox_CheckedChanged;
+                _acmCheckBox.Unchecked += AcmCheckBox_CheckedChanged;
+                leftPanel.Children.Add(_acmCheckBox);
+
                 Grid.SetColumn(leftPanel, 0);
                 singleGrid.Children.Add(leftPanel);
 
                 var cloneBtnContent = new StackPanel { Orientation = Orientation.Horizontal };
-                cloneBtnContent.Children.Add(new TextBlock
-                {
-                    Text = "Clone",
-                    VerticalAlignment = VerticalAlignment.Center
-                });
+                cloneBtnContent.Children.Add(new TextBlock { Text = "Clone", VerticalAlignment = VerticalAlignment.Center });
                 cloneBtnContent.Children.Add(new TextBlock
                 {
                     Text = "\u25BC",
@@ -1412,93 +1404,22 @@ namespace DisplayProfileManager.UI.Windows
             }
             mainPanel.Children.Add(nameRow);
 
-            // Clone groups checkbox row
-            if (_isCloneGroup && _cloneGroupMembers.Count > 1)
-            {
-                _enabledCheckBox = new CheckBox
-                {
-                    Content = "Enable",
-                    IsChecked = _setting.IsEnabled,
-                    FontSize = 14,
-                    Padding = new Thickness(6, 0, 0, 0),
-                    Margin = new Thickness(0, 0, 10, 0),
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Foreground = primaryFg
-                };
-                _enabledCheckBox.Checked += EnabledCheckBox_CheckedChanged;
-                _enabledCheckBox.Unchecked += EnabledCheckBox_CheckedChanged;
-
-                _primaryCheckBox = new CheckBox
-                {
-                    Content = "Primary",
-                    IsChecked = _setting.IsPrimary,
-                    FontSize = 14,
-                    Padding = new Thickness(6, 0, 0, 0),
-                    Margin = new Thickness(0, 0, 10, 0),
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Foreground = primaryFg
-                };
-                _primaryCheckBox.Checked += PrimaryCheckBox_Checked;
-                _primaryCheckBox.Unchecked += PrimaryCheckBox_Unchecked;
-
-                _hdrCheckBox = new CheckBox
-                {
-                    Content = _setting.IsHdrSupported ? "HDR" : "HDR (Not Supported)",
-                    IsChecked = _setting.IsHdrEnabled && _setting.IsHdrSupported,
-                    IsEnabled = _setting.IsHdrSupported,
-                    FontSize = 14,
-                    Padding = new Thickness(6, 0, 0, 0),
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Foreground = primaryFg,
-                    ToolTip = _setting.IsHdrSupported ? "Enable HDR for this monitor" : "This monitor does not support HDR"
-                };
-                _hdrCheckBox.Checked += HdrCheckBox_CheckedChanged;
-                _hdrCheckBox.Unchecked += HdrCheckBox_CheckedChanged;
-
-                var cloneCheckboxPanel = new StackPanel
-                {
-                    Orientation = Orientation.Horizontal,
-                    Margin = new Thickness(0, 0, 0, 8)
-                };
-                cloneCheckboxPanel.Children.Add(_enabledCheckBox);
-                cloneCheckboxPanel.Children.Add(_primaryCheckBox);
-                cloneCheckboxPanel.Children.Add(_hdrCheckBox);
-                mainPanel.Children.Add(cloneCheckboxPanel);
-            }
-
-            // Main configuration grid for resolution, refresh, rotation, and DPI
+            // Single-row settings grid — Resolution | Refresh Rate | Rotation | DPI | SDR/HDR Color
             var contentGrid = new Grid();
-            contentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.5, GridUnitType.Star) });
+            contentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            contentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(16) });
+            contentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             contentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(16) });
             contentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             contentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(16) });
             contentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-            contentGrid.RowDefinitions.Add(new RowDefinition());
-            contentGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(14) });
-            contentGrid.RowDefinitions.Add(new RowDefinition());
-            contentGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(24) });
-            contentGrid.RowDefinitions.Add(new RowDefinition());
-
-            // Monitor selection
-            var devicePanel = new StackPanel();
-            devicePanel.Children.Add(new TextBlock { Text = "Monitor", FontWeight = FontWeights.Medium, Margin = new Thickness(0, 0, 0, 4), Foreground = (Brush)Application.Current.Resources["PrimaryTextBrush"] });
-            _deviceTextBox = new TextBox
-            {
-                Style = (Style)Application.Current.Resources["PrimaryTextBoxStyle"],
-                IsReadOnly = true
-            };
-            _deviceTextBox.SetResourceReference(BackgroundProperty, "TextBoxBackgroundBrush");
-            _deviceTextBox.SetResourceReference(ForegroundProperty, "TertiaryTextBrush");
-            PopulateDeviceComboBox();
-            devicePanel.Children.Add(_deviceTextBox);
-            Grid.SetColumn(devicePanel, 0);
-            Grid.SetRow(devicePanel, 0);
-            contentGrid.Children.Add(devicePanel);
+            contentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(16) });
+            contentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) });
+            contentGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
             // Resolution
             var resolutionPanel = new StackPanel();
-            resolutionPanel.Children.Add(new TextBlock { Text = "Resolution", FontWeight = FontWeights.Medium, Margin = new Thickness(0, 0, 0, 4), Foreground = (Brush)Application.Current.Resources["PrimaryTextBrush"] });
+            resolutionPanel.Children.Add(new TextBlock { Text = "Resolution", FontWeight = FontWeights.Medium, Margin = new Thickness(0, 0, 0, 4), Foreground = primaryFg });
             _resolutionComboBox = new ComboBox
             {
                 Padding = new Thickness(8),
@@ -1509,13 +1430,12 @@ namespace DisplayProfileManager.UI.Windows
             _resolutionComboBox.SelectionChanged += ResolutionComboBox_SelectionChanged;
             PopulateResolutionComboBox();
             resolutionPanel.Children.Add(_resolutionComboBox);
-            Grid.SetColumn(resolutionPanel, 2);
-            Grid.SetRow(resolutionPanel, 0);
+            Grid.SetColumn(resolutionPanel, 0);
             contentGrid.Children.Add(resolutionPanel);
 
             // Refresh Rate
             var refreshRatePanel = new StackPanel();
-            refreshRatePanel.Children.Add(new TextBlock { Text = "Refresh Rate", FontWeight = FontWeights.Medium, Margin = new Thickness(0, 0, 0, 4), Foreground = (Brush)Application.Current.Resources["PrimaryTextBrush"] });
+            refreshRatePanel.Children.Add(new TextBlock { Text = "Refresh Rate", FontWeight = FontWeights.Medium, Margin = new Thickness(0, 0, 0, 4), Foreground = primaryFg });
             _refreshRateComboBox = new ComboBox
             {
                 Padding = new Thickness(8),
@@ -1525,13 +1445,12 @@ namespace DisplayProfileManager.UI.Windows
             };
             PopulateRefreshRateComboBox();
             refreshRatePanel.Children.Add(_refreshRateComboBox);
-            Grid.SetColumn(refreshRatePanel, 4);
-            Grid.SetRow(refreshRatePanel, 0);
+            Grid.SetColumn(refreshRatePanel, 2);
             contentGrid.Children.Add(refreshRatePanel);
 
             // Rotation
             var rotationPanel = new StackPanel();
-            rotationPanel.Children.Add(new TextBlock { Text = "Rotation", FontWeight = FontWeights.Medium, Margin = new Thickness(0, 0, 0, 4), Foreground = (Brush)Application.Current.Resources["PrimaryTextBrush"] });
+            rotationPanel.Children.Add(new TextBlock { Text = "Rotation", FontWeight = FontWeights.Medium, Margin = new Thickness(0, 0, 0, 4), Foreground = primaryFg });
             _rotationComboBox = new ComboBox
             {
                 Padding = new Thickness(8),
@@ -1540,14 +1459,14 @@ namespace DisplayProfileManager.UI.Windows
                 Style = (Style)Application.Current.Resources["PrimaryComboBoxStyle"]
             };
             PopulateRotationComboBox();
+            _rotationComboBox.SelectionChanged += RotationComboBox_SelectionChanged;
             rotationPanel.Children.Add(_rotationComboBox);
-            Grid.SetColumn(rotationPanel, 0);
-            Grid.SetRow(rotationPanel, 2);
+            Grid.SetColumn(rotationPanel, 4);
             contentGrid.Children.Add(rotationPanel);
 
             // DPI Scaling
             var dpiPanel = new StackPanel();
-            dpiPanel.Children.Add(new TextBlock { Text = "DPI Scaling", FontWeight = FontWeights.Medium, Margin = new Thickness(0, 0, 0, 4), Foreground = (Brush)Application.Current.Resources["PrimaryTextBrush"] });
+            dpiPanel.Children.Add(new TextBlock { Text = "DPI Scaling", FontWeight = FontWeights.Medium, Margin = new Thickness(0, 0, 0, 4), Foreground = primaryFg });
             _dpiComboBox = new ComboBox
             {
                 Padding = new Thickness(8),
@@ -1557,15 +1476,36 @@ namespace DisplayProfileManager.UI.Windows
             };
             PopulateDpiComboBox();
             dpiPanel.Children.Add(_dpiComboBox);
-            Grid.SetColumn(dpiPanel, 2);
-            Grid.SetRow(dpiPanel, 2);
+            Grid.SetColumn(dpiPanel, 6);
             contentGrid.Children.Add(dpiPanel);
 
-            mainPanel.Children.Add(contentGrid);
+            // SDR/HDR Color Profile
+            var colorProfilePanel = new StackPanel();
+            _colorProfileLabel = new TextBlock
+            {
+                FontWeight = FontWeights.Medium,
+                Margin = new Thickness(0, 0, 0, 4),
+                Foreground = (Brush)Application.Current.Resources["PrimaryTextBrush"]
+            };
+            colorProfilePanel.Children.Add(_colorProfileLabel);
+            _colorProfileComboBox = new ComboBox
+            {
+                Padding = new Thickness(8),
+                BorderBrush = (Brush)Application.Current.Resources["ComboBoxBorderBrush"],
+                BorderThickness = new Thickness(1),
+                Style = (Style)Application.Current.Resources["PrimaryComboBoxStyle"]
+            };
+            try { PopulateColorProfileComboBox(); } catch (Exception) { }
+            _colorProfileComboBox.SelectionChanged += ColorProfileComboBox_SelectionChanged;
+            colorProfilePanel.Children.Add(_colorProfileComboBox);
+            Grid.SetColumn(colorProfilePanel, 8);
+            Grid.SetRow(colorProfilePanel, 0);
+            contentGrid.Children.Add(colorProfilePanel);
+            UpdateColorProfileLabel();
 
+            mainPanel.Children.Add(contentGrid);
             Content = mainPanel;
 
-            // Set initial control states based on enabled status
             UpdateControlStates();
         }
 
@@ -1577,64 +1517,109 @@ namespace DisplayProfileManager.UI.Windows
 
         private void HdrCheckBox_CheckedChanged(object sender, RoutedEventArgs e)
         {
-            _setting.IsHdrEnabled = _hdrCheckBox.IsChecked == true && _setting.IsHdrSupported;
+            bool hdrOn = _hdrCheckBox.IsChecked == true && _setting.IsHdrSupported;
+            _setting.IsHdrEnabled = hdrOn;
+
+            if (_acmCheckBox != null)
+            {
+                if (hdrOn)
+                {
+                    // HDR forces ACM on
+                    _acmCheckBox.IsChecked = true;
+                    _acmCheckBox.IsEnabled = false;
+                }
+                else
+                {
+                    _acmCheckBox.IsChecked = _setting.IsAcmEnabled;
+                    _acmCheckBox.IsEnabled = DisplayConfigHelper.IsAcmSupported(_setting.TargetId);
+                }
+            }
+
+            if (_colorProfileComboBox != null && _colorProfileComboBox.Items.Count > 0)
+                _colorProfileComboBox.SelectedIndex = 0;
+
+            UpdateColorProfileLabel();
+            try { PopulateColorProfileComboBox(); } catch (Exception) { }
+        }
+
+        private void AcmCheckBox_CheckedChanged(object sender, RoutedEventArgs e)
+        {
+            if (_hdrCheckBox?.IsChecked != true)
+                _setting.IsAcmEnabled = _acmCheckBox.IsChecked == true;
+        }
+
+        private void UpdateColorProfileLabel()
+        {
+            if (_colorProfileLabel == null) return;
+            bool hdrActive = _hdrCheckBox?.IsChecked == true && _setting.IsHdrSupported;
+            _colorProfileLabel.Text = hdrActive ? "HDR Color" : "SDR Color";
+        }
+
+        private void UpdateColorProfileOpacity()
+        {
+            if (_colorProfileComboBox == null) return;
+            bool notApplied = (_colorProfileComboBox.SelectedItem as ComboBoxItem)?.Tag == null;
+            _colorProfileComboBox.Opacity = notApplied ? 0.5 : 1.0;
         }
 
         private void PopulateRotationComboBox()
         {
             _rotationComboBox.Items.Clear();
-            _rotationComboBox.Items.Add("0° (Identity)");
-            _rotationComboBox.Items.Add("90° (Rotate90)");
-            _rotationComboBox.Items.Add("180° (Rotate180)");
-            _rotationComboBox.Items.Add("270° (Rotate270)");
+            _rotationComboBox.Items.Add("Not Applied");
+            _rotationComboBox.Items.Add("0°");
+            _rotationComboBox.Items.Add("90°");
+            _rotationComboBox.Items.Add("180°");
+            _rotationComboBox.Items.Add("270°");
+            _rotationComboBox.SelectedIndex = _setting.Rotation;
 
-            // Enum mapping
-            int rotationIndex = _setting.Rotation - 1;
-            if (rotationIndex >= 0 && rotationIndex < _rotationComboBox.Items.Count)
-            {
-                _rotationComboBox.SelectedIndex = rotationIndex;
-            }
-            else
-            {
-                _rotationComboBox.SelectedIndex = 0;
-            }
+            RotationComboBox_SelectionChanged(null, null);
         }
 
         private void UpdateControlStates()
         {
             bool isEnabled = _setting.IsEnabled;
+            double opacity = isEnabled ? 1.0 : 0.5;
 
-            // Interaction state synchronization
-            _deviceTextBox.IsEnabled = isEnabled;
             _resolutionComboBox.IsEnabled = isEnabled;
             _refreshRateComboBox.IsEnabled = isEnabled;
             _dpiComboBox.IsEnabled = isEnabled;
             _primaryCheckBox.IsEnabled = isEnabled;
-            _hdrCheckBox.IsEnabled = isEnabled && _setting.IsHdrSupported;
             _rotationComboBox.IsEnabled = isEnabled;
+            _hdrCheckBox.IsEnabled = isEnabled && _setting.IsHdrSupported;
 
-            // Visual feedback
-            double opacity = isEnabled ? 1.0 : 0.5;
-            _deviceTextBox.Opacity = opacity;
+            if (_acmCheckBox != null)
+            {
+                bool hdrForced = _hdrCheckBox?.IsChecked == true && _setting.IsHdrSupported;
+                bool acmSupported = DisplayConfigHelper.IsAcmSupported(_setting.TargetId);
+                _acmCheckBox.IsEnabled = isEnabled && acmSupported && !hdrForced;
+                _acmCheckBox.Opacity = acmSupported ? opacity : 0.5;
+            }
+
             _resolutionComboBox.Opacity = opacity;
             _refreshRateComboBox.Opacity = opacity;
             _dpiComboBox.Opacity = opacity;
             _primaryCheckBox.Opacity = opacity;
             _hdrCheckBox.Opacity = opacity;
-            _rotationComboBox.Opacity = opacity;
+            _rotationComboBox.Opacity = isEnabled ? (_rotationComboBox.SelectedIndex == 0 ? 0.5 : 1.0) : 0.5;
 
-            // Minimum display requirement check
+            if (_acmCheckBox != null) _acmCheckBox.Opacity = opacity;
+
+            if (_colorProfileComboBox != null)
+            {
+                _colorProfileComboBox.IsEnabled = isEnabled;
+                _colorProfileComboBox.Opacity = isEnabled
+                    ? ((_colorProfileComboBox.SelectedItem as ComboBoxItem)?.Tag == null ? 0.5 : 1.0)
+                    : 0.5;
+            }
+
+            // Enforce minimum one enabled display
             var parent = Parent as Panel;
             if (parent != null && !isEnabled)
             {
                 int enabledCount = 0;
                 foreach (var child in parent.Children)
-                {
                     if (child is DisplaySettingControl control && control._setting.IsEnabled)
-                    {
                         enabledCount++;
-                    }
-                }
 
                 if (enabledCount == 0)
                 {
@@ -1644,20 +1629,30 @@ namespace DisplayProfileManager.UI.Windows
                         MessageBoxButton.OK, MessageBoxImage.Information);
 
                     // Rollback visual states
-                    _deviceTextBox.IsEnabled = true;
                     _resolutionComboBox.IsEnabled = true;
                     _refreshRateComboBox.IsEnabled = true;
                     _dpiComboBox.IsEnabled = true;
                     _primaryCheckBox.IsEnabled = true;
-                    _deviceTextBox.Opacity = 1.0;
-                    _resolutionComboBox.Opacity = 1.0;
+                    if (_acmCheckBox != null)
+                    {
+                        bool hdrForced = _hdrCheckBox?.IsChecked == true && _setting.IsHdrSupported;
+                        bool acmSupported = DisplayConfigHelper.IsAcmSupported(_setting.TargetId);
+                        _acmCheckBox.IsEnabled = isEnabled && acmSupported && !hdrForced;
+                        _acmCheckBox.Opacity = acmSupported ? opacity : 0.5;
+                    }
+                    _rotationComboBox.Opacity = _rotationComboBox.SelectedIndex == 0 ? 0.5 : 1.0;
                     _refreshRateComboBox.Opacity = 1.0;
                     _dpiComboBox.Opacity = 1.0;
-                    _primaryCheckBox.Opacity = 1.0;
+
+                    if (_colorProfileComboBox != null)
+                    {
+                        _colorProfileComboBox.IsEnabled = true;
+                        _colorProfileComboBox.Opacity = (_colorProfileComboBox.SelectedItem as ComboBoxItem)?.Tag == null ? 0.5 : 1.0;
+                    }
                 }
             }
 
-            // Primary monitor failover
+            // Transfer primary flag to another enabled display when current primary is disabled
             if (!isEnabled && _setting.IsPrimary && parent != null)
             {
                 _primaryCheckBox.IsChecked = false;
@@ -1678,27 +1673,24 @@ namespace DisplayProfileManager.UI.Windows
         {
             List<string> supportedResolutions;
 
-            // Data source priority: Stored vs System Query
+            // Prefer stored resolutions; fall back to live system query
             if (_setting.AvailableResolutions != null && _setting.AvailableResolutions.Count > 0)
-            {
                 supportedResolutions = _setting.AvailableResolutions;
-            }
             else
-            {
                 supportedResolutions = DisplayHelper.GetSupportedResolutionsOnly(_setting.DeviceName);
-            }
 
+            string nativeRes = _setting.NativeWidth > 0 ? $"{_setting.NativeWidth}x{_setting.NativeHeight}" : null;
             foreach (var resolution in supportedResolutions)
             {
-                _resolutionComboBox.Items.Add(resolution);
+                bool isNative = nativeRes != null && string.Equals(resolution, nativeRes, StringComparison.OrdinalIgnoreCase);
+                _resolutionComboBox.Items.Add(isNative ? $"{resolution} ★" : resolution);
             }
 
-            // Current resolution selection
             var currentResolution = $"{_setting.Width}x{_setting.Height}";
-            if (_resolutionComboBox.Items.Contains(currentResolution))
-            {
-                _resolutionComboBox.SelectedItem = currentResolution;
-            }
+            var matchedItem = _resolutionComboBox.Items.Cast<object>().FirstOrDefault(i => i.ToString().StartsWith(currentResolution, StringComparison.OrdinalIgnoreCase));
+
+            if (matchedItem != null)
+                _resolutionComboBox.SelectedItem = matchedItem;
             else
             {
                 _resolutionComboBox.Items.Insert(0, currentResolution);
@@ -1710,32 +1702,101 @@ namespace DisplayProfileManager.UI.Windows
         {
             List<uint> dpiValues;
 
-            // Data source priority: Stored vs System Query
+            // Prefer stored values; fall back to live system query
             if (_setting.AvailableDpiScaling != null && _setting.AvailableDpiScaling.Count > 0)
-            {
                 dpiValues = _setting.AvailableDpiScaling;
-            }
             else
-            {
-                dpiValues = DpiHelper.GetSupportedDPIScalingOnly(_setting.DeviceName).ToList();
-            }
+                dpiValues = DpiHelper.GetSupportedDpiScalingOnly(_setting.DeviceName).ToList();
 
             foreach (uint dpi in dpiValues)
-            {
                 _dpiComboBox.Items.Add($"{dpi}%");
-            }
 
-            // Current DPI selection
             var currentDpi = $"{_setting.DpiScaling}%";
             if (_dpiComboBox.Items.Contains(currentDpi))
-            {
                 _dpiComboBox.SelectedItem = currentDpi;
-            }
             else
             {
                 _dpiComboBox.Items.Insert(0, currentDpi);
                 _dpiComboBox.SelectedIndex = 0;
             }
+        }
+
+        private void PopulateColorProfileComboBox()
+        {
+            // Preserve current selection so HDR toggle doesn't lose it on re-population
+            string previousTag = (_colorProfileComboBox.SelectedItem as ComboBoxItem)?.Tag as string ?? _setting.ColorProfile;
+
+            _colorProfileComboBox.Items.Clear();
+
+            var primaryFg = (Brush)Application.Current.Resources["PrimaryTextBrush"];
+            bool hdrMode = _hdrCheckBox?.IsChecked == true && _setting.IsHdrSupported;
+
+            // null sentinel matches "Not Applied"
+            _colorProfileComboBox.Items.Add(new ComboBoxItem
+            {
+                Content = "Not Applied",
+                Tag = (string)null,
+                Foreground = primaryFg
+            });
+
+            var installedProfiles = hdrMode ? ColorProfileHelper.GetInstalledColorProfilesFiltered(hdrOnly: true) : ColorProfileHelper.GetInstalledColorProfilesFiltered(hdrOnly: false);
+            foreach (var filename in installedProfiles)
+            {
+                _colorProfileComboBox.Items.Add(new ComboBoxItem
+                {
+                    Content = filename,
+                    Tag = filename,
+                    Foreground = primaryFg,
+                });
+            }
+
+            SelectColorProfile(previousTag);
+        }
+
+        private void SelectColorProfile(string profileValue)
+        {
+            // null → "Not Applied" (index 0)
+            if (string.IsNullOrEmpty(profileValue))
+            {
+                _colorProfileComboBox.SelectedIndex = 0;
+                UpdateColorProfileOpacity();
+                return;
+            }
+
+            foreach (ComboBoxItem item in _colorProfileComboBox.Items)
+            {
+                if (string.Equals(item.Tag as string, profileValue, StringComparison.OrdinalIgnoreCase))
+                {
+                    _colorProfileComboBox.SelectedItem = item;
+                    UpdateColorProfileOpacity();
+                    return;
+                }
+            }
+
+            // Stored profile no longer installed — insert as a placeholder to preserve value
+            var missing = new ComboBoxItem
+            {
+                Content = $"{profileValue}  (not found)",
+                Tag = profileValue,
+                Foreground = (Brush)Application.Current.Resources["TertiaryTextBrush"],
+                ToolTip = "This color profile is no longer installed on this system"
+            };
+            _colorProfileComboBox.Items.Add(missing);
+            _colorProfileComboBox.SelectedItem = missing;
+            UpdateColorProfileOpacity();
+        }
+
+        private void ColorProfileComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_colorProfileComboBox?.SelectedItem is ComboBoxItem item)
+                _setting.ColorProfile = item.Tag as string;
+            UpdateColorProfileOpacity();
+        }
+
+        private void RotationComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_rotationComboBox != null && _setting.IsEnabled)
+                _rotationComboBox.Opacity = _rotationComboBox.SelectedIndex == 0 ? 0.5 : 1.0;
         }
 
         private void PopulateRefreshRateComboBox()
@@ -1745,112 +1806,49 @@ namespace DisplayProfileManager.UI.Windows
             List<int> refreshRates;
             var currentResolution = $"{_setting.Width}x{_setting.Height}";
 
-            // Data source priority: Stored vs System Query
-            if (_setting.AvailableRefreshRates != null &&
-                _setting.AvailableRefreshRates.ContainsKey(currentResolution) &&
-                _setting.AvailableRefreshRates[currentResolution].Count > 0)
-            {
+            // Prefer stored rates for the current resolution; fall back to live query
+            if (_setting.AvailableRefreshRates != null && _setting.AvailableRefreshRates.ContainsKey(currentResolution) && _setting.AvailableRefreshRates[currentResolution].Count > 0)
                 refreshRates = _setting.AvailableRefreshRates[currentResolution];
-            }
             else
-            {
                 refreshRates = DisplayHelper.GetAvailableRefreshRates(_setting.DeviceName, _setting.Width, _setting.Height);
-            }
 
+            int maxRate = refreshRates.Count > 0 ? refreshRates.Max() : -1;
             foreach (var rate in refreshRates)
-            {
-                _refreshRateComboBox.Items.Add($"{rate}Hz");
-            }
+                _refreshRateComboBox.Items.Add(rate == maxRate ? $"{rate}Hz ★" : $"{rate}Hz");
 
-            // Current frequency selection
             var currentRefreshRate = $"{_setting.Frequency}Hz";
-            if (_refreshRateComboBox.Items.Contains(currentRefreshRate))
-            {
-                _refreshRateComboBox.SelectedItem = currentRefreshRate;
-            }
+            var matchedItem = _refreshRateComboBox.Items.Cast<object>().FirstOrDefault(i => i.ToString().StartsWith(currentRefreshRate, StringComparison.OrdinalIgnoreCase));
+
+            if (matchedItem != null)
+                _refreshRateComboBox.SelectedItem = matchedItem;
             else if (_refreshRateComboBox.Items.Count > 0)
             {
                 _refreshRateComboBox.Items.Insert(0, currentRefreshRate);
                 _refreshRateComboBox.SelectedIndex = 0;
             }
-            else if (_refreshRateComboBox.Items.Count == 0)
+            else
             {
                 _refreshRateComboBox.Items.Add(currentRefreshRate);
                 _refreshRateComboBox.SelectedIndex = 0;
             }
         }
 
-        private void PopulateDeviceComboBox()
-        {
-            if (_isCloneGroup && _cloneGroupMembers.Count > 1)
-            {
-                // Clone group layout
-                _deviceTextBox.Text = string.Join(Environment.NewLine, _cloneGroupMembers.Select(m => m.ReadableDeviceName));
-                _deviceTextBox.Tag = _setting.DeviceName;
-                _deviceTextBox.AcceptsReturn = true;
-                _deviceTextBox.TextWrapping = TextWrapping.Wrap;
-
-                // Metadata aggregation for tooltips
-                var tooltipLines = new List<string> { "Clone Group Members:" };
-                foreach (var member in _cloneGroupMembers)
-                {
-                    tooltipLines.Add($"\n{member.ReadableDeviceName}:");
-                    tooltipLines.Add($"  Device: {member.DeviceName}");
-                    tooltipLines.Add($"  Target ID: {member.TargetId}");
-                    tooltipLines.Add($"  EDID: {member.ManufacturerName}-{member.ProductCodeID}-{member.SerialNumberID}");
-                }
-                _deviceTextBox.ToolTip = string.Join("\n", tooltipLines);
-            }
-            else
-            {
-                // Single display layout
-                _deviceTextBox.Text = _setting.ReadableDeviceName;
-                _deviceTextBox.Tag = _setting.DeviceName;
-                _deviceTextBox.ToolTip =
-                    $"Name: {_setting.ReadableDeviceName}\n" +
-                    $"Device Name: {_setting.DeviceName}\n" +
-                    $"Target ID: {_setting.TargetId}\n" +
-                    $"EDID: {_setting.ManufacturerName}-{_setting.ProductCodeID}-{_setting.SerialNumberID}";
-            }
-        }
-
         private void ResolutionComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (_resolutionComboBox.SelectedItem == null || _refreshRateComboBox == null)
-                return;
+            if (_resolutionComboBox.SelectedItem == null || _refreshRateComboBox == null) return;
 
-            var resolutionText = _resolutionComboBox.SelectedItem.ToString();
+            var resolutionText = (_resolutionComboBox.SelectedItem?.ToString() ?? "").Replace(" ★", "").Trim();
             var resolutionParts = resolutionText.Split('x');
 
-            if (resolutionParts.Length >= 2 &&
-                int.TryParse(resolutionParts[0], out int width) &&
-                int.TryParse(resolutionParts[1], out int height))
+            if (resolutionParts.Length >= 2 && int.TryParse(resolutionParts[0], out int width) && int.TryParse(resolutionParts[1], out int height))
             {
-                List<int> refreshRates;
+                int prevWidth = _setting.Width, prevHeight = _setting.Height;
+                _setting.Width = width;
+                _setting.Height = height;
+                PopulateRefreshRateComboBox();
 
-                // Data source priority: Stored vs System Query
-                if (_setting.AvailableRefreshRates != null &&
-                    _setting.AvailableRefreshRates.ContainsKey(resolutionText) &&
-                    _setting.AvailableRefreshRates[resolutionText].Count > 0)
-                {
-                    refreshRates = _setting.AvailableRefreshRates[resolutionText];
-                }
-                else
-                {
-                    refreshRates = DisplayHelper.GetAvailableRefreshRates(_setting.DeviceName, width, height);
-                }
-
-                _refreshRateComboBox.Items.Clear();
-                foreach (var rate in refreshRates)
-                {
-                    _refreshRateComboBox.Items.Add($"{rate}Hz");
-                }
-
-                // Automatic selection of peak frequency
-                if (_refreshRateComboBox.Items.Count > 0)
-                {
-                    _refreshRateComboBox.SelectedIndex = 0;
-                }
+                _setting.Width = prevWidth;
+                _setting.Height = prevHeight;
             }
         }
 
@@ -1858,47 +1856,35 @@ namespace DisplayProfileManager.UI.Windows
         {
             var settings = new List<DisplaySetting>();
 
-            if (_resolutionComboBox.SelectedItem == null || _dpiComboBox.SelectedItem == null || _refreshRateComboBox.SelectedItem == null)
-                return settings;
+            if (_resolutionComboBox.SelectedItem == null || _dpiComboBox.SelectedItem == null || _refreshRateComboBox.SelectedItem == null) return settings;
 
-            var resolutionText = _resolutionComboBox.SelectedItem.ToString();
+            var resolutionText = _resolutionComboBox.SelectedItem.ToString().Replace(" ★", "").Replace("★", "").Trim();
             var dpiText = _dpiComboBox.SelectedItem.ToString();
             var refreshRateText = _refreshRateComboBox.SelectedItem.ToString();
 
-            // Resolution parsing with legacy format support
             var resolutionParts = resolutionText.Split('x');
             if (resolutionParts.Length < 2) return settings;
+            if (!int.TryParse(resolutionParts[0], out int width)) return settings;
 
-            if (!int.TryParse(resolutionParts[0], out int width))
-                return settings;
+            string heightPart = resolutionParts[1].Replace(" ★", "").Replace("★", "").Trim();
+            if (heightPart.Contains("@")) heightPart = heightPart.Split('@')[0].Trim();
+            if (!int.TryParse(heightPart, out int height)) return settings;
 
-            string heightPart = resolutionParts[1];
-            if (heightPart.Contains("@"))
-            {
-                heightPart = heightPart.Split('@')[0].Trim();
-            }
+            if (!uint.TryParse(dpiText.Replace("%", ""), out uint dpiScaling)) return settings;
 
-            if (!int.TryParse(heightPart, out int height))
-                return settings;
-
-            // Unit sanitization and numeric conversion
-            if (!uint.TryParse(dpiText.Replace("%", ""), out uint dpiScaling))
-                return settings;
-
-            if (!int.TryParse(refreshRateText.Replace("Hz", ""), out int frequency))
+            if (!int.TryParse(refreshRateText.Replace("Hz", "").Replace(" ★", "").Trim(), out int frequency))
                 frequency = 60;
 
-            var rotation = _rotationComboBox.SelectedIndex + 1;
-            var isPrimary = _primaryCheckBox.IsChecked == true;
             var isEnabled = _enabledCheckBox.IsChecked == true;
             var isHdrEnabled = _hdrCheckBox.IsChecked == true;
+            var isAcmEnabled = _acmCheckBox?.IsChecked == true;
+            var rotation = _rotationComboBox.SelectedIndex == 0 ? 0 : _rotationComboBox.SelectedIndex;
+            var colorProfile = (_colorProfileComboBox?.SelectedItem is ComboBoxItem cp) ? cp.Tag as string : null;
 
-            // Mapping UI state to clone group members
-            bool isFirst = true;
+            // Source always reads combo; attached reads own restored params only after BreakClone (CloneGroupId cleared)
             foreach (var originalSetting in _cloneGroupMembers)
             {
-                // Determine parameter source (shared UI vs individual member storage)
-                bool useOwnParams = !isFirst && string.IsNullOrEmpty(originalSetting.CloneGroupId);
+                bool useOwnParams = !originalSetting.IsCloneSource && string.IsNullOrEmpty(originalSetting.CloneGroupId);
 
                 var displaySetting = new DisplaySetting
                 {
@@ -1913,37 +1899,46 @@ namespace DisplayProfileManager.UI.Windows
                     TargetId = originalSetting.TargetId,
                     SourceId = originalSetting.SourceId,
                     CloneGroupId = originalSetting.CloneGroupId,
+                    IsCloneSource = originalSetting.IsCloneSource && !string.IsNullOrEmpty(originalSetting.CloneGroupId),
                     PathIndex = originalSetting.PathIndex,
-
                     // State
                     IsEnabled = isEnabled,
-                    IsPrimary = isFirst && isPrimary,
-
+                    IsPrimary = originalSetting.IsPrimary,
                     // Layout
                     DisplayPositionX = originalSetting.DisplayPositionX,
                     DisplayPositionY = originalSetting.DisplayPositionY,
-
                     // Active configuration
                     Width = useOwnParams ? originalSetting.Width : width,
                     Height = useOwnParams ? originalSetting.Height : height,
                     Frequency = useOwnParams ? originalSetting.Frequency : frequency,
-                    Rotation = rotation,
-                    IsHdrSupported = originalSetting.IsHdrSupported,
-                    IsHdrEnabled = isHdrEnabled && originalSetting.IsHdrSupported,
+                    Rotation = useOwnParams ? originalSetting.Rotation : rotation,
                     DpiScaling = useOwnParams ? originalSetting.DpiScaling : dpiScaling,
-
+                    IsHdrSupported = originalSetting.IsHdrSupported,
+                    IsHdrEnabled = useOwnParams ? (originalSetting.IsHdrEnabled && originalSetting.IsHdrSupported) : (isHdrEnabled && originalSetting.IsHdrSupported),
+                    IsAcmEnabled = useOwnParams ? originalSetting.IsAcmEnabled : isAcmEnabled,
+                    ColorProfile = useOwnParams ? originalSetting.ColorProfile : colorProfile,
+                    // Clone
+                    OriginalPositionX = originalSetting.OriginalPositionX,
+                    OriginalPositionY = originalSetting.OriginalPositionY,
+                    OriginalSourceId = originalSetting.OriginalSourceId,
+                    OriginalWidth = originalSetting.OriginalWidth,
+                    OriginalHeight = originalSetting.OriginalHeight,
+                    OriginalFrequency = originalSetting.OriginalFrequency,
+                    OriginalIsPrimary = originalSetting.OriginalIsPrimary,
+                    OriginalDpiScaling = originalSetting.OriginalDpiScaling,
+                    OriginalRotation = originalSetting.OriginalRotation,
+                    OriginalColorProfile = originalSetting.OriginalColorProfile,
+                    OriginalIsHdrEnabled = originalSetting.OriginalIsHdrEnabled,
+                    OriginalIsAcmEnabled = originalSetting.OriginalIsAcmEnabled,
                     // Native
                     NativeWidth = originalSetting.NativeWidth,
                     NativeHeight = originalSetting.NativeHeight,
-
                     // Capabilities
                     AvailableResolutions = originalSetting.AvailableResolutions,
                     AvailableRefreshRates = originalSetting.AvailableRefreshRates,
                     AvailableDpiScaling = originalSetting.AvailableDpiScaling
                 };
-
                 settings.Add(displaySetting);
-                isFirst = false;
             }
 
             return settings;
@@ -1951,40 +1946,27 @@ namespace DisplayProfileManager.UI.Windows
 
         public bool ValidateInput()
         {
-            // Field presence validation
-            if (_deviceTextBox.Text == null)
-            {
-                MessageBox.Show("Please select a monitor for all displays.", "Validation Error",
-                    MessageBoxButton.OK, MessageBoxImage.Warning);
-                _deviceTextBox.Focus();
-                return false;
-            }
-
             if (_resolutionComboBox.SelectedItem == null)
             {
-                MessageBox.Show("Please select a resolution for all displays.", "Validation Error",
-                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("Please select a resolution for all displays.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                 _resolutionComboBox.Focus();
                 return false;
             }
 
             if (_refreshRateComboBox.SelectedItem == null)
             {
-                MessageBox.Show("Please select a refresh rate for all displays.", "Validation Error",
-                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("Please select a refresh rate for all displays.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                 _refreshRateComboBox.Focus();
                 return false;
             }
 
             if (_dpiComboBox.SelectedItem == null)
             {
-                MessageBox.Show("Please select a DPI scaling for all displays.", "Validation Error",
-                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("Please select a DPI scaling for all displays.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                 _dpiComboBox.Focus();
                 return false;
             }
 
-            // Topography requirements
             if (_setting.IsEnabled)
             {
                 var parent = Parent as Panel;
@@ -2002,8 +1984,7 @@ namespace DisplayProfileManager.UI.Windows
 
                     if (!hasPrimary)
                     {
-                        MessageBox.Show("At least one enabled display must be set as primary.", "Validation Error",
-                            MessageBoxButton.OK, MessageBoxImage.Warning);
+                        MessageBox.Show("At least one enabled display must be set as primary.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                         _primaryCheckBox.Focus();
                         return false;
                     }
@@ -2015,9 +1996,7 @@ namespace DisplayProfileManager.UI.Windows
 
         private void PrimaryCheckBox_Checked(object sender, RoutedEventArgs e)
         {
-            // Mutually exclusive primary monitor enforcement
             _setting.IsPrimary = true;
-
             var parent = Parent as Panel;
             if (parent != null)
             {
@@ -2034,29 +2013,19 @@ namespace DisplayProfileManager.UI.Windows
 
         private void PrimaryCheckBox_Unchecked(object sender, RoutedEventArgs e)
         {
-            // Minimum primary monitor requirement check
             var parent = Parent as Panel;
             if (parent != null)
             {
                 int primaryCount = 0;
                 foreach (var child in parent.Children)
-                {
                     if (child is DisplaySettingControl control && control != this)
-                    {
                         if (control._primaryCheckBox.IsChecked == true && control._setting.IsEnabled)
-                        {
                             primaryCount++;
-                        }
-                    }
-                }
 
                 if (primaryCount == 0 && _setting.IsEnabled)
                 {
                     _primaryCheckBox.IsChecked = true;
-                    MessageBox.Show("At least one enabled display must be set as primary.",
-                                   "Display Configuration",
-                                   MessageBoxButton.OK,
-                                   MessageBoxImage.Information);
+                    MessageBox.Show("At least one enabled display must be set as primary.", "Display Configuration", MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
             }
@@ -2071,33 +2040,24 @@ namespace DisplayProfileManager.UI.Windows
             var panel = Parent as Panel;
             if (panel == null) return;
 
-            // Filter for cloneable candidates
-            var available = panel.Children
-                .OfType<DisplaySettingControl>()
-                .Where(c => c != this && !c._isCloneGroup)
-                .ToList();
+            var available = panel.Children.OfType<DisplaySettingControl>().Where(c => c != this && !c._isCloneGroup).ToList();
 
             if (!available.Any())
             {
-                MessageBox.Show("No other displays available to clone with.", "Clone Display",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("No other displays available to clone with.", "Clone Display", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
-            // Theme resource retrieval
             var bg = (Brush)Application.Current.Resources["ContentBackgroundBrush"];
             var fg = (Brush)Application.Current.Resources["PrimaryTextBrush"];
             var border = (Brush)Application.Current.Resources["BorderBrush"];
             var hoverBg = (Brush)Application.Current.Resources["ControlHoverBackgroundBrush"];
 
-            // Popup content construction
             var stack = new StackPanel { MinWidth = 220 };
             foreach (var target in available)
             {
                 var num = Regex.Match(target._setting.DeviceName ?? "", @"\d+$").Value;
-                var label = string.IsNullOrEmpty(num)
-                    ? target._setting.ReadableDeviceName
-                    : $"Display {num}  ·  {target._setting.ReadableDeviceName}";
+                var label = string.IsNullOrEmpty(num) ? target._setting.ReadableDeviceName : $"Display {num} · {target._setting.ReadableDeviceName}";
 
                 var row = new Border
                 {
@@ -2119,7 +2079,6 @@ namespace DisplayProfileManager.UI.Windows
                 stack.Children.Add(row);
             }
 
-            // Popup instantiation
             var popup = new Popup
             {
                 PlacementTarget = button,
@@ -2141,21 +2100,59 @@ namespace DisplayProfileManager.UI.Windows
 
         private void Clone(DisplaySettingControl other)
         {
-            // Relationship synchronization
             var newCloneGroupId = "clone-" + Guid.NewGuid().ToString("N").Substring(0, 8);
             uint sharedSourceId = _setting.SourceId;
             int sharedX = _setting.DisplayPositionX;
             int sharedY = _setting.DisplayPositionY;
 
+            // Save all pre-clone state BEFORE any modifications — IsPrimary is cleared by the primary transfer below
+            foreach (var member in other._cloneGroupMembers)
+            {
+                member.OriginalPositionX = member.DisplayPositionX;
+                member.OriginalPositionY = member.DisplayPositionY;
+                member.OriginalSourceId = member.SourceId;
+                member.OriginalWidth = member.Width;
+                member.OriginalHeight = member.Height;
+                member.OriginalFrequency = member.Frequency;
+                member.OriginalIsPrimary = member.IsPrimary;
+                member.OriginalDpiScaling = member.DpiScaling;
+                member.OriginalRotation = member.Rotation;
+                member.OriginalColorProfile = member.ColorProfile;
+                member.OriginalIsHdrEnabled = member.IsHdrEnabled;
+                member.OriginalIsAcmEnabled = member.IsAcmEnabled;
+            }
+
+            // Only transfer primary to source if no independent display already holds it
+            bool otherHadPrimary = other._cloneGroupMembers.Any(m => m.IsPrimary);
+            if (otherHadPrimary)
+            {
+                var panel = Parent as Panel;
+
+                // No transfer needed if this control or any other independent control already holds primary
+                bool primaryExistsElsewhere = _cloneGroupMembers.Any(m => m.IsPrimary) ||
+                    (panel != null && panel.Children
+                        .OfType<DisplaySettingControl>()
+                        .Where(c => c != this && c != other)
+                        .Any(c => c._cloneGroupMembers.Any(m => m.IsPrimary)));
+
+                foreach (var m in other._cloneGroupMembers)
+                    m.IsPrimary = false;
+
+                if (!primaryExistsElsewhere)
+                    _cloneGroupMembers[0].IsPrimary = true;
+            }
+
             foreach (var member in _cloneGroupMembers)
+            {
                 member.CloneGroupId = newCloneGroupId;
+                member.IsCloneSource = true;
+            }
 
             foreach (var member in other._cloneGroupMembers)
             {
                 member.CloneGroupId = newCloneGroupId;
+                member.IsCloneSource = false;
                 member.SourceId = sharedSourceId;
-
-                // Clone members share the same source; positions must match
                 member.DisplayPositionX = sharedX;
                 member.DisplayPositionY = sharedY;
             }
@@ -2168,61 +2165,83 @@ namespace DisplayProfileManager.UI.Windows
             var panel = Parent as Panel;
             uint maxSourceId = 0;
 
-            // Source ID resolution to prevent collisions
             if (panel != null)
-            {
                 foreach (var ctrl in panel.Children.OfType<DisplaySettingControl>())
                     foreach (var m in ctrl._cloneGroupMembers)
                         maxSourceId = Math.Max(maxSourceId, m.SourceId);
-            }
 
-            bool isFirst = true;
+            // Partition by role — AllMembers ordering is not guaranteed to match Clone() iteration order
+            var sourceMembers = _cloneGroupMembers.Where(m => m.IsCloneSource).ToList();
+            var attachedMembers = _cloneGroupMembers.Where(m => !m.IsCloneSource).ToList();
+
+            // Clear CloneGroupId only; retain IsCloneSource so GetDisplaySettings() routes source vs attached correctly after rebuild; IsCloneSource is false in output whenever CloneGroupId is empty, so new controls are independent
             foreach (var member in _cloneGroupMembers)
-            {
                 member.CloneGroupId = string.Empty;
-                if (!isFirst)
+
+            // Restore the attached display's pre-clone state first so primary is resolved correctly
+            bool attachedHadPrimary = attachedMembers.Any(m => m.OriginalIsPrimary == true);
+            bool primaryExistsElsewhere = (Parent as Panel)?.Children
+                .OfType<DisplaySettingControl>()
+                .Where(c => c != this)
+                .Any(c => c._cloneGroupMembers.Any(m => m.IsPrimary)) ?? false;
+
+            foreach (var member in sourceMembers)
+                member.IsPrimary = !attachedHadPrimary && !primaryExistsElsewhere;
+
+            foreach (var member in attachedMembers)
+            {
+                member.IsPrimary = member.OriginalIsPrimary ?? false;
+
+                if (member.OriginalPositionX.HasValue)
                 {
+                    member.SourceId = member.OriginalSourceId ?? ++maxSourceId;
+                    member.DisplayPositionX = member.OriginalPositionX.Value;
+                    member.DisplayPositionY = member.OriginalPositionY ?? 0;
+                    member.Width = member.OriginalWidth ?? (member.NativeWidth > 0 ? member.NativeWidth : member.Width);
+                    member.Height = member.OriginalHeight ?? (member.NativeHeight > 0 ? member.NativeHeight : member.Height);
+                    member.Frequency = member.OriginalFrequency ?? member.Frequency;
+                    member.DpiScaling = member.OriginalDpiScaling ?? member.DpiScaling;
+                    member.Rotation = member.OriginalRotation ?? member.Rotation;
+                    member.ColorProfile = member.OriginalColorProfile;  // null = "Not Applied" — valid restore target
+                    member.IsHdrEnabled = member.OriginalIsHdrEnabled ?? member.IsHdrEnabled;
+                    member.IsAcmEnabled = member.OriginalIsAcmEnabled ?? member.IsAcmEnabled;
+                }
+                else
+                {
+                    // Fallback for old profiles (OriginalPositionX not serialized; set via legacy code path)
                     member.SourceId = ++maxSourceId;
-
-                    // Parameter restoration for non-representative members
-                    if (member.AvailableResolutions != null && member.AvailableResolutions.Count > 0)
-                    {
-                        // Prefer stored EDID native resolution — AvailableResolutions[0] may be a wider DCI resolution
-                        string preferredRes = member.NativeWidth > 0
-                            ? $"{member.NativeWidth}x{member.NativeHeight}"
-                            : null;
-
-                        string targetRes = (preferredRes != null && member.AvailableResolutions.Contains(preferredRes))
-                            ? preferredRes
-                            : member.AvailableResolutions[0];
-
-                        var parts = targetRes.Split('x');
-                        if (parts.Length == 2 &&
-                            int.TryParse(parts[0], out int w) &&
-                            int.TryParse(parts[1], out int h))
-                        {
-                            member.Width = w;
-                            member.Height = h;
-                        }
-                    }
-
-                    var resKey = $"{member.Width}x{member.Height}";
-                    if (member.AvailableRefreshRates != null &&
-                        member.AvailableRefreshRates.TryGetValue(resKey, out var rates) &&
-                        rates.Count > 0)
-                    {
-                        member.Frequency = rates[0];
-                    }
-
-                    if (member.AvailableDpiScaling != null && member.AvailableDpiScaling.Count > 0)
-                        member.DpiScaling = member.AvailableDpiScaling[0];
-
-                    // Offset position to avoid perfect overlap upon breaking
                     member.DisplayPositionX = _setting.DisplayPositionX + _setting.Width;
                     member.DisplayPositionY = _setting.DisplayPositionY;
+                    if (member.NativeWidth > 0) { member.Width = member.NativeWidth; member.Height = member.NativeHeight; }
+                    var resKey = $"{member.Width}x{member.Height}";
+                    if (member.AvailableRefreshRates != null && member.AvailableRefreshRates.TryGetValue(resKey, out var rates) && rates.Count > 0)
+                        member.Frequency = rates[0];
+                    if (member.AvailableDpiScaling != null && member.AvailableDpiScaling.Count > 0)
+                        member.DpiScaling = member.AvailableDpiScaling[0];
                 }
-                isFirst = false;
+
+                // Clear all saved originals
+                member.OriginalPositionX = null;
+                member.OriginalPositionY = null;
+                member.OriginalSourceId = null;
+                member.OriginalWidth = null;
+                member.OriginalHeight = null;
+                member.OriginalFrequency = null;
+                member.OriginalIsPrimary = null;
+                member.OriginalDpiScaling = null;
+                member.OriginalRotation = null;
+                member.OriginalColorProfile = null;
+                member.OriginalIsHdrEnabled = null;
+                member.OriginalIsAcmEnabled = null;
             }
+
+            // Sync primary checkbox on the representative (source) before rebuild reads it
+            _primaryCheckBox.Checked -= PrimaryCheckBox_Checked;
+            _primaryCheckBox.Unchecked -= PrimaryCheckBox_Unchecked;
+            _primaryCheckBox.IsChecked = !attachedHadPrimary && !primaryExistsElsewhere;
+            _setting.IsPrimary = !attachedHadPrimary && !primaryExistsElsewhere;
+            _primaryCheckBox.Checked += PrimaryCheckBox_Checked;
+            _primaryCheckBox.Unchecked += PrimaryCheckBox_Unchecked;
 
             OnCloneGroupChanged?.Invoke();
         }
@@ -2244,64 +2263,10 @@ namespace DisplayProfileManager.UI.Windows
             {
                 var parent = Parent as Panel;
                 if (parent != null)
-                {
                     foreach (var child in parent.Children)
-                    {
                         if (child is DisplaySettingControl control && control != this)
-                        {
                             control.SetPrimary(false);
-                        }
-                    }
-                }
             }
-        }
-    }
-
-    public static class DisplayGroupingHelper
-    {
-        public class DisplayGroup
-        {
-            public DisplaySetting RepresentativeSetting { get; set; }
-            public List<DisplaySetting> AllMembers { get; set; }
-            public bool IsCloneGroup => AllMembers.Count > 1;
-        }
-
-        public static List<DisplayGroup> GroupDisplaysForUI(List<DisplaySetting> displaySettings)
-        {
-            var result = new List<DisplayGroup>();
-
-            // Identification of existing clone relationships
-            var cloneGroups = displaySettings
-                .Where(s => s.IsPartOfCloneGroup())
-                .GroupBy(s => s.CloneGroupId)
-                .ToDictionary(g => g.Key, g => g.ToList());
-
-            var processedCloneGroups = new HashSet<string>();
-
-            foreach (var setting in displaySettings)
-            {
-                if (setting.IsPartOfCloneGroup() && processedCloneGroups.Contains(setting.CloneGroupId))
-                {
-                    continue;
-                }
-
-                if (setting.IsPartOfCloneGroup())
-                {
-                    processedCloneGroups.Add(setting.CloneGroupId);
-                }
-
-                var members = setting.IsPartOfCloneGroup()
-                    ? cloneGroups[setting.CloneGroupId]
-                    : new List<DisplaySetting> { setting };
-
-                result.Add(new DisplayGroup
-                {
-                    RepresentativeSetting = setting,
-                    AllMembers = members
-                });
-            }
-
-            return result;
         }
     }
 }

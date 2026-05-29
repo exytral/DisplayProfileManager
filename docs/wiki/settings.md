@@ -58,4 +58,4 @@ A read-only list of all hotkeys configured across your profiles, showing which p
 
 ## About
 
-Shows the current version number, the path to your settings file, contributor acknowledgements, and third-party library licenses.
+Shows the current version number, the path to your settings file, third-party library licenses, and contributor acknowledgements.

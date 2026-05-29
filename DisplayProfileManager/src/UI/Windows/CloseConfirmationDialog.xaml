@@ -6,8 +6,8 @@
         xmlns:local="clr-namespace:DisplayProfileManager.UI.Windows"
         xmlns:converters="clr-namespace:DisplayProfileManager.UI.Converters"
         mc:Ignorable="d"
-        Title="Close Application" Height="360" Width="450" MinHeight="300" MinWidth="400"
-        WindowStartupLocation="CenterOwner" ResizeMode="CanResize"
+        Title="Close Application" Width="330" Height="180"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
         WindowStyle="SingleBorderWindow">
     
     <WindowChrome.WindowChrome>
@@ -87,7 +87,6 @@
             <Setter Property="FontSize" Value="14"/>
             <Setter Property="FontFamily" Value="Segoe UI"/>
             <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
-            <Setter Property="Margin" Value="6,0,-1,0"/>
             <Setter Property="Margin" Value="0,0,10,0"/>
         </Style>
 
@@ -158,70 +157,56 @@
         </Grid>
 
         <!-- Content -->
-        <Grid Grid.Row="1" Margin="24">
-                <StackPanel>
-                    <TextBlock Text="What would you like to do when closing the application?"
-                               Style="{StaticResource PrimaryTextBlockStyle}"
-                               Margin="0,0,0,16"/>
-                    
-                    <RadioButton Name="MinimizeToTrayRadioButton"
-                                 Content="Minimize to system tray"
-                                 Style="{StaticResource PrimaryRadioButtonStyle}"
-                                 IsChecked="True"
-                                 Margin="0,0,0,8"/>
-                    
-                    <TextBlock Text="The application will continue running in the background and can be accessed from the system tray." 
-                               Style="{StaticResource PrimaryTextBlockStyle}"
-                               FontSize="12"
-                               Foreground="{DynamicResource TertiaryTextBrush}"
-                               Margin="24,0,0,16"/>
-                    
-                    <RadioButton Name="CloseApplicationRadioButton"
-                                 Content="Close the application completely"
-                                 Style="{StaticResource PrimaryRadioButtonStyle}"
-                                 Margin="0,0,0,8"/>
-                    
-                    <TextBlock Text="The application will be completely closed and stopped."
-                               Style="{StaticResource PrimaryTextBlockStyle}"
-                               FontSize="12"
-                               Foreground="{DynamicResource TertiaryTextBrush}"
-                               Margin="24,0,0,24"/>
-                    
-                    <CheckBox Name="RememberChoiceCheckBox"
-                              Content="Remember my choice and don't ask again"
-                              Style="{StaticResource PrimaryCheckBoxStyle}"/>
-                </StackPanel>
-            </Grid>
+        <Grid Grid.Row="1" Margin="16,16,16,0">
+            <StackPanel>
+                <RadioButton Name="MinimizeToTrayRadioButton"
+                     Content="Minimize to system tray"
+                     Padding="6,0,0,0"
+                     GroupName="CloseAction"
+                     IsChecked="True"
+                     Margin="0,0,0,8"/>
+
+                <RadioButton Name="CloseApplicationRadioButton"
+                     Content="Exit the application completely"
+                     Padding="6,0,0,0"
+                     GroupName="CloseAction"
+                     Margin="0,0,0,8"/>
+
+                <CheckBox Name="RememberChoiceCheckBox"
+                  Content="Remember my choice"
+                  Padding="6,0,0,0"
+                  Margin="20,0,0,0"/>
+            </StackPanel>
+        </Grid>
 
         <!-- Footer with buttons -->
         <Border Grid.Row="2"
-                Background="{DynamicResource ContentBackgroundBrush}"
+                Background="{DynamicResource WindowBackgroundBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
-                BorderThickness="0,1,0,0"
-                Padding="24,16">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
+                Padding="16,16">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
 
-                    <StackPanel Grid.Column="1"
-                                Orientation="Horizontal">
-                        <Button Name="CancelButton"
-                                Content="Cancel"
-                                Style="{StaticResource SecondaryButtonStyle}"
-                                Width="80"
-                                Margin="0,0,8,0"
-                                Click="CancelButton_Click"
-                                WindowChrome.IsHitTestVisibleInChrome="True"/>
-                        <Button Name="OKButton"
-                                Content="OK"
-                                Style="{StaticResource PrimaryButtonStyle}"
-                                Width="80"
-                                Click="OKButton_Click"
-                                WindowChrome.IsHitTestVisibleInChrome="True"/>
-                    </StackPanel>
-                </Grid>
+                <StackPanel Grid.Column="1"
+                        Orientation="Horizontal">
+                    <Button Name="CancelButton"
+                        Content="Cancel"
+                        Style="{StaticResource SecondaryButtonStyle}"
+                        Width="60"
+                        Margin="0,0,8,0"
+                        Click="CancelButton_Click"
+                        WindowChrome.IsHitTestVisibleInChrome="True"/>
+                    <Button Name="OKButton"
+                        Content="OK"
+                        Style="{StaticResource PrimaryButtonStyle}"
+                        Width="60"
+                        Click="OKButton_Click"
+                        WindowChrome.IsHitTestVisibleInChrome="True"/>
+                </StackPanel>
+            </Grid>
         </Border>
     </Grid>
 </Window>

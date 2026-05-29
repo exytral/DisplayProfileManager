@@ -13,7 +13,10 @@ namespace DisplayProfileManager.Core
 {
     public class ProfileManager
     {
+        #region Core
+
         private static readonly Logger logger = LoggerHelper.GetLogger();
+        private static readonly object _lock = new object();
 
         public class ProfileApplyResult
         {
@@ -26,17 +29,16 @@ namespace DisplayProfileManager.Core
             public List<string> DisconnectedDisplays { get; set; } = new List<string>();
         }
 
-        private const int CurrentSchemaVersion = 2;
+        private const int CurrentSchemaVersion = 3;
 
         private static ProfileManager _instance;
-        private static readonly object _lock = new object();
+        private readonly ScriptManager _scriptManager = ScriptManager.Instance;
+        private readonly SettingsManager _settingsManager = SettingsManager.Instance;
 
         private List<Profile> _profiles;
         private string _currentProfileId;
 
-        private readonly ScriptManager _scriptManager = ScriptManager.Instance;
         private readonly string _appDataFolder;
-        private readonly string _profilesFilePath;
         private readonly string _profilesFolderPath;
 
         public static ProfileManager Instance
@@ -66,41 +68,26 @@ namespace DisplayProfileManager.Core
         private ProfileManager()
         {
             _appDataFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DisplayProfileManager");
-            _profilesFilePath = Path.Combine(_appDataFolder, "profiles.json");
             _profilesFolderPath = Path.Combine(_appDataFolder, "Profiles");
             _profiles = new List<Profile>();
             _currentProfileId = null;
 
-            EnsureAppDataFolderExists();
             EnsureProfilesFolderExists();
-            //EnsureScriptsFolderExists();
-        }
-
-        private void EnsureAppDataFolderExists()
-        {
-            if (!Directory.Exists(_appDataFolder))
-            {
-                Directory.CreateDirectory(_appDataFolder);
-            }
         }
 
         private void EnsureProfilesFolderExists()
         {
             if (!Directory.Exists(_profilesFolderPath))
-            {
                 Directory.CreateDirectory(_profilesFolderPath);
-            }
         }
 
-        //private void EnsureScriptsFolderExists()
-        //{
-        //    if (!Directory.Exists(_scriptManager.ScriptsFolderPath))
-        //    {
-        //        Directory.CreateDirectory(_scriptManager.ScriptsFolderPath);
-        //    }
-        //}
+        #endregion
 
-        private static void AtomicWriteAllText(string path, string content)
+        #region I/O
+
+        private string GetProfileFilePath(string profileId) =>  Path.Combine(_profilesFolderPath, $"{profileId}.dpm");
+
+        private static void AtomicWrite(string path, string content)
         {
             var tmp = path + ".tmp";
             File.WriteAllText(tmp, content);
@@ -112,15 +99,14 @@ namespace DisplayProfileManager.Core
 
         public async Task<bool> LoadProfilesAsync()
         {
+            EnsureProfilesFolderExists();
+
             try
             {
                 _profiles.Clear();
 
                 var profileFiles = Directory.GetFiles(_profilesFolderPath, "*.dpm");
-
-                // Fetch live configs once — reused across all profile migrations
                 List<DisplayConfigHelper.DisplayConfigInfo> liveConfigs = null;
-
                 foreach (var file in profileFiles)
                 {
                     try
@@ -134,7 +120,6 @@ namespace DisplayProfileManager.Core
                             continue;
                         }
 
-                        // Migrate Outdated Profiles
                         if (profile.SchemaVersion < CurrentSchemaVersion)
                         {
                             if (liveConfigs == null)
@@ -159,14 +144,11 @@ namespace DisplayProfileManager.Core
                 }
 
                 if (_profiles.Count == 0)
-                {
                     await CreateDefaultProfileAsync();
-                }
 
-                // Load current profile ID from settings
                 _currentProfileId = _settingsManager.GetCurrentProfileId();
-
                 ProfilesLoaded?.Invoke(this, EventArgs.Empty);
+
                 return true;
             }
             catch (Exception ex)
@@ -203,19 +185,48 @@ namespace DisplayProfileManager.Core
                         }
                     }
                     else
-                    {
                         logger.Info($"Migration: {setting.ReadableDeviceName} (TargetId {setting.TargetId}) not connected, skipping backfill");
-                    }
                 }
 
                 profile.SchemaVersion = 1;
                 changed = true;
             }
 
-            // Version 1 → 2: icon field added; null default is correct for existing profiles
+            // Version 1 → 2: icon field added
             if (profile.SchemaVersion < 2)
             {
                 profile.SchemaVersion = 2;
+                changed = true;
+            }
+
+            // Version 2 → 3: List<string> scripts migrated to List<Script>; backfill ColorProfile from OS
+            if (profile.SchemaVersion < 3)
+            {
+                foreach (var setting in profile.DisplaySettings)
+                {
+                    if (string.IsNullOrEmpty(setting.ColorProfile))
+                    {
+                        var match = liveConfigs.FirstOrDefault(c => c.TargetId == setting.TargetId);
+                        if (match != null)
+                        {
+                            try
+                            {
+                                setting.ColorProfile = ColorProfileHelper.GetDisplayDefaultColorProfile(
+                                    match.AdapterId, match.SourceId);
+                                if (setting.ColorProfile != null)
+                                    changed = true;
+                            }
+                            catch (Exception ex)
+                            {
+                                logger.Warn(ex, $"Migration: failed to get color profile for {setting.ReadableDeviceName}");
+                            }
+                        }
+                        else
+                            logger.Info($"Migration: {setting.ReadableDeviceName} (TargetId {setting.TargetId}) not connected, skipping color profile backfill");
+                    }
+                }
+
+                profile.SchemaVersion = 3;
                 changed = true;
             }
 
@@ -224,11 +235,14 @@ namespace DisplayProfileManager.Core
 
         public async Task<bool> SaveProfileAsync(Profile profile)
         {
+            EnsureProfilesFolderExists();
+
             try
             {
                 var filePath = GetProfileFilePath(profile.Id);
                 var json = JsonConvert.SerializeObject(profile, Formatting.Indented);
-                await Task.Run(() => AtomicWriteAllText(filePath, json));
+                await Task.Run(() => AtomicWrite(filePath, json));
+
                 return true;
             }
             catch (Exception ex)
@@ -238,24 +252,126 @@ namespace DisplayProfileManager.Core
             }
         }
 
-        public Profile GetProfileByName(string name)
+        public async Task<Profile> ImportProfileAsync(string sourcePath)
         {
-            if (string.IsNullOrWhiteSpace(name)) return null;
-            string cleanName = name.Trim();
-            return _profiles.FirstOrDefault(p =>
-                p.Name.Trim().Equals(cleanName, StringComparison.OrdinalIgnoreCase));
+            EnsureProfilesFolderExists();
+
+            try
+            {
+                var json = await Task.Run(() => File.ReadAllText(sourcePath));
+                var profile = JsonConvert.DeserializeObject<Profile>(json);
+
+                if (profile == null || string.IsNullOrWhiteSpace(profile.Name) || profile.DisplaySettings == null)
+                {
+                    logger.Warn($"Invalid profile file: {sourcePath}");
+                    return null;
+                }
+
+                if (GetProfile(profile.Id) != null)
+                    profile.Id = Guid.NewGuid().ToString();
+
+                profile.Name = GetUniqueProfileName(profile.Name);
+                profile.UpdateLastModified();
+
+                await AddProfileAsync(profile);
+                return profile;
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex, "Error importing profile");
+                return null;
+            }
         }
 
-        private string GetProfileFilePath(string profileId)
+        public Profile DuplicateProfile(string profileId)
         {
-            return Path.Combine(_profilesFolderPath, $"{profileId}.dpm");
+            var sourceProfile = GetProfile(profileId);
+            if (sourceProfile == null) return null;
+
+            var duplicatedProfile = new Profile
+            {
+                Id = Guid.NewGuid().ToString(),
+                Name = GetUniqueProfileName(sourceProfile.Name),
+                Description = sourceProfile.Description,
+                Icon = sourceProfile.Icon,
+                IsDefault = false,
+                CreatedDate = DateTime.Now,
+                LastModifiedDate = DateTime.Now,
+                SchemaVersion = CurrentSchemaVersion,
+                DisplaySettings = sourceProfile.DisplaySettings.Select(ds => new DisplaySetting
+                {
+                    // Identity
+                    DeviceName = ds.DeviceName,
+                    DeviceString = ds.DeviceString,
+                    ReadableDeviceName = ds.ReadableDeviceName,
+                    ManufacturerName = ds.ManufacturerName,
+                    ProductCodeID = ds.ProductCodeID,
+                    SerialNumberID = ds.SerialNumberID,
+                    AdapterId = ds.AdapterId,
+                    TargetId = ds.TargetId,
+                    SourceId = ds.SourceId,
+                    CloneGroupId = ds.CloneGroupId,
+                    IsCloneSource = ds.IsCloneSource,
+                    PathIndex = ds.PathIndex,
+                    // State
+                    IsEnabled = ds.IsEnabled,
+                    IsPrimary = ds.IsPrimary,
+                    // Layout
+                    DisplayPositionX = ds.DisplayPositionX,
+                    DisplayPositionY = ds.DisplayPositionY,
+                    // Configuration
+                    Width = ds.Width,
+                    Height = ds.Height,
+                    Frequency = ds.Frequency,
+                    Rotation = ds.Rotation,
+                    DpiScaling = ds.DpiScaling,
+                    IsHdrSupported = ds.IsHdrSupported,
+                    IsHdrEnabled = ds.IsHdrEnabled,
+                    IsAcmEnabled = ds.IsAcmEnabled,
+                    ColorProfile = ds.ColorProfile,
+                    // Native
+                    NativeWidth = ds.NativeWidth,
+                    NativeHeight = ds.NativeHeight,
+                    // Capabilities
+                    AvailableResolutions = ds.AvailableResolutions != null ? new List<string>(ds.AvailableResolutions) : new List<string>(),
+                    AvailableRefreshRates = ds.AvailableRefreshRates != null ? new Dictionary<string, List<int>>(ds.AvailableRefreshRates.ToDictionary(kvp => kvp.Key, kvp => new List<int>(kvp.Value))) : new Dictionary<string, List<int>>(),
+                    AvailableDpiScaling = ds.AvailableDpiScaling != null ? new List<uint>(ds.AvailableDpiScaling) : new List<uint>()
+                }).ToList(),
+                EnableAudio = sourceProfile.EnableAudio,
+                AudioSettings = sourceProfile.AudioSettings != null ? new AudioSetting
+                {
+                    DefaultPlaybackDeviceId = sourceProfile.AudioSettings.DefaultPlaybackDeviceId,
+                    PlaybackDeviceName = sourceProfile.AudioSettings.PlaybackDeviceName,
+                    DefaultCaptureDeviceId = sourceProfile.AudioSettings.DefaultCaptureDeviceId,
+                    CaptureDeviceName = sourceProfile.AudioSettings.CaptureDeviceName,
+                    ApplyPlaybackDevice = sourceProfile.AudioSettings.ApplyPlaybackDevice,
+                    ApplyCaptureDevice = sourceProfile.AudioSettings.ApplyCaptureDevice
+                } : new AudioSetting(),
+                EnableScripts = sourceProfile.EnableScripts,
+                Scripts = new List<Script>(sourceProfile.Scripts),
+                HotkeyConfig = new HotkeyConfig()
+            };
+
+            return duplicatedProfile;
+        }
+
+        public async Task<Profile> DuplicateProfileAsync(string profileId)
+        {
+            var duplicatedProfile = DuplicateProfile(profileId);
+            if (duplicatedProfile == null) return null;
+
+            if (await AddProfileAsync(duplicatedProfile))
+            {
+                return duplicatedProfile;
+            }
+
+            return null;
         }
 
         public async Task<Profile> CreateDefaultProfileAsync()
         {
             var defaultProfile = new Profile("Default", "Default system profile created automatically");
             defaultProfile.IsDefault = true;
-
             try
             {
                 var currentSettings = await GetCurrentDisplaySettingsAsync();
@@ -265,6 +381,7 @@ namespace DisplayProfileManager.Core
                 _currentProfileId = defaultProfile.Id;
                 await SaveProfileAsync(defaultProfile);
                 await _settingsManager.SetCurrentProfileIdAsync(defaultProfile.Id);
+
                 return defaultProfile;
             }
             catch (Exception ex)
@@ -274,6 +391,10 @@ namespace DisplayProfileManager.Core
                 return defaultProfile;
             }
         }
+
+        #endregion
+
+        #region Apply
 
         public async Task<List<DisplaySetting>> GetCurrentDisplaySettingsAsync()
         {
@@ -287,55 +408,40 @@ namespace DisplayProfileManager.Core
 
                     List<DisplayHelper.DisplayInfo> displays = DisplayHelper.GetDisplays();
 
-                    // Get monitor information using WMI
                     List<DisplayHelper.MonitorInfo> monitors = DisplayHelper.GetMonitorsFromWin32PnPEntity();
-
                     List<DisplayHelper.MonitorIdInfo> monitorIDs = DisplayHelper.GetMonitorIDsFromWmiMonitorID();
 
-                    // Get display configs via QueryDisplayConfig
                     List<DisplayConfigHelper.DisplayConfigInfo> displayConfigs = DisplayConfigHelper.GetDisplayConfigs();
 
                     if (monitors.Count > 0 &&
                         monitorIDs.Count > 0 &&
                         displayConfigs.Count > 0)
                     {
-                        // Iterate displayConfigs — QueryDisplayConfig correctly reports clone topology unlike legacy API
                         for (int i = 0; i < displayConfigs.Count; i++)
                         {
                             var foundConfig = displayConfigs[i];
-
-                            // Try to find matching display from old API (for frequency info)
                             var foundDisplay = displays.Find(x => x.DeviceName == foundConfig.DeviceName);
-
                             var foundMonitor = monitors.Find(x => x.DeviceID.Contains($"UID{foundConfig.TargetId}"));
 
                             if (foundMonitor == null)
-                            {
-                                logger.Warn($"No WMI monitor found for TargetId {foundConfig.TargetId} - using DisplayConfigHelper data");
-                            }
+                                logger.Warn($"No WMI monitor found for TargetId {foundConfig.TargetId} using DisplayConfigHelper data");
 
                             DisplayHelper.MonitorIdInfo foundMonitorId = null;
                             if (foundMonitor != null)
                             {
                                 foundMonitorId = monitorIDs.Find(x => x.InstanceName.ToUpper().Contains(foundMonitor.PnPDeviceID.ToUpper()));
-
                                 if (foundMonitorId == null)
-                                {
-                                    logger.Warn($"No WMI monitor ID found for {foundMonitor.PnPDeviceID} - using generic data");
-                                }
+                                    logger.Warn($"No WMI monitor ID found for {foundMonitor.PnPDeviceID} using generic data");
                             }
 
                             string adpaterIdText = $"{foundConfig.AdapterId.HighPart:X8}{foundConfig.AdapterId.LowPart:X8}";
                             DpiHelper.DPIScalingInfo dpiInfo = DpiHelper.GetDPIScalingInfo(foundConfig.DeviceName, foundConfig);
 
                             DisplaySetting setting = new DisplaySetting();
-
                             // Identity
                             setting.DeviceName = foundConfig.DeviceName;
                             setting.DeviceString = foundDisplay?.DeviceString ?? foundConfig.DeviceName;
-                            setting.ReadableDeviceName = !string.IsNullOrEmpty(foundConfig.FriendlyName)
-                                ? foundConfig.FriendlyName
-                                : foundMonitor?.Name ?? foundConfig.DeviceName;
+                            setting.ReadableDeviceName = !string.IsNullOrEmpty(foundConfig.FriendlyName) ? foundConfig.FriendlyName : foundMonitor?.Name ?? foundConfig.DeviceName;
                             setting.ManufacturerName = foundMonitorId?.ManufacturerName ?? "";
                             setting.ProductCodeID = foundMonitorId?.ProductCodeID ?? "";
                             setting.SerialNumberID = foundMonitorId?.SerialNumberID ?? "";
@@ -343,24 +449,22 @@ namespace DisplayProfileManager.Core
                             setting.TargetId = foundConfig.TargetId;
                             setting.SourceId = foundConfig.SourceId;
                             setting.PathIndex = foundConfig.PathIndex;
-
                             // State
                             setting.IsEnabled = foundConfig.IsEnabled;
                             setting.IsPrimary = foundDisplay?.IsPrimary ?? foundConfig.IsPrimary;
-
                             // Layout
                             setting.DisplayPositionX = foundConfig.DisplayPositionX;
                             setting.DisplayPositionY = foundConfig.DisplayPositionY;
-
-                            // Active configuration
+                            // Configuration
                             setting.Width = foundConfig.Width;
                             setting.Height = foundConfig.Height;
                             setting.Frequency = foundDisplay?.Frequency ?? (int)foundConfig.RefreshRate;
                             setting.Rotation = (int)foundConfig.Rotation;
+                            setting.DpiScaling = dpiInfo.Current;
                             setting.IsHdrSupported = foundConfig.IsHdrSupported;
                             setting.IsHdrEnabled = foundConfig.IsHdrEnabled;
-                            setting.DpiScaling = dpiInfo.Current;
-
+                            setting.IsAcmEnabled = foundConfig.IsAcmEnabled;
+                            setting.ColorProfile = ColorProfileHelper.GetDisplayDefaultColorProfile(foundConfig.AdapterId, foundConfig.SourceId);
                             // Native
                             setting.NativeWidth = foundConfig.NativeWidth;
                             setting.NativeHeight = foundConfig.NativeHeight;
@@ -369,11 +473,9 @@ namespace DisplayProfileManager.Core
                             try
                             {
                                 setting.AvailableResolutions = DisplayHelper.GetSupportedResolutionsOnly(setting.DeviceName);
-
-                                var dpiValues = DpiHelper.GetSupportedDPIScalingOnly(setting.DeviceName);
-                                setting.AvailableDpiScaling = dpiValues.ToList();
-
                                 setting.AvailableRefreshRates = new Dictionary<string, List<int>>();
+                                setting.AvailableDpiScaling = DpiHelper.GetSupportedDpiScalingOnly(setting.DeviceName).ToList();
+
                                 foreach (var resolution in setting.AvailableResolutions)
                                 {
                                     var parts = resolution.Split('x');
@@ -391,8 +493,8 @@ namespace DisplayProfileManager.Core
 
                                 logger.Debug($"Captured available options for {setting.DeviceName}: " +
                                     $"{setting.AvailableResolutions.Count} resolutions, " +
-                                    $"{setting.AvailableDpiScaling.Count} DPI values, " +
-                                    $"{setting.AvailableRefreshRates.Count} resolution-refresh rate mappings");
+                                    $"{setting.AvailableRefreshRates.Count} resolution-refresh rate mappings" +
+                                    $"{setting.AvailableDpiScaling.Count} DPI values, ");
                             }
                             catch (Exception ex)
                             {
@@ -402,14 +504,10 @@ namespace DisplayProfileManager.Core
                             settings.Add(setting);
                         }
 
-                        logger.Info($"Successfully created {settings.Count} display settings from {displayConfigs.Count} display configs");
+                        logger.Info($"Created {settings.Count} display settings from {displayConfigs.Count} configs");
 
                         // Detect clone groups by grouping displays with same DeviceName and SourceId
-                        var cloneGroups = settings
-                            .GroupBy(s => new { s.DeviceName, s.SourceId })
-                            .Where(g => g.Count() > 1)
-                            .ToList();
-
+                        var cloneGroups = settings.GroupBy(s => new { s.DeviceName, s.SourceId }).Where(g => g.Count() > 1).ToList();
                         if (cloneGroups.Any())
                         {
                             int cloneGroupIndex = 1;
@@ -419,8 +517,7 @@ namespace DisplayProfileManager.Core
                                 foreach (var setting in group)
                                 {
                                     setting.CloneGroupId = cloneGroupId;
-                                    logger.Info($"Detected clone group '{cloneGroupId}': " +
-                                              $"{setting.ReadableDeviceName} (TargetId: {setting.TargetId})");
+                                    logger.Info($"Detected clone group '{cloneGroupId}': " + $"{setting.ReadableDeviceName} (TargetId: {setting.TargetId})");
                                 }
                                 cloneGroupIndex++;
                             }
@@ -442,17 +539,8 @@ namespace DisplayProfileManager.Core
             try
             {
                 var totalWatch = Stopwatch.StartNew();
-                var initWatch = Stopwatch.StartNew();
                 logger.Info($"Applying profile '{profile.Name}'...");
-                ProfileApplyResult result = new ProfileApplyResult { AudioSuccess = true }; // Init audio as true
-
-                // Validate Clone Groups
-                if (!DisplayConfigHelper.ValidateCloneGroups(profile.DisplaySettings))
-                {
-                    logger.Error("Clone group validation failed - profile not applied");
-                    return new ProfileApplyResult { Success = false };
-                }
-                initWatch.Stop();
+                ProfileApplyResult result = new ProfileApplyResult { AudioSuccess = true };
 
                 // Map Display Configurations
                 var mapWatch = Stopwatch.StartNew();
@@ -465,22 +553,28 @@ namespace DisplayProfileManager.Core
                         setting.UpdateDeviceNameFromWMI(wmiMonitorIds);
                         displayConfigs.Add(new DisplayConfigHelper.DisplayConfigInfo
                         {
+                            // Identity
                             DeviceName = setting.DeviceName,
-                            IsEnabled = setting.IsEnabled,
-                            IsPrimary = setting.IsPrimary,
-                            Width = setting.Width,
-                            Height = setting.Height,
-                            RefreshRate = setting.Frequency,
-                            IsHdrSupported = setting.IsHdrSupported,
-                            IsHdrEnabled = setting.IsHdrEnabled,
-                            Rotation = (DisplayConfigHelper.DISPLAYCONFIG_ROTATION)setting.Rotation,
+                            FriendlyName = setting.ReadableDeviceName,
                             AdapterId = DisplayConfigHelper.GetLUIDFromString(setting.AdapterId),
                             SourceId = setting.SourceId,
                             TargetId = setting.TargetId,
                             PathIndex = setting.PathIndex,
+                            // State
+                            IsEnabled = setting.IsEnabled,
+                            IsPrimary = setting.IsPrimary,
+                            // Layout
                             DisplayPositionX = setting.DisplayPositionX,
                             DisplayPositionY = setting.DisplayPositionY,
-                            FriendlyName = setting.ReadableDeviceName
+                            // Configuration
+                            Width = setting.Width,
+                            Height = setting.Height,
+                            RefreshRate = setting.Frequency,
+                            Rotation = (DisplayConfigHelper.DisplayConfigRotation)setting.Rotation,
+                            IsHdrSupported = setting.IsHdrSupported,
+                            IsHdrEnabled = setting.IsHdrEnabled,
+                            IsAcmEnabled = setting.IsAcmEnabled,
+                            ColorProfile = setting.ColorProfile
                         });
                     }
                 }
@@ -488,10 +582,7 @@ namespace DisplayProfileManager.Core
 
                 // Detect Disconnected Displays
                 var liveConfigs = DisplayConfigHelper.GetDisplayConfigs();
-                var disconnected = displayConfigs
-                    .Where(dc => dc.IsEnabled && !liveConfigs.Any(c => c.TargetId == dc.TargetId))
-                    .ToList();
-
+                var disconnected = displayConfigs.Where(dc => dc.IsEnabled && !liveConfigs.Any(c => c.TargetId == dc.TargetId)).ToList();
                 if (disconnected.Any())
                 {
                     foreach (var dc in disconnected)
@@ -501,26 +592,6 @@ namespace DisplayProfileManager.Core
                         result.DisconnectedDisplays.Add(name);
                     }
                 }
-
-                // Log Clone Groups
-                var logWatch = Stopwatch.StartNew();
-                var cloneGroupsToApply = displayConfigs
-                    .GroupBy(dc => dc.SourceId)
-                    .Where(g => g.Count() > 1)
-                    .ToList();
-
-                if (cloneGroupsToApply.Any())
-                {
-                    foreach (var group in cloneGroupsToApply)
-                    {
-                        var targetIds = string.Join(", ", group.Select(dc => dc.TargetId));
-                        var displayNames = string.Join(", ", group.Select(dc => dc.FriendlyName));
-                        logger.Info($"Applying clone group: Source {group.Key} → " +
-                                   $"Targets [{targetIds}] ({displayNames})");
-                    }
-                    logger.Info($"Total clone groups to apply: {cloneGroupsToApply.Count}");
-                }
-                logWatch.Stop();
 
                 // Apply Display Topology
                 var topologyWatch = Stopwatch.StartNew();
@@ -533,27 +604,19 @@ namespace DisplayProfileManager.Core
 
                 // Defer until Topology is Stabilized
                 var deferWatch = Stopwatch.StartNew();
-                var connectedConfigs = displayConfigs
-                    .Where(dc => !result.DisconnectedDisplays.Any(name =>
-                        name.Equals(dc.FriendlyName, StringComparison.OrdinalIgnoreCase)))
-                    .ToList();
+                var connectedConfigs = displayConfigs.Where(dc => !result.DisconnectedDisplays.Any(name => name.Equals(dc.FriendlyName, StringComparison.OrdinalIgnoreCase))).ToList();
                 await DisplayConfigHelper.DeferDisplayLayoutAsync(connectedConfigs);
                 deferWatch.Stop();
 
-                // Apply Display Configuration (Layout, Resolution, Frequency, HDR)
+                // Apply Display Configuration
                 var configWatch = Stopwatch.StartNew();
-                result.DisplayConfigApplied = DisplayConfigHelper.ApplyDisplayConfig(displayConfigs);
+                result.DisplayConfigApplied = await DisplayConfigHelper.ApplyDisplayConfig(displayConfigs);
                 configWatch.Stop();
 
                 // Apply DPI Settings
                 var dpiWatch = Stopwatch.StartNew();
                 bool allDpiChanged = true;
-                // Group by DeviceName to handle clone groups (same DeviceName, different TargetIds)
-                var uniqueDevicesForDpi = profile.DisplaySettings
-                    .Where(s => s.IsEnabled)
-                    .GroupBy(s => s.DeviceName)
-                    .Select(g => g.First())
-                    .ToList();
+                var uniqueDevicesForDpi = profile.DisplaySettings.Where(s => s.IsEnabled).GroupBy(s => s.DeviceName).Select(g => g.First()).ToList();
 
                 foreach (var setting in uniqueDevicesForDpi)
                 {
@@ -572,13 +635,13 @@ namespace DisplayProfileManager.Core
                 // Apply Audio Settings
                 var audioWatch = Stopwatch.StartNew();
                 if (profile.AudioSettings != null)
-                {
                     result.AudioSuccess = AudioHelper.ApplyAudioSettings(profile.AudioSettings);
-                }
                 audioWatch.Stop();
 
-                // Finalize result, execute scripts, persist active profile ID
-                var finalizeWatch = new Stopwatch(); var scriptWatch = new Stopwatch();
+                // Finalize Result
+                var finalizeWatch = new Stopwatch();
+                var scriptWatch = new Stopwatch();
+
                 result.Success = result.DisplayConfigApplied && result.DpiChanged;
                 if (result.Success)
                 {
@@ -586,7 +649,7 @@ namespace DisplayProfileManager.Core
                     scriptWatch.Start();
                     if (profile.EnableScripts && profile.Scripts != null && profile.Scripts.Any())
                     {
-                        logger.Info($"Starting execution of {profile.Scripts.Count} linked script(s)...");
+                        logger.Info($"Executing {profile.Scripts.Count} script(s)...");
                         foreach (var command in profile.Scripts)
                         {
                             _scriptManager.ExecuteScript(command);
@@ -594,42 +657,34 @@ namespace DisplayProfileManager.Core
                     }
                     else if (!profile.EnableScripts && profile.Scripts?.Any() == true)
                     {
-                        logger.Debug("Scripts are linked but execution is disabled.");
+                        logger.Debug("Scripts disabled, skipping execution");
                     }
-                    scriptWatch.Stop(); finalizeWatch.Start();
+                    scriptWatch.Stop();
 
-                    _currentProfileId = profile.Id;
-                    await _settingsManager.SetCurrentProfileIdAsync(profile.Id);
-
-                    // Log successful application
-                    logWatch.Start();
-                    var cloneGroupCount = profile.DisplaySettings
-                        .Where(s => s.IsPartOfCloneGroup())
-                        .GroupBy(s => s.CloneGroupId)
-                        .Count();
+                    // Log Result and Persist Success
+                    var cloneGroupCount = profile.DisplaySettings.Where(s => s.IsPartOfCloneGroup()).GroupBy(s => s.CloneGroupId).Count();
 
                     var activeCount = profile.DisplaySettings.Count(d => d.IsEnabled);
                     var sb = new StringBuilder();
                     sb.Append($"Successfully applied profile '{profile.Name}' -> ({activeCount} active display{(activeCount == 1 ? "" : "s")})");
                     if (cloneGroupCount > 0)
-                    {
                         sb.Append($" | ({cloneGroupCount} clone group{(cloneGroupCount == 1 ? "" : "s")})");
-                    }
                     if (result.DisconnectedDisplays.Any())
-                    {
                         sb.Append($" | ({result.DisconnectedDisplays.Count} display{(result.DisconnectedDisplays.Count == 1 ? "" : "s")} not detected)");
-                    }
                     logger.Info(sb.ToString());
 
-                    logWatch.Stop(); finalizeWatch.Stop(); totalWatch.Stop();
+                    finalizeWatch.Start();
+                    _currentProfileId = profile.Id;
+                    await _settingsManager.SetCurrentProfileIdAsync(profile.Id);
                     ProfileApplied?.Invoke(this, profile);
+                    finalizeWatch.Stop(); totalWatch.Stop();
                 }
 
                 // Timing Summary
-                logger.Info($"[PERF] Init: {initWatch.ElapsedMilliseconds} ms | Map: {mapWatch.ElapsedMilliseconds} ms");
+                logger.Info($"[PERF] Map: {mapWatch.ElapsedMilliseconds} ms");
                 logger.Info($"[PERF] Topology: {topologyWatch.ElapsedMilliseconds} ms | Defer: {deferWatch.ElapsedMilliseconds} ms | Config: {configWatch.ElapsedMilliseconds} ms");
                 logger.Info($"[PERF] DPI: {dpiWatch.ElapsedMilliseconds} ms | Audio: {audioWatch.ElapsedMilliseconds} ms | Scripts: {scriptWatch.ElapsedMilliseconds} ms");
-                logger.Info($"[PERF] Finalize: {finalizeWatch.ElapsedMilliseconds} ms | Logging: {logWatch.ElapsedMilliseconds} ms");
+                logger.Info($"[PERF] Finalize: {finalizeWatch.ElapsedMilliseconds} ms");
                 logger.Info($"[PERF] TOTAL: {totalWatch.ElapsedMilliseconds} ms");
 
                 return result;
@@ -646,34 +701,42 @@ namespace DisplayProfileManager.Core
             string errorDetails =
                 $"Failed to apply profile '{profileName}'.\n" +
                 $"Some settings may not have been applied correctly.\n\n" +
-                $"Display Config Applied: {result.DisplayConfigApplied},\n" +
-                $"DPI Scaling Changed: {result.DpiChanged},\n" +
-                $"Audio Success: {result.AudioSuccess}";
+                $"Display Config: {result.DisplayConfigApplied},\n" +
+                $"DPI: {result.DpiChanged},\n" +
+                $"Audio: {result.AudioSuccess}";
 
             return errorDetails;
         }
 
+        #endregion
+
+        #region Query
+
+        public Profile GetProfile(string profileId) => _profiles.FirstOrDefault(p => p.Id == profileId);
+
+        public Profile GetProfileByName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return null;
+
+            string cleanName = name.Trim();
+            return _profiles.FirstOrDefault(p =>
+                p.Name.Trim().Equals(cleanName, StringComparison.OrdinalIgnoreCase));
+        }
+
         public Profile GetCurrentProfile()
         {
-            if (string.IsNullOrEmpty(_currentProfileId))
-                return null;
+            if (string.IsNullOrEmpty(_currentProfileId)) return null;
+
             return GetProfile(_currentProfileId);
         }
 
-        public List<Profile> GetAllProfiles()
-        {
-            return _profiles.ToList();
-        }
+        public List<Profile> GetAllProfiles() => _profiles.ToList();
 
-        public Profile GetProfile(string profileId)
-        {
-            return _profiles.FirstOrDefault(p => p.Id == profileId);
-        }
+        public Profile GetDefaultProfile() => _profiles.FirstOrDefault(p => p.IsDefault);
 
-        public Profile GetDefaultProfile()
-        {
-            return _profiles.FirstOrDefault(p => p.IsDefault);
-        }
+        #endregion
+
+        #region CRUD
 
         public void AddProfile(Profile profile)
         {
@@ -721,6 +784,7 @@ namespace DisplayProfileManager.Core
                 {
                     await Task.Run(() => File.Delete(filePath));
                 }
+
                 return true;
             }
             catch (Exception ex)
@@ -749,13 +813,15 @@ namespace DisplayProfileManager.Core
                     success = false;
                 }
             }
+
             return success;
         }
 
-        public bool HasProfile(string name)
-        {
-            return _profiles.Exists(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
-        }
+        #endregion
+
+        #region Checks
+
+        public bool HasProfile(string name) => _profiles.Exists(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
 
         public string GetUniqueProfileName(string baseName)
         {
@@ -773,240 +839,28 @@ namespace DisplayProfileManager.Core
             return uniqueName;
         }
 
-        public int GetProfileCount()
-        {
-            return _profiles.Count;
-        }
+        public int GetProfileCount() => _profiles.Count;
 
-        public string GetProfilesFilePath()
-        {
-            return _profilesFilePath;
-        }
+        public string GetAppDataFolder() => _appDataFolder;
 
-        public string GetAppDataFolder()
-        {
-            return _appDataFolder;
-        }
+        #endregion
 
-        public string GetProfilesFolder()
-        {
-            return _profilesFolderPath;
-        }
+        #region Hotkeys
 
-        public async Task<bool> ExportProfileAsync(string profileId, string destinationPath)
-        {
-            try
-            {
-                var profile = GetProfile(profileId);
-                if (profile == null)
-                    return false;
+        public List<Profile> GetProfilesWithHotkeys() => _profiles.Where(p => p.HotkeyConfig != null && p.HotkeyConfig.Key != System.Windows.Input.Key.None).ToList();
 
-                var json = JsonConvert.SerializeObject(profile, Formatting.Indented);
-                await Task.Run(() => File.WriteAllText(destinationPath, json));
-                return true;
-            }
-            catch (Exception ex)
-            {
-                logger.Error(ex, "Error exporting profile");
-                return false;
-            }
-        }
-
-        public async Task<Profile> ImportProfileAsync(string sourcePath)
-        {
-            try
-            {
-                var json = await Task.Run(() => File.ReadAllText(sourcePath));
-                var profile = JsonConvert.DeserializeObject<Profile>(json);
-
-                if (profile == null || string.IsNullOrWhiteSpace(profile.Name) || profile.DisplaySettings == null)
-                {
-                    logger.Warn($"Invalid profile file: {sourcePath}");
-                    return null;
-                }
-
-                if (GetProfile(profile.Id) != null)
-                    profile.Id = Guid.NewGuid().ToString();
-
-                profile.Name = GetUniqueProfileName(profile.Name);
-                profile.UpdateLastModified();
-
-                await AddProfileAsync(profile);
-                return profile;
-            }
-            catch (Exception ex)
-            {
-                logger.Error(ex, "Error importing profile");
-                return null;
-            }
-        }
-
-        public Profile DuplicateProfile(string profileId)
-        {
-            var sourceProfile = GetProfile(profileId);
-            if (sourceProfile == null)
-                return null;
-
-            var duplicatedProfile = new Profile
-            {
-                Id = Guid.NewGuid().ToString(),
-                Name = GetUniqueProfileName(sourceProfile.Name),
-                Description = sourceProfile.Description,
-                Icon = sourceProfile.Icon,
-                IsDefault = false,
-                CreatedDate = DateTime.Now,
-                LastModifiedDate = DateTime.Now,
-                SchemaVersion = CurrentSchemaVersion,
-                DisplaySettings = sourceProfile.DisplaySettings.Select(ds => new DisplaySetting
-                {
-                    // Identity
-                    DeviceName = ds.DeviceName,
-                    DeviceString = ds.DeviceString,
-                    ReadableDeviceName = ds.ReadableDeviceName,
-                    ManufacturerName = ds.ManufacturerName,
-                    ProductCodeID = ds.ProductCodeID,
-                    SerialNumberID = ds.SerialNumberID,
-                    AdapterId = ds.AdapterId,
-                    TargetId = ds.TargetId,
-                    SourceId = ds.SourceId,
-                    CloneGroupId = ds.CloneGroupId,
-                    PathIndex = ds.PathIndex,
-
-                    // State
-                    IsEnabled = ds.IsEnabled,
-                    IsPrimary = ds.IsPrimary,
-
-                    // Layout
-                    DisplayPositionX = ds.DisplayPositionX,
-                    DisplayPositionY = ds.DisplayPositionY,
-
-                    // Active configuration
-                    Width = ds.Width,
-                    Height = ds.Height,
-                    Frequency = ds.Frequency,
-                    Rotation = ds.Rotation,
-                    IsHdrSupported = ds.IsHdrSupported,
-                    IsHdrEnabled = ds.IsHdrEnabled,
-                    DpiScaling = ds.DpiScaling,
-
-                    // Native
-                    NativeWidth = ds.NativeWidth,
-                    NativeHeight = ds.NativeHeight,
-
-                    // Capabilities
-                    AvailableResolutions = ds.AvailableResolutions != null ? new List<string>(ds.AvailableResolutions) : new List<string>(),
-                    AvailableRefreshRates = ds.AvailableRefreshRates != null ? new Dictionary<string, List<int>>(ds.AvailableRefreshRates.ToDictionary(kvp => kvp.Key, kvp => new List<int>(kvp.Value))) : new Dictionary<string, List<int>>(),
-                    AvailableDpiScaling = ds.AvailableDpiScaling != null ? new List<uint>(ds.AvailableDpiScaling) : new List<uint>()
-                }).ToList(),
-                AudioSettings = sourceProfile.AudioSettings != null ? new AudioSetting
-                {
-                    DefaultPlaybackDeviceId = sourceProfile.AudioSettings.DefaultPlaybackDeviceId,
-                    PlaybackDeviceName = sourceProfile.AudioSettings.PlaybackDeviceName,
-                    DefaultCaptureDeviceId = sourceProfile.AudioSettings.DefaultCaptureDeviceId,
-                    CaptureDeviceName = sourceProfile.AudioSettings.CaptureDeviceName,
-                    ApplyPlaybackDevice = sourceProfile.AudioSettings.ApplyPlaybackDevice,
-                    ApplyCaptureDevice = sourceProfile.AudioSettings.ApplyCaptureDevice
-                } : new AudioSetting(),
-                EnableScripts = sourceProfile.EnableScripts,
-                Scripts = new List<string>(sourceProfile.Scripts),
-                HotkeyConfig = new HotkeyConfig()
-            };
-
-            return duplicatedProfile;
-        }
-
-        public async Task<Profile> DuplicateProfileAsync(string profileId)
-        {
-            var duplicatedProfile = DuplicateProfile(profileId);
-            if (duplicatedProfile == null)
-                return null;
-
-            if (await AddProfileAsync(duplicatedProfile))
-            {
-                return duplicatedProfile;
-            }
-
-            return null;
-        }
-
-        public List<Profile> GetProfilesWithHotkeys()
-        {
-            return _profiles.Where(p => p.HotkeyConfig != null &&
-                                       p.HotkeyConfig.IsEnabled &&
-                                       p.HotkeyConfig.Key != System.Windows.Input.Key.None).ToList();
-        }
-
-        public List<Profile> GetAllProfilesWithHotkeys()
-        {
-            return _profiles.Where(p => p.HotkeyConfig != null &&
-                                       p.HotkeyConfig.Key != System.Windows.Input.Key.None).ToList();
-        }
-
-        public Profile GetProfileByHotkey(HotkeyConfig hotkey)
-        {
-            if (hotkey?.Key == System.Windows.Input.Key.None)
-                return null;
-
-            return _profiles.FirstOrDefault(p => p.HotkeyConfig != null &&
-                                                p.HotkeyConfig.IsEnabled &&
-                                                p.HotkeyConfig.Equals(hotkey));
-        }
-
-        public bool HasHotkeyConflict(string profileId, HotkeyConfig hotkey)
-        {
-            if (hotkey?.Key == System.Windows.Input.Key.None)
-                return false;
-
-            return _profiles.Any(p => p.Id != profileId &&
-                                     p.HotkeyConfig != null &&
-                                     p.HotkeyConfig.Key != System.Windows.Input.Key.None &&
-                                     p.HotkeyConfig.Equals(hotkey));
-        }
-
-        public Profile FindConflictingProfile(string excludeProfileId, HotkeyConfig hotkey)
-        {
-            if (hotkey?.Key == System.Windows.Input.Key.None)
-                return null;
-
-            return _profiles.FirstOrDefault(p => p.Id != excludeProfileId &&
-                                                p.HotkeyConfig != null &&
-                                                p.HotkeyConfig.Key != System.Windows.Input.Key.None &&
-                                                p.HotkeyConfig.Equals(hotkey));
-        }
-
-        public async Task<bool> ClearHotkeyAsync(string profileId)
-        {
-            try
-            {
-                var profile = GetProfile(profileId);
-                if (profile?.HotkeyConfig != null)
-                {
-                    profile.HotkeyConfig = new HotkeyConfig();
-                    return await UpdateProfileAsync(profile);
-                }
-                return true;
-            }
-            catch (Exception ex)
-            {
-                logger.Error(ex, $"Error clearing hotkey for profile {profileId}");
-                return false;
-            }
-        }
+        public List<Profile> GetProfilesWithActiveHotkeys() => _profiles.Where(p => p.HotkeyConfig != null && p.HotkeyConfig.IsEnabled && p.HotkeyConfig.Key != System.Windows.Input.Key.None).ToList();
 
         public Dictionary<string, HotkeyConfig> GetAllHotkeys()
         {
             var hotkeys = new Dictionary<string, HotkeyConfig>();
 
-            foreach (var profile in _profiles.Where(p => p.HotkeyConfig != null &&
-                                                        p.HotkeyConfig.IsEnabled &&
-                                                        p.HotkeyConfig.Key != System.Windows.Input.Key.None))
-            {
+            foreach (var profile in _profiles.Where(p => p.HotkeyConfig != null && p.HotkeyConfig.IsEnabled && p.HotkeyConfig.Key != System.Windows.Input.Key.None))
                 hotkeys[profile.Id] = profile.HotkeyConfig;
-            }
 
             return hotkeys;
         }
 
-        private readonly SettingsManager _settingsManager = SettingsManager.Instance;
+        #endregion
     }
 }

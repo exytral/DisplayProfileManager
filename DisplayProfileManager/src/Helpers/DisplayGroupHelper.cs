@@ -4,7 +4,7 @@ using System.Linq;
 
 namespace DisplayProfileManager.Helpers
 {
-    public static class DisplayGroupingHelper
+    public static class DisplayGroupHelper
     {
         public class DisplayGroup
         {
@@ -17,14 +17,9 @@ namespace DisplayProfileManager.Helpers
         {
             var result = new List<DisplayGroup>();
 
-            // Identify existing clone relationships
-            var cloneGroups = displaySettings
-                .Where(s => s.IsPartOfCloneGroup())
-                .GroupBy(s => s.CloneGroupId)
-                .ToDictionary(g => g.Key, g => g.ToList());
+            var cloneGroups = displaySettings.Where(s => s.IsPartOfCloneGroup()).GroupBy(s => s.CloneGroupId).ToDictionary(g => g.Key, g => g.ToList());
 
             var processedCloneGroups = new HashSet<string>();
-
             foreach (var setting in displaySettings)
             {
                 // Synchronize group processing state
@@ -38,14 +33,11 @@ namespace DisplayProfileManager.Helpers
                     processedCloneGroups.Add(setting.CloneGroupId);
                 }
 
-                // Resolve member collection
-                var members = setting.IsPartOfCloneGroup()
-                    ? cloneGroups[setting.CloneGroupId]
-                    : new List<DisplaySetting> { setting };
-
+                var members = setting.IsPartOfCloneGroup() ? cloneGroups[setting.CloneGroupId] : new List<DisplaySetting> { setting };
+                var representative = members.FirstOrDefault(m => m.IsCloneSource) ?? members.First();
                 result.Add(new DisplayGroup
                 {
-                    RepresentativeSetting = setting,
+                    RepresentativeSetting = representative,
                     AllMembers = members
                 });
             }

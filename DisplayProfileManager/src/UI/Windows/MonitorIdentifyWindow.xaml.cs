@@ -14,13 +14,15 @@ namespace DisplayProfileManager.UI.Windows
 
         public int MonitorIndex { get; private set; }
 
-        #region P/Invoke Declarations
+        #region P/Invoke
+
         [DllImport("user32.dll", SetLastError = true)]
         private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
 
-        private const uint SWP_NOSIZE = 0x0001;
-        private const uint SWP_NOZORDER = 0x0004;
-        private const uint SWP_NOACTIVATE = 0x0010;
+        private const uint SwpNosize = 0x0001;
+        private const uint SwpNozorder = 0x0004;
+        private const uint SwpNoactivate = 0x0010;
+
         #endregion
 
         public MonitorIdentifyWindow(int monitorIndex, double left, double top)
@@ -28,7 +30,6 @@ namespace DisplayProfileManager.UI.Windows
             InitializeComponent();
 
             MonitorIndex = monitorIndex;
-
             IndexTextBlock.Text = monitorIndex.ToString();
 
             _targetLeft = left;
@@ -52,9 +53,7 @@ namespace DisplayProfileManager.UI.Windows
             var helper = new WindowInteropHelper(this);
             IntPtr hwnd = helper.Handle;
 
-            // Use SetWindowPos to position the window using physical pixel coordinates (bypasses WPF's broken DPI-aware positioning)
-            SetWindowPos(hwnd, IntPtr.Zero, (int)_targetLeft, (int)_targetTop, 0, 0,
-                SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+            SetWindowPos(hwnd, IntPtr.Zero, (int)_targetLeft, (int)_targetTop, 0, 0, SwpNosize | SwpNozorder | SwpNoactivate);
 
             _closeTimer.Start();
         }

@@ -569,7 +569,7 @@ def draw_preview(canvas: tk.Canvas, co: dict, dpm_img):
 
             ity += DESC_H + INFO_MT
             canvas.create_text(itx, ity,
-                               text=f"1 display  •  Modified: {today}",
+                               text=f"1 display",
                                fill=comment, font=("Segoe UI", 10), anchor="nw")
 
     # ── Right panel (Details) ─────────────────────────────────────────
@@ -1115,7 +1115,7 @@ class App(tk.Tk):
         if not self._current_xaml:
             return
         m = re.search(r"<!--\s*(.+?)\s*—", self._current_xaml)
-        default = (m.group(1).replace(" ", "") if m else "Theme") + ".xaml"
+        default = (m.group(1) if m else "Theme") + ".xaml"
 
         kwargs: dict = dict(
             defaultextension=".xaml",

@@ -12,7 +12,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		.gitignore = .gitignore
 		CHANGELOG.md = CHANGELOG.md
 		CLAUDE.md = CLAUDE.md
-		dev-build.ps1 = dev-build.ps1
+		dev_build.ps1 = dev_build.ps1
 		LICENSE = LICENSE
 		README.md = README.md
 		THIRD-PARTY-LICENSES.md = THIRD-PARTY-LICENSES.md
@@ -35,11 +35,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "img", "img", "{AB0556B1-B19
 		docs\img\edit-window.png = docs\img\edit-window.png
 		docs\img\main-window-details.png = docs\img\main-window-details.png
 		docs\img\main-window.png = docs\img\main-window.png
+		docs\img\main-window.webp = docs\img\main-window.webp
 		docs\img\profile-editor.png = docs\img\profile-editor.png
 		docs\img\settings.png = docs\img\settings.png
 		docs\img\theme-builder.png = docs\img\theme-builder.png
 		docs\img\themes-dropdown.png = docs\img\themes-dropdown.png
-		docs\img\themes.webp = docs\img\themes.webp
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".github", ".github", "{EFE7AEC1-2D73-4201-9823-1B8562BAEAC1}"

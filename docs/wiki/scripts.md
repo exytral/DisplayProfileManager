@@ -1,6 +1,6 @@
 # Scripts
 
-Each profile can run one or more scripts automatically when the profile is applied — after display settings, DPI, and audio have all been committed. Use this to launch apps, control smart devices, kill background processes, or trigger anything else that should change with your display context.
+Each profile can run scripts automatically after display settings, DPI, and audio changes have all been committed. Use this to launch apps, control smart devices, kill background processes, or trigger anything else that should change with your new display context.
 
 ---
 
@@ -22,7 +22,7 @@ DPM does not launch `.exe` files directly. When you import an executable, DPM au
 
 ### A note on `.py` and `.ahk` files
 
-Python and AutoHotkey must be installed and available on your system `PATH`. If the interpreter isn't found, the script will silently fail — DPM logs the error but does not surface it in the UI—whether a script actually does anything is the user's responsibility.
+Python and AutoHotkey must be installed and available on your system `PATH`. If the interpreter isn't found, the script will silently fail — DPM logs the error but does not surface it in the UI—whether a script actually functions is the user's responsibility.
 
 ---
 
@@ -99,6 +99,46 @@ Start-Process "steam://open/bigpicture"
 Save as `launch-bigpicture.ps1` and add it to your TV profile. Steam must already be running.
 
 > For the reverse — automatically switching profiles *when* Big Picture Mode opens or closes rather than triggering it manually — see [CLI Reference — Steam Big Picture Mode watcher](./cli.md#steam-big-picture-mode-watcher).
+
+---
+
+### Control an LG TV via LGTV Companion
+
+`lg-tv-switch.ps1` powers an LG WebOS TV on or off using [LGTV Companion](https://github.com/JPersson77/LGTVCompanion)'s `LGTVcli.exe`. Defaults to `off` if no argument is given.
+
+LGTV Companion runs as a background service and handles sleep/resume automatically, powering the TV on when your PC wakes and off when it sleeps. This script is only needed for explicit profile-triggered switching (e.g. switching to a work profile that doesn't use the TV).
+
+```powershell
+param(
+    [Parameter(Position = 0)]
+    [ValidateSet("on", "off")]
+    [string]$State = "off"
+)
+
+$cli = "C:\Program Files\LGTV Companion\LGTVcli.exe"
+
+if (-not (Test-Path $cli)) {
+    Write-Error "LGTVcli.exe not found. Install LGTV Companion from https://github.com/JPersson77/LGTVCompanion"
+    exit 1
+}
+
+$arg = if ($State -eq "on") { "-poweron" } else { "-poweroff" }
+
+try {
+    & $cli $arg
+    Write-Host "Success: sent '$arg' to LG TV" -ForegroundColor Green
+} catch {
+    Write-Error "Failed to call LGTVcli.exe: $($_.Exception.Message)"
+}
+```
+
+**Setup:**
+
+1. Install [LGTV Companion](https://github.com/JPersson77/LGTVCompanion) and configure your TV in its settings (IP address, MAC address). Run through its setup wizard to pair.
+2. Confirm `LGTVcli.exe` is at `C:\Program Files\LGTV Companion\` or update the path in the script.
+3. Add the script to your TV profile with argument `on`, and to your desktop profile with argument `off`.
+
+> **Note:** LGTV Companion requires the TV to be on the same subnet as your PC (Wake-on-LAN is layer 2 only). Ensure "Turn on via WiFi" is enabled in your TV's network settings regardless of whether you use Wi-Fi or Ethernet.
 
 ---
 
@@ -197,43 +237,3 @@ Send-HARequest -Domain "input_boolean" -EntityId $boolEntity -State $State
 3. Store your Long-Lived Access Token in Windows Credential Manager: open **Credential Manager → Windows Credentials → Add a generic credential**. Set the name to `HomeAssistantToken`, leave username blank, paste your token as the password.
 4. Update `$haUrl`, `$tvEntity`, and `$boolEntity` to match your setup.
 5. Add the script to your TV profile with argument `on`, and to your desktop profile with argument `off`.
-
----
-
-### Control an LG TV via LGTV Companion
-
-`lg-tv-switch.ps1` powers an LG WebOS TV on or off using [LGTV Companion](https://github.com/JPersson77/LGTVCompanion)'s `LGTVcli.exe`. Defaults to `off` if no argument is given.
-
-Unlike the Samsung Smart TV + HA approach, you don't need a state boolean — LGTV Companion runs as a background service and handles sleep/resume automatically, powering the TV on when your PC wakes and off when it sleeps. This script is only needed for explicit profile-triggered switching (e.g. switching to a work profile that doesn't use the TV).
-
-```powershell
-param(
-    [Parameter(Position = 0)]
-    [ValidateSet("on", "off")]
-    [string]$State = "off"
-)
-
-$cli = "C:\Program Files\LGTV Companion\LGTVcli.exe"
-
-if (-not (Test-Path $cli)) {
-    Write-Error "LGTVcli.exe not found. Install LGTV Companion from https://github.com/JPersson77/LGTVCompanion"
-    exit 1
-}
-
-$arg = if ($State -eq "on") { "-poweron" } else { "-poweroff" }
-
-try {
-    & $cli $arg
-    Write-Host "Success: sent '$arg' to LG TV" -ForegroundColor Green
-} catch {
-    Write-Error "Failed to call LGTVcli.exe: $($_.Exception.Message)"
-}
-```
-
-**Setup:**
-
-1. Install [LGTV Companion](https://github.com/JPersson77/LGTVCompanion) and configure your TV in its settings (IP address, MAC address). Run through its setup wizard to pair.
-2. Confirm `LGTVcli.exe` is at `C:\Program Files\LGTV Companion\` or update the path in the script.
-3. Add the script to your TV profile with argument `on`, and to your desktop profile with argument `off`.
-
-> **Note:** LGTV Companion requires the TV to be on the same subnet as your PC (Wake-on-LAN is layer 2 only). Ensure "Turn on via WiFi" is enabled in your TV's network settings regardless of whether you use Wi-Fi or Ethernet.

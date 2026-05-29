@@ -15,6 +15,7 @@ namespace DisplayProfileManager.UI.Converters
             {
                 return boolValue ? Visibility.Visible : Visibility.Collapsed;
             }
+
             return Visibility.Collapsed;
         }
 

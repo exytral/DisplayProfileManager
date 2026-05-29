@@ -127,16 +127,6 @@ namespace DisplayProfileManager.Tests.Tests
 
         [TestMethod]
         [TestCategory("Unit")]
-        public void GetHashCode_SameKeyAndModifiers_ProducesSameHash()
-        {
-            var a = new HotkeyConfig(Key.F5, ModifierKeys.Control);
-            var b = new HotkeyConfig(Key.F5, ModifierKeys.Control);
-
-            Assert.AreEqual(a.GetHashCode(), b.GetHashCode());
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
         public void Clone_ProducesEqualButDistinctObject()
         {
             var original = new HotkeyConfig(Key.F1, ModifierKeys.Alt, isEnabled: true);

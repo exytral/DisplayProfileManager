@@ -152,12 +152,10 @@ namespace DisplayProfileManager.Helpers
             { Key.Oem8, 0xDF },
             { Key.OemBackslash, 0xE2 }
         };
-
         private static readonly Dictionary<int, Key> VirtualKeyToKey = new Dictionary<int, Key>();
 
         static KeyConverter()
         {
-            // Build reverse lookup
             foreach (var kvp in KeyToVirtualKey)
             {
                 if (!VirtualKeyToKey.ContainsKey(kvp.Value))
@@ -165,28 +163,22 @@ namespace DisplayProfileManager.Helpers
             }
         }
 
-        public static int ToVirtualKey(Key key)
-        {
-            return KeyToVirtualKey.TryGetValue(key, out int vk) ? vk : 0;
-        }
+        public static int ToVirtualKey(Key key) => KeyToVirtualKey.TryGetValue(key, out int vk) ? vk : 0;
 
-        public static Key ToWpfKey(int virtualKey)
-        {
-            return VirtualKeyToKey.TryGetValue(virtualKey, out Key key) ? key : Key.None;
-        }
+        public static Key ToWpfKey(int virtualKey) => VirtualKeyToKey.TryGetValue(virtualKey, out Key key) ? key : Key.None;
 
         public static uint ConvertModifierKeys(ModifierKeys modifiers)
         {
             uint result = 0;
 
             if ((modifiers & ModifierKeys.Alt) == ModifierKeys.Alt)
-                result |= 0x0001; // MOD_ALT
+                result |= 0x0001;
             if ((modifiers & ModifierKeys.Control) == ModifierKeys.Control)
-                result |= 0x0002; // MOD_CONTROL
+                result |= 0x0002;
             if ((modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
-                result |= 0x0004; // MOD_SHIFT
+                result |= 0x0004;
             if ((modifiers & ModifierKeys.Windows) == ModifierKeys.Windows)
-                result |= 0x0008; // MOD_WIN
+                result |= 0x0008;
 
             return result;
         }
@@ -195,13 +187,13 @@ namespace DisplayProfileManager.Helpers
         {
             ModifierKeys result = ModifierKeys.None;
 
-            if ((modifiers & 0x0001) != 0) // MOD_ALT
+            if ((modifiers & 0x0001) != 0)
                 result |= ModifierKeys.Alt;
-            if ((modifiers & 0x0002) != 0) // MOD_CONTROL
+            if ((modifiers & 0x0002) != 0)
                 result |= ModifierKeys.Control;
-            if ((modifiers & 0x0004) != 0) // MOD_SHIFT
+            if ((modifiers & 0x0004) != 0)
                 result |= ModifierKeys.Shift;
-            if ((modifiers & 0x0008) != 0) // MOD_WIN
+            if ((modifiers & 0x0008) != 0)
                 result |= ModifierKeys.Windows;
 
             return result;

@@ -196,14 +196,6 @@
 
             <!-- Window Control Buttons -->
             <StackPanel Grid.Column="1" Orientation="Horizontal">
-                <!-- Custom ToTray Button 
-                <Button Name="ToTrayButton"
-                        Content="⬇️"
-                        Style="{StaticResource TitleBarButtonStyle}"
-                        WindowChrome.IsHitTestVisibleInChrome="True"
-                        Click="ToTrayButton_Click"
-                        ToolTip="Minimize to Tray"/>
-                -->
 
                 <!-- Minimize Button -->
                 <Button Name="MinimizeButton"
@@ -432,6 +424,12 @@
                                                                 <DataTrigger Binding="{Binding Icon}" Value="{x:Null}">
                                                                     <Setter Property="Visibility" Value="Collapsed"/>
                                                                 </DataTrigger>
+                                                                <DataTrigger Binding="{Binding Icon}" Value="">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding Icon, Converter={StaticResource ProfileIconConverter}}" Value="{x:Null}">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                </DataTrigger>
                                                             </Style.Triggers>
                                                         </Style>
                                                     </Image.Style>
@@ -467,9 +465,8 @@
                                             <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,4,0,0">
                                                 <TextBlock FontSize="11" Foreground="{DynamicResource TertiaryTextBrush}">
                                                     <TextBlock.Text>
-                                                        <MultiBinding StringFormat="{}{0} displays • Modified: {1:MMM d, yyyy}">
+                                                        <MultiBinding StringFormat="{}{0} displays">
                                                             <Binding Path="DisplaySettings.Count"/>
-                                                            <Binding Path="LastModifiedDate"/>
                                                         </MultiBinding>
                                                     </TextBlock.Text>
                                                 </TextBlock>
@@ -512,7 +509,7 @@
                                                 Margin="8,0,0,0"
                                                 VerticalAlignment="Center"
                                                 Click="ApplyProfileButton_Click"
-                                                ToolTip="Apply Profile">
+                                                ToolTip="Apply">
                                             <Button.Style>
                                                 <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
                                                     <Setter Property="Content" Value="&#xE751;"/>
@@ -578,14 +575,6 @@
                                             Margin="0,0,8,0"
                                             IsEnabled="False"
                                             Click="EditProfileButton_Click"/>
-                                    <Button Name="ExportProfileButton"
-                                            Content="Export"
-                                            Style="{StaticResource SecondaryButtonStyle}"
-                                            Width="60"
-                                            Margin="0,0,8,0"
-                                            Visibility="Collapsed"
-                                            IsEnabled="False"
-                                            Click="ExportProfileButton_Click"/>
                                     <Button Name="DeleteProfileButton"
                                             Content="Delete"
                                             Style="{StaticResource DangerButtonStyle}"

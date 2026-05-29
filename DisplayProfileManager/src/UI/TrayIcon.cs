@@ -11,15 +11,16 @@ namespace DisplayProfileManager.UI
     public class TrayIcon : IDisposable
     {
         private static readonly Logger logger = LoggerHelper.GetLogger();
-        private NotifyIcon _notifyIcon;
-        private ContextMenuStrip _contextMenu;
+
         private ProfileManager _profileManager;
-        private bool _disposed = false;
+        private ContextMenuStrip _contextMenu;
+        private NotifyIcon _notifyIcon;
         private Icon _defaultIcon;
 
         public event EventHandler ShowMainWindow;
         public event EventHandler ShowSettingsWindow;
         public event EventHandler ExitApplication;
+        private bool _disposed = false;
 
         public TrayIcon()
         {
@@ -27,6 +28,8 @@ namespace DisplayProfileManager.UI
             InitializeTrayIcon();
             SetupEventHandlers();
         }
+
+        #region Private Methods
 
         private void SetupEventHandlers()
         {
@@ -50,6 +53,9 @@ namespace DisplayProfileManager.UI
 
             _notifyIcon.DoubleClick += OnTrayIconDoubleClick;
 
+            var currentProfile = _profileManager.GetCurrentProfile();
+            UpdateTrayIcon(currentProfile);
+
             BuildContextMenu();
             UpdateTrayIconTooltip();
         }
@@ -60,13 +66,9 @@ namespace DisplayProfileManager.UI
             {
                 var icon = Properties.Resources.AppIcon;
                 if (icon != null)
-                {
                     return icon;
-                }
                 else
-                {
                     return SystemIcons.Application;
-                }
             }
             catch (Exception ex)
             {
@@ -88,20 +90,16 @@ namespace DisplayProfileManager.UI
                 {
                     int availableSpace = 63 - prefix.Length - 3;
                     if (availableSpace > 0)
-                    {
                         fullTooltip = $"{prefix}{currentProfileName.Substring(0, availableSpace)}...";
-                    }
                     else
-                    {
                         fullTooltip = fullTooltip.Substring(0, 60) + "...";
-                    }
                 }
 
                 _notifyIcon.Text = fullTooltip;
             }
         }
 
-        private void UpdateTrayIcon(Profile profile)
+        private void UpdateTrayIcon(Profile profile = null)
         {
             var icon = IconHelper.LoadIcon(profile?.Icon);
             _notifyIcon.Icon = icon ?? _defaultIcon;
@@ -121,19 +119,25 @@ namespace DisplayProfileManager.UI
                 {
                     var profileDisplayName = profile.Name;
 
-                    if (profile.HotkeyConfig?.IsEnabled == true &&
-                        profile.HotkeyConfig.Key != System.Windows.Input.Key.None)
-                    {
+                    if (profile.HotkeyConfig?.IsEnabled == true && profile.HotkeyConfig.Key != System.Windows.Input.Key.None)
                         profileDisplayName += $" ({profile.HotkeyConfig})";
-                    }
 
                     var profileItem = new ToolStripMenuItem(profileDisplayName);
                     profileItem.Tag = profile;
                     profileItem.Click += OnProfileMenuItemClick;
 
-                    if (profile.Id == _profileManager.CurrentProfileId)
-                    {
+                    bool isActive = profile.Id == _profileManager.CurrentProfileId;
+
+                    if (isActive)
                         profileItem.Checked = true;
+                    else if (!string.IsNullOrEmpty(profile.Icon))
+                    {
+                        var icon = IconHelper.LoadIcon(profile.Icon);
+                        if (icon != null)
+                        {
+                            var bmp = new Bitmap(icon.ToBitmap(), new Size(16, 16));
+                            profileItem.Image = bmp;
+                        }
                     }
 
                     profilesMenuItem.DropDownItems.Add(profileItem);
@@ -143,13 +147,11 @@ namespace DisplayProfileManager.UI
                 _contextMenu.Items.Add(new ToolStripSeparator());
             }
 
-            var manageProfilesItem = new ToolStripMenuItem("Manage Profiles...");
+            var manageProfilesItem = new ToolStripMenuItem("Open");
             manageProfilesItem.Click += OnManageProfilesClick;
             _contextMenu.Items.Add(manageProfilesItem);
 
-            _contextMenu.Items.Add(new ToolStripSeparator());
-
-            var settingsItem = new ToolStripMenuItem("Settings...");
+            var settingsItem = new ToolStripMenuItem("Settings");
             settingsItem.Click += OnSettingsClick;
             _contextMenu.Items.Add(settingsItem);
 
@@ -172,16 +174,14 @@ namespace DisplayProfileManager.UI
 
                     if (applyResult.Success)
                     {
-                        string message = $"Profile '{profile.Name}' successfully applied.";
+                        string message = $"Profile '{profile.Name}' applied";
                         logger.Info(message);
-
                         _notifyIcon.ShowBalloonTip(3000, "Display Profile Manager", message, ToolTipIcon.Info);
                     }
                     else
                     {
                         string errorDetails = _profileManager.GetApplyResultErrorMessage(profile.Name, applyResult);
                         logger.Warn(errorDetails);
-
                         _notifyIcon.ShowBalloonTip(5000, "Display Profile Manager", errorDetails, ToolTipIcon.Error);
                     }
                 }
@@ -198,67 +198,50 @@ namespace DisplayProfileManager.UI
             }
         }
 
-        private void OnTrayIconDoubleClick(object sender, EventArgs e)
-        {
+        private void OnTrayIconDoubleClick(object sender, EventArgs e) =>
             ShowMainWindow?.Invoke(this, EventArgs.Empty);
-        }
 
-        private void OnManageProfilesClick(object sender, EventArgs e)
-        {
+        private void OnManageProfilesClick(object sender, EventArgs e) =>
             ShowMainWindow?.Invoke(this, EventArgs.Empty);
-        }
 
-        private void OnSettingsClick(object sender, EventArgs e)
-        {
+        private void OnSettingsClick(object sender, EventArgs e) =>
             ShowSettingsWindow?.Invoke(this, EventArgs.Empty);
-        }
 
-        private void OnExitClick(object sender, EventArgs e)
-        {
+        private void OnExitClick(object sender, EventArgs e) =>
             ExitApplication?.Invoke(this, EventArgs.Empty);
+
+        private void OnProfilesLoaded(object sender, EventArgs e) => BuildContextMenu();
+
+        private void OnProfileApplied(object sender, Profile profile)
+        {
+            BuildContextMenu();
+            UpdateTrayIconTooltip();
+            UpdateTrayIcon(profile);
         }
 
         private void OnProfileChanged(object sender, Profile profile)
         {
             BuildContextMenu();
+            UpdateTrayIcon(profile);
         }
-
         private void OnProfileDeleted(object sender, string profileId)
         {
             BuildContextMenu();
+            UpdateTrayIcon();
         }
 
-        private void OnProfilesLoaded(object sender, EventArgs e)
-        {
-            BuildContextMenu();
-        }
-
-        private void OnProfileApplied(object sender, Profile e)
-        {
-            BuildContextMenu();
-            UpdateTrayIconTooltip();
-            UpdateTrayIcon(e);
-        }
+        #endregion
 
         public void ShowNotification(string title, string message, ToolTipIcon icon = ToolTipIcon.None, int timeout = 3000)
         {
             _notifyIcon.ShowBalloonTip(timeout, title, message, icon);
         }
 
-        public void UpdateTooltip(string text)
-        {
-            _notifyIcon.Text = text;
-        }
+        public void UpdateTooltip(string text) => _notifyIcon.Text = text;
 
-        public void Hide()
-        {
-            _notifyIcon.Visible = false;
-        }
+        public void Hide() => _notifyIcon.Visible = false;
 
-        public void Show()
-        {
-            _notifyIcon.Visible = true;
-        }
+        public void Show() => _notifyIcon.Visible = true;
 
         public void Dispose()
         {
@@ -289,9 +272,6 @@ namespace DisplayProfileManager.UI
             }
         }
 
-        ~TrayIcon()
-        {
-            Dispose(false);
-        }
+        ~TrayIcon() => Dispose(false);
     }
 }

@@ -55,11 +55,11 @@
                             </Trigger>
                             <Trigger Property="IsKeyboardFocused" Value="True">
                                 <Setter TargetName="BorderElement" Property="BorderBrush" Value="{DynamicResource TextBoxFocusBorderBrush}"/>
-                                <Setter TargetName="BorderElement" Property="BorderThickness" Value="2"/>
+                                <Setter TargetName="BorderElement" Property="BorderThickness" Value="1"/>
                             </Trigger>
                             <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=IsRecording}" Value="True">
                                 <Setter TargetName="BorderElement" Property="BorderBrush" Value="{DynamicResource TextBoxFocusBorderBrush}"/>
-                                <Setter TargetName="BorderElement" Property="BorderThickness" Value="2"/>
+                                <Setter TargetName="BorderElement" Property="BorderThickness" Value="1"/>
                             </DataTrigger>
                             <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=HasConflict}" Value="True">
                                 <Setter TargetName="BorderElement" Property="BorderBrush" Value="{DynamicResource DangerButtonBackgroundBrush}"/>

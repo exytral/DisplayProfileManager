@@ -13,44 +13,18 @@ namespace DisplayProfileManager.Helpers
     {
         private static readonly Logger logger = LoggerHelper.GetLogger();
 
-        // Registry constants
         private const string RegistryKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
         private const string RegistryValueName = "DisplayProfileManager";
 
-        // Task Scheduler constants
         private const string TaskName = "DisplayProfileManager_Startup";
         private const string TaskFolder = "\\DisplayProfileManager";
         private const string FullTaskPath = TaskFolder + "\\" + TaskName;
-
-        #region Public Methods
-
-        public bool IsAutoStartEnabled(AutoStartMode? checkMode = null)
-        {
-            try
-            {
-                if (checkMode.HasValue)
-                {
-                    return checkMode.Value == AutoStartMode.Registry
-                        ? IsAutoStartEnabledRegistry()
-                        : IsAutoStartEnabledTaskScheduler();
-                }
-
-                return IsAutoStartEnabledRegistry() || IsAutoStartEnabledTaskScheduler();
-            }
-            catch (Exception ex)
-            {
-                logger.Error(ex, "Error checking auto start status");
-                return false;
-            }
-        }
 
         public bool EnableAutoStart(AutoStartMode mode, bool startInTray = false)
         {
             try
             {
-                return mode == AutoStartMode.Registry
-                    ? EnableAutoStartRegistry(startInTray)
-                    : EnableAutoStartTaskScheduler(startInTray);
+                return mode == AutoStartMode.Registry ? EnableAutoStartRegistry(startInTray) : EnableAutoStartTaskScheduler(startInTray);
             }
             catch (Exception ex)
             {
@@ -64,17 +38,12 @@ namespace DisplayProfileManager.Helpers
             try
             {
                 bool registryResult = true;
-                bool taskSchedulerResult = true;
-
                 if (IsAutoStartEnabledRegistry())
-                {
                     registryResult = DisableAutoStartRegistry();
-                }
 
+                bool taskSchedulerResult = true;
                 if (IsAutoStartEnabledTaskScheduler())
-                {
                     taskSchedulerResult = DisableAutoStartTaskScheduler();
-                }
 
                 return registryResult || taskSchedulerResult;
             }
@@ -84,45 +53,6 @@ namespace DisplayProfileManager.Helpers
                 return false;
             }
         }
-
-        public bool ValidateAutoStartEntry(AutoStartMode mode)
-        {
-            try
-            {
-                return mode == AutoStartMode.Registry
-                    ? ValidateAutoStartEntryRegistry()
-                    : ValidateAutoStartEntryTaskScheduler();
-            }
-            catch (Exception ex)
-            {
-                logger.Error(ex, "Error validating auto start entry");
-                return false;
-            }
-        }
-
-        public string GetAutoStartCommand(AutoStartMode mode)
-        {
-            try
-            {
-                return mode == AutoStartMode.Registry
-                    ? GetAutoStartCommandRegistry()
-                    : GetAutoStartCommandTaskScheduler();
-            }
-            catch (Exception ex)
-            {
-                logger.Error(ex, "Error getting auto start command");
-                return string.Empty;
-            }
-        }
-
-        public AutoStartInfo GetAutoStartInfo(AutoStartMode mode)
-        {
-            return mode == AutoStartMode.Registry
-                ? GetAutoStartInfoRegistry()
-                : GetAutoStartInfoTaskScheduler();
-        }
-
-        #endregion
 
         #region Registry Implementation
 
@@ -169,9 +99,7 @@ namespace DisplayProfileManager.Helpers
                     return false;
                 }
 
-                // Build the command with optional --tray argument
                 var command = startInTray ? $"\"{executablePath}\" --tray" : $"\"{executablePath}\"";
-
                 using (var key = Registry.CurrentUser.OpenSubKey(RegistryKeyPath, true))
                 {
                     if (key != null)
@@ -209,6 +137,7 @@ namespace DisplayProfileManager.Helpers
                             key.DeleteValue(RegistryValueName, false);
                             logger.Info("Successfully disabled registry auto-start");
                         }
+
                         return true;
                     }
                 }
@@ -220,70 +149,6 @@ namespace DisplayProfileManager.Helpers
                 logger.Error(ex, "Error disabling registry auto start");
                 return false;
             }
-        }
-
-        private bool ValidateAutoStartEntryRegistry()
-        {
-            try
-            {
-                if (!IsAutoStartEnabledRegistry())
-                    return false;
-
-                var currentCommand = GetAutoStartCommandRegistry();
-                var currentExePath = GetExecutablePath();
-
-                if (string.IsNullOrEmpty(currentCommand) || string.IsNullOrEmpty(currentExePath))
-                    return false;
-
-                var normalizedCommand = currentCommand.Replace("\"", "").ToLowerInvariant();
-                var normalizedExePath = currentExePath.ToLowerInvariant();
-
-                return normalizedCommand.StartsWith(normalizedExePath);
-            }
-            catch (Exception ex)
-            {
-                logger.Error(ex, "Error validating registry auto start");
-                return false;
-            }
-        }
-
-        private string GetAutoStartCommandRegistry()
-        {
-            try
-            {
-                using (var key = Registry.CurrentUser.OpenSubKey(RegistryKeyPath, false))
-                {
-                    if (key != null)
-                    {
-                        var value = key.GetValue(RegistryValueName);
-                        if (value != null)
-                        {
-                            return value.ToString();
-                        }
-                    }
-                }
-
-                return string.Empty;
-            }
-            catch (Exception ex)
-            {
-                logger.Error(ex, "Error getting registry auto start command");
-                return string.Empty;
-            }
-        }
-
-        private AutoStartInfo GetAutoStartInfoRegistry()
-        {
-            var info = new AutoStartInfo
-            {
-                IsEnabled = IsAutoStartEnabledRegistry(),
-                Command = GetAutoStartCommandRegistry(),
-                ExecutablePath = GetExecutablePath(),
-                IsValid = ValidateAutoStartEntryRegistry(),
-                TaskStatus = IsAutoStartEnabledRegistry() ? "Enabled" : "Disabled"
-            };
-
-            return info;
         }
 
         #endregion
@@ -299,7 +164,7 @@ namespace DisplayProfileManager.Helpers
                     StartInfo = new ProcessStartInfo
                     {
                         FileName = "schtasks.exe",
-                        Arguments = $"/Query /TN \"{FullTaskPath}\" /FO CSV",
+                        Arguments = $"/Query /TN \"{FullTaskPath}\" /FO LIST /V",
                         UseShellExecute = false,
                         RedirectStandardOutput = true,
                         RedirectStandardError = true,
@@ -311,7 +176,8 @@ namespace DisplayProfileManager.Helpers
                     var output = process.StandardOutput.ReadToEnd();
                     process.WaitForExit();
 
-                    bool isEnabled = process.ExitCode == 0 && output.Contains(TaskName);
+                    bool isEnabled = process.ExitCode == 0 && output.Contains(TaskName) && output.Contains("Enabled") && !output.Contains("Disabled");
+
                     logger.Debug($"Task Scheduler auto-start {(isEnabled ? "found" : "not found")}");
                     return isEnabled;
                 }
@@ -342,7 +208,6 @@ namespace DisplayProfileManager.Helpers
 
                 var xmlContent = GenerateTaskXml(executablePath, startInTray);
                 var tempXmlPath = Path.Combine(Path.GetTempPath(), "DisplayProfileManager_Task.xml");
-
                 try
                 {
                     File.WriteAllText(tempXmlPath, xmlContent, Encoding.Unicode);
@@ -408,7 +273,6 @@ namespace DisplayProfileManager.Helpers
                     process.Start();
                     process.WaitForExit();
 
-                    // Exit code 0 means success or task didn't exist
                     if (process.ExitCode == 0)
                     {
                         logger.Info("Successfully deleted Task Scheduler auto-start (elevated)");
@@ -426,154 +290,6 @@ namespace DisplayProfileManager.Helpers
                 logger.Error(ex, "Error disabling Task Scheduler auto start");
                 return false;
             }
-        }
-
-        private bool ValidateAutoStartEntryTaskScheduler()
-        {
-            try
-            {
-                if (!IsAutoStartEnabledTaskScheduler())
-                    return false;
-
-                using (var process = new Process
-                {
-                    StartInfo = new ProcessStartInfo
-                    {
-                        FileName = "schtasks.exe",
-                        Arguments = $"/Query /TN \"{FullTaskPath}\" /FO LIST /V",
-                        UseShellExecute = false,
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        CreateNoWindow = true
-                    }
-                })
-                {
-                    process.Start();
-                    var output = process.StandardOutput.ReadToEnd();
-                    process.WaitForExit();
-
-                    if (process.ExitCode == 0)
-                    {
-                        return output.Contains("Enabled") && !output.Contains("Disabled");
-                    }
-                    return false;
-                }
-            }
-            catch (Exception ex)
-            {
-                logger.Error(ex, "Error validating Task Scheduler auto start");
-                return false;
-            }
-        }
-
-        private string GetAutoStartCommandTaskScheduler()
-        {
-            try
-            {
-                if (!IsAutoStartEnabledTaskScheduler())
-                    return string.Empty;
-
-                using (var process = new Process
-                {
-                    StartInfo = new ProcessStartInfo
-                    {
-                        FileName = "schtasks.exe",
-                        Arguments = $"/Query /TN \"{FullTaskPath}\" /FO LIST /V",
-                        UseShellExecute = false,
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        CreateNoWindow = true
-                    }
-                })
-                {
-                    process.Start();
-                    var output = process.StandardOutput.ReadToEnd();
-                    process.WaitForExit();
-
-                    if (process.ExitCode == 0)
-                    {
-                        var lines = output.Split('\n');
-                        foreach (var line in lines)
-                        {
-                            if (line.Contains("Task To Run:"))
-                            {
-                                var parts = line.Split(':');
-                                if (parts.Length > 1)
-                                {
-                                    return parts[1].Trim();
-                                }
-                            }
-                        }
-                    }
-                    return string.Empty;
-                }
-            }
-            catch (Exception ex)
-            {
-                logger.Error(ex, "Error getting Task Scheduler auto start command");
-                return string.Empty;
-            }
-        }
-
-        private AutoStartInfo GetAutoStartInfoTaskScheduler()
-        {
-            var info = new AutoStartInfo
-            {
-                IsEnabled = IsAutoStartEnabledTaskScheduler(),
-                Command = GetAutoStartCommandTaskScheduler(),
-                ExecutablePath = GetExecutablePath(),
-                IsValid = ValidateAutoStartEntryTaskScheduler()
-            };
-
-            if (info.IsEnabled)
-            {
-                try
-                {
-                    using (var process = new Process
-                    {
-                        StartInfo = new ProcessStartInfo
-                        {
-                            FileName = "schtasks.exe",
-                            Arguments = $"/Query /TN \"{FullTaskPath}\" /FO LIST /V",
-                            UseShellExecute = false,
-                            RedirectStandardOutput = true,
-                            RedirectStandardError = true,
-                            CreateNoWindow = true
-                        }
-                    })
-                    {
-                        process.Start();
-                        var output = process.StandardOutput.ReadToEnd();
-                        process.WaitForExit();
-
-                        if (process.ExitCode == 0)
-                        {
-                            var lines = output.Split('\n');
-                            foreach (var line in lines)
-                            {
-                                if (line.Contains("Status:"))
-                                {
-                                    info.TaskStatus = line.Split(':')[1].Trim();
-                                }
-                                else if (line.Contains("Last Run Time:"))
-                                {
-                                    var timeStr = line.Substring(line.IndexOf(':') + 1).Trim();
-                                    if (DateTime.TryParse(timeStr, out var lastRun))
-                                    {
-                                        info.LastRunTime = lastRun;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    logger.Error(ex, "Error getting Task Scheduler info");
-                }
-            }
-
-            return info;
         }
 
         private string GenerateTaskXml(string executablePath, bool startInTray = false)

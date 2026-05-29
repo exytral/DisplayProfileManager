@@ -15,18 +15,11 @@ namespace DisplayProfileManager.Helpers
     public static class IconHelper
     {
         private static readonly Logger logger = LoggerHelper.GetLogger();
-
-        // Cache key: "filename|size|lastWriteUtcTicks" — auto-evicts stale entries when file changes
-        private static readonly ConcurrentDictionary<string, ImageSource> _cache =
-            new ConcurrentDictionary<string, ImageSource>(StringComparer.OrdinalIgnoreCase);
+        private static readonly ConcurrentDictionary<string, ImageSource> _cache = new ConcurrentDictionary<string, ImageSource>(StringComparer.OrdinalIgnoreCase);
 
         public static string GetIconsFolderPath()
         {
-            string folder = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "DisplayProfileManager",
-                "Icons");
-
+            string folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DisplayProfileManager", "Icons");
             if (!Directory.Exists(folder))
                 Directory.CreateDirectory(folder);
 
@@ -35,10 +28,8 @@ namespace DisplayProfileManager.Helpers
 
         public static string ResolveIconPath(string filename)
         {
-            if (string.IsNullOrWhiteSpace(filename))
-                return null;
+            if (string.IsNullOrWhiteSpace(filename)) return null;
 
-            // Reject path traversal
             if (filename.Contains('/') || filename.Contains('\\') || filename.Contains(".."))
             {
                 logger.Warn($"Icon filename '{filename}' rejected — contains path traversal characters");
@@ -50,12 +41,10 @@ namespace DisplayProfileManager.Helpers
 
         public static Icon LoadIcon(string filename)
         {
-            if (string.IsNullOrWhiteSpace(filename))
-                return null;
+            if (string.IsNullOrWhiteSpace(filename)) return null;
 
             string path = ResolveIconPath(filename);
-            if (path == null || !File.Exists(path))
-                return null;
+            if (path == null || !File.Exists(path)) return null;
 
             try
             {
@@ -68,25 +57,20 @@ namespace DisplayProfileManager.Helpers
             }
         }
 
-        // Default size 24 used for list cards and details inline icon
         public static ImageSource LoadImageSource(string filename, int size = 24)
         {
-            if (string.IsNullOrWhiteSpace(filename))
-                return null;
+            if (string.IsNullOrWhiteSpace(filename)) return null;
 
             string path = ResolveIconPath(filename);
-            if (path == null || !File.Exists(path))
-                return null;
+            if (path == null || !File.Exists(path)) return null;
 
             try
             {
                 long ticks = File.GetLastWriteTimeUtc(path).Ticks;
                 string cacheKey = $"{filename}|{size}|{ticks}";
 
-                if (_cache.TryGetValue(cacheKey, out var cached))
-                    return cached;
+                if (_cache.TryGetValue(cacheKey, out var cached)) return cached;
 
-                // Request the nearest available frame at or above the target size
                 int frameSize = size <= 24 ? 32 : size;
                 ImageSource source;
                 using (var icon = new Icon(path, frameSize, frameSize))
@@ -106,8 +90,7 @@ namespace DisplayProfileManager.Helpers
         public static async Task<string> ImportIconAsync(string sourcePath)
         {
             string ext = Path.GetExtension(sourcePath).ToLowerInvariant();
-            if (ext != ".ico")
-                throw new InvalidOperationException($"Only .ico files are supported. Got '{ext}'.");
+            if (ext != ".ico") throw new InvalidOperationException($"Only .ico files are supported. Got '{ext}'.");
 
             string iconsFolder = GetIconsFolderPath();
             string destFilename = ResolveNameConflict(iconsFolder, Path.GetFileName(sourcePath));
@@ -125,10 +108,7 @@ namespace DisplayProfileManager.Helpers
         {
             try
             {
-                return Directory.GetFiles(GetIconsFolderPath(), "*.ico")
-                    .Select(Path.GetFileName)
-                    .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
-                    .ToList();
+                return Directory.GetFiles(GetIconsFolderPath(), "*.ico").Select(Path.GetFileName).OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToList();
             }
             catch (Exception ex)
             {
@@ -148,6 +128,7 @@ namespace DisplayProfileManager.Helpers
                 candidate = $"{nameNoExt} ({i}){ext}";
                 i++;
             }
+
             return candidate;
         }
 
@@ -163,6 +144,7 @@ namespace DisplayProfileManager.Helpers
                 bi.CacheOption = BitmapCacheOption.OnLoad;
                 bi.EndInit();
                 bi.Freeze();
+
                 return bi;
             }
         }

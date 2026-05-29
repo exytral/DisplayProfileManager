@@ -1,9 +1,20 @@
 DISPLAY PROFILE MANAGER
-UPSTREAM CORE
-Copyright (c) 2025 zac15987, jarandal, jonathanasdf
-Copyright (c) 2026 rvahilario, xtrilla
+Copyright (c) 2025 zac15987
+Copyright (c) 2026 exytral
 
-The core codebase is licensed under the MIT License:
+This fork is distributed under the MIT License + Commons Clause ("MIT-Commons").
+Upstream components remain available under plain MIT at their source repository.
+
+Commons Clause Restriction (see https://commonsclause.com):
+The Software is provided under the MIT License, with the following additional
+condition: without the licensor's prior written consent, the Software, with or
+without modification, may not be sold. For purposes of this clause, "sold"
+means practicing any or all of the rights granted to you under the MIT License
+in exchange for a fee.
+
+---
+
+The MIT License (MIT)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -22,18 +33,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-EXYTRAL FORK
-Copyright (c) 2026 exytral
-
-This fork is distributed under the MIT License + Commons Clause ("MIT-Commons").
-Upstream components remain available under plain MIT at their source repository.
-
-Commons Clause Restriction (see https://commonsclause.com):
-The Software is provided under the MIT License, with the following additional
-condition: without the licensor's prior written consent, the Software, with or
-without modification, may not be sold. For purposes of this clause, "sold"
-means practicing any or all of the rights granted to you under the MIT License
-in exchange for a fee.

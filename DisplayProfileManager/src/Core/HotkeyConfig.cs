@@ -9,7 +9,6 @@ namespace DisplayProfileManager.Core
     {
         [JsonConverter(typeof(StringEnumConverter))]
         public Key Key { get; set; }
-
         [JsonConverter(typeof(StringEnumConverter))]
         public ModifierKeys ModifierKeys { get; set; }
 
@@ -29,13 +28,19 @@ namespace DisplayProfileManager.Core
             IsEnabled = isEnabled;
         }
 
+        public bool IsValid()
+        {
+            return Key != Key.None && Key != Key.LeftAlt && Key != Key.RightAlt &&
+                   Key != Key.LeftCtrl && Key != Key.RightCtrl &&
+                   Key != Key.LeftShift && Key != Key.RightShift &&
+                   Key != Key.LWin && Key != Key.RWin;
+        }
+
         public override string ToString()
         {
-            if (Key == Key.None)
-                return string.Empty;
+            if (Key == Key.None) return string.Empty;
 
             var parts = new System.Collections.Generic.List<string>();
-
             if ((ModifierKeys & ModifierKeys.Control) == ModifierKeys.Control)
                 parts.Add("Ctrl");
             if ((ModifierKeys & ModifierKeys.Alt) == ModifierKeys.Alt)
@@ -46,40 +51,19 @@ namespace DisplayProfileManager.Core
                 parts.Add("Win");
 
             var keyStr = Key.ToString();
-
-            // Format function keys
             if (keyStr.StartsWith("D") && keyStr.Length == 2 && char.IsDigit(keyStr[1]))
-            {
                 keyStr = keyStr[1].ToString();
-            }
             else if (keyStr == "OemPlus")
-            {
                 keyStr = "+";
-            }
             else if (keyStr == "OemMinus")
-            {
                 keyStr = "-";
-            }
             else if (keyStr == "OemPeriod")
-            {
                 keyStr = ".";
-            }
             else if (keyStr == "OemComma")
-            {
                 keyStr = ",";
-            }
-
             parts.Add(keyStr);
 
             return string.Join(" + ", parts);
-        }
-
-        public bool IsValid()
-        {
-            return Key != Key.None && Key != Key.LeftAlt && Key != Key.RightAlt &&
-                   Key != Key.LeftCtrl && Key != Key.RightCtrl &&
-                   Key != Key.LeftShift && Key != Key.RightShift &&
-                   Key != Key.LWin && Key != Key.RWin;
         }
 
         public bool Equals(HotkeyConfig other)
@@ -88,16 +72,6 @@ namespace DisplayProfileManager.Core
                 return false;
 
             return Key == other.Key && ModifierKeys == other.ModifierKeys;
-        }
-
-        public override bool Equals(object obj)
-        {
-            return Equals(obj as HotkeyConfig);
-        }
-
-        public override int GetHashCode()
-        {
-            return (Key.GetHashCode() * 397) ^ ModifierKeys.GetHashCode();
         }
 
         public HotkeyConfig Clone()

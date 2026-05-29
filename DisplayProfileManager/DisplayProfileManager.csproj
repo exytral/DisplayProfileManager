@@ -1,15 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-
   <!-- ═══════════════════════════════════════════════════════════
-       MSBuild bootstrapping
+       MSBuild Bootstrapping
   ═══════════════════════════════════════════════════════════ -->
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props"
-          Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
-
-
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <!-- ═══════════════════════════════════════════════════════════
-       Project identity
+       Project Identity
   ═══════════════════════════════════════════════════════════ -->
   <PropertyGroup>
     <ProjectGuid>{238D468E-8218-4643-AA8C-789C6A15A48B}</ProjectGuid>
@@ -25,10 +21,8 @@
     <Deterministic>true</Deterministic>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
-
-
   <!-- ═══════════════════════════════════════════════════════════
-       Build configurations
+       Build Configurations
   ═══════════════════════════════════════════════════════════ -->
   <PropertyGroup Condition="'$(Configuration)' == ''">
     <Configuration>Debug</Configuration>
@@ -36,7 +30,6 @@
   <PropertyGroup Condition="'$(Platform)' == ''">
     <Platform>AnyCPU</Platform>
   </PropertyGroup>
-
   <!-- AnyCPU -->
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|AnyCPU'">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -58,7 +51,6 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
-
   <!-- x64 -->
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
     <PlatformTarget>x64</PlatformTarget>
@@ -80,7 +72,6 @@
     <LangVersion>7.3</LangVersion>
     <ErrorReport>prompt</ErrorReport>
   </PropertyGroup>
-
   <!-- x86 -->
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x86'">
     <PlatformTarget>x86</PlatformTarget>
@@ -102,7 +93,6 @@
     <LangVersion>7.3</LangVersion>
     <ErrorReport>prompt</ErrorReport>
   </PropertyGroup>
-
   <!-- ARM64 -->
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|ARM64'">
     <PlatformTarget>ARM64</PlatformTarget>
@@ -124,10 +114,8 @@
     <LangVersion>7.3</LangVersion>
     <ErrorReport>prompt</ErrorReport>
   </PropertyGroup>
-
-
   <!-- ═══════════════════════════════════════════════════════════
-       NuGet references
+       NuGet References
   ═══════════════════════════════════════════════════════════ -->
   <ItemGroup>
     <Reference Include="Newtonsoft.Json">
@@ -137,10 +125,8 @@
       <HintPath>$(SolutionDir)packages\NLog.6.1.3\lib\net46\NLog.dll</HintPath>
     </Reference>
   </ItemGroup>
-
-
   <!-- ═══════════════════════════════════════════════════════════
-       Framework references
+       Framework References
   ═══════════════════════════════════════════════════════════ -->
   <ItemGroup>
     <!-- Core -->
@@ -162,13 +148,11 @@
     <Reference Include="WindowsBase" />
     <Reference Include="PresentationCore" />
     <Reference Include="PresentationFramework" />
-    <!-- WinForms (tray icon) -->
+    <!-- WinForms (Tray Icon) -->
     <Reference Include="System.Windows.Forms" />
   </ItemGroup>
-
-
   <!-- ═══════════════════════════════════════════════════════════
-       Application entry point
+       Application Entry Point
   ═══════════════════════════════════════════════════════════ -->
   <ItemGroup>
     <ApplicationDefinition Include="src\App.xaml">
@@ -180,20 +164,17 @@
       <SubType>Code</SubType>
     </Compile>
   </ItemGroup>
-
-
   <!-- ═══════════════════════════════════════════════════════════
-       Core models and managers
+       Core Models and Managers
   ═══════════════════════════════════════════════════════════ -->
   <ItemGroup>
     <Compile Include="src\Core\HotkeyConfig.cs" />
     <Compile Include="src\Core\Profile.cs" />
     <Compile Include="src\Core\ProfileManager.cs" />
+    <Compile Include="src\Core\Script.cs" />
     <Compile Include="src\Core\ScriptManager.cs" />
     <Compile Include="src\Core\SettingsManager.cs" />
   </ItemGroup>
-
-
   <!-- ═══════════════════════════════════════════════════════════
        Helpers
   ═══════════════════════════════════════════════════════════ -->
@@ -201,6 +182,7 @@
     <Compile Include="src\Helpers\AboutHelper.cs" />
     <Compile Include="src\Helpers\AudioHelper.cs" />
     <Compile Include="src\Helpers\AutoStartHelper.cs" />
+    <Compile Include="src\Helpers\ColorProfileHelper.cs" />
     <Compile Include="src\Helpers\DisplayConfigHelper.cs" />
     <Compile Include="src\Helpers\DisplayGroupHelper.cs" />
     <Compile Include="src\Helpers\DisplayHelper.cs" />
@@ -212,10 +194,8 @@
     <Compile Include="src\Helpers\ScriptHelper.cs" />
     <Compile Include="src\Helpers\ThemeHelper.cs" />
   </ItemGroup>
-
-
   <!-- ═══════════════════════════════════════════════════════════
-       UI — themes
+       UI — Themes
   ═══════════════════════════════════════════════════════════ -->
   <ItemGroup>
     <Page Include="src\UI\Themes\Base.xaml">
@@ -235,10 +215,8 @@
       <SubType>Designer</SubType>
     </Page>
   </ItemGroup>
-
-
   <!-- ═══════════════════════════════════════════════════════════
-       UI — controls
+       UI — Controls
   ═══════════════════════════════════════════════════════════ -->
   <ItemGroup>
     <Page Include="src\UI\Controls\HotkeyEditorControl.xaml">
@@ -250,10 +228,8 @@
       <SubType>Code</SubType>
     </Compile>
   </ItemGroup>
-
-
   <!-- ═══════════════════════════════════════════════════════════
-       UI — converters and view models
+       UI — Converters and ViewModels
   ═══════════════════════════════════════════════════════════ -->
   <ItemGroup>
     <Compile Include="src\UI\Converters\BooleanToVisibilityConverter.cs" />
@@ -261,10 +237,8 @@
     <Compile Include="src\UI\Converters\RectConverter.cs" />
     <Compile Include="src\UI\ViewModels\ProfileViewModel.cs" />
   </ItemGroup>
-
-
   <!-- ═══════════════════════════════════════════════════════════
-       UI — windows
+       UI — Windows
   ═══════════════════════════════════════════════════════════ -->
   <ItemGroup>
     <Page Include="src\UI\Windows\CloseConfirmationDialog.xaml">
@@ -275,7 +249,6 @@
       <DependentUpon>CloseConfirmationDialog.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
-
     <Page Include="src\UI\Windows\MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
@@ -284,7 +257,6 @@
       <DependentUpon>MainWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
-
     <Page Include="src\UI\Windows\MonitorIdentifyWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
@@ -293,7 +265,6 @@
       <DependentUpon>MonitorIdentifyWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
-
     <Page Include="src\UI\Windows\ProfileEditWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
@@ -302,7 +273,6 @@
       <DependentUpon>ProfileEditWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
-
     <Page Include="src\UI\Windows\SettingsWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
@@ -312,18 +282,14 @@
       <SubType>Code</SubType>
     </Compile>
   </ItemGroup>
-
-
   <!-- ═══════════════════════════════════════════════════════════
-       UI — tray
+       UI — Tray
   ═══════════════════════════════════════════════════════════ -->
   <ItemGroup>
     <Compile Include="src\UI\TrayIcon.cs" />
   </ItemGroup>
-
-
   <!-- ═══════════════════════════════════════════════════════════
-       Properties / assembly metadata
+       Properties / Assembly Metadata
   ═══════════════════════════════════════════════════════════ -->
   <ItemGroup>
     <Compile Include="Properties\AssemblyInfo.cs">
@@ -349,10 +315,8 @@
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>
     </None>
   </ItemGroup>
-
-
   <!-- ═══════════════════════════════════════════════════════════
-       Misc / root files
+       Misc / Root Files
   ═══════════════════════════════════════════════════════════ -->
   <ItemGroup>
     <Resource Include="icon.ico" />
@@ -364,10 +328,8 @@
     <None Include="packages.config" />
     <Content Include="DisplayProfileManager.Setup.iss" />
   </ItemGroup>
-
-
   <!-- ═══════════════════════════════════════════════════════════
-       Bootstrapper packages
+       Bootstrapper Packages
   ═══════════════════════════════════════════════════════════ -->
   <ItemGroup>
     <BootstrapperPackage Include=".NETFramework,Version=v4.8">
@@ -381,8 +343,5 @@
       <Install>false</Install>
     </BootstrapperPackage>
   </ItemGroup>
-
-
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-
 </Project>

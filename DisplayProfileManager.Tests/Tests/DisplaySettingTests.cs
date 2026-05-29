@@ -43,5 +43,23 @@ namespace DisplayProfileManager.Tests.Tests
 
             Assert.IsTrue(setting.IsPartOfCloneGroup());
         }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void DisplaySetting_IsAcmEnabled_DefaultIsFalse()
+        {
+            var setting = new DisplaySetting();
+
+            Assert.IsFalse(setting.IsAcmEnabled);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void DisplaySetting_ColorProfile_DefaultIsNull()
+        {
+            var setting = new DisplaySetting();
+
+            Assert.IsNull(setting.ColorProfile);
+        }
     }
 }

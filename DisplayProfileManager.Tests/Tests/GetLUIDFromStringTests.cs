@@ -159,7 +159,7 @@ namespace DisplayProfileManager.Tests.Tests
             var info = new DisplayConfigHelper.DisplayConfigInfo();
 
             Assert.AreEqual(
-                DisplayConfigHelper.DISPLAYCONFIG_ROTATION.DISPLAYCONFIG_ROTATION_IDENTITY,
+                DisplayConfigHelper.DisplayConfigRotation.Identity,
                 info.Rotation,
                 "Default rotation must be IDENTITY for backward compat with old profiles.");
         }

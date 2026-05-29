@@ -10,14 +10,13 @@ namespace DisplayProfileManager.Helpers
     public class DisplayHelper
     {
         private static readonly Logger logger = LoggerHelper.GetLogger();
-        #region P/Invoke Declarations
+
+        #region P/Invoke
 
         [DllImport("user32.dll")]
         private static extern int ChangeDisplaySettingsEx(string deviceName, ref DEVMODE devMode, IntPtr hwnd, ChangeDisplaySettingsFlags flags, IntPtr lParam);
-
         [DllImport("user32.dll")]
         private static extern bool EnumDisplaySettings(string deviceName, int modeNum, ref DEVMODE devMode);
-
         [DllImport("user32.dll")]
         private static extern bool EnumDisplayDevices(string lpDevice, uint iDevNum, ref DISPLAY_DEVICE lpDisplayDevice, uint dwFlags);
 
@@ -25,7 +24,7 @@ namespace DisplayProfileManager.Helpers
 
         #region Constants
 
-        private const int ENUM_CURRENT_SETTINGS = -1;
+        private const int EnumCurrentSettings = -1;
 
         #endregion
 
@@ -34,13 +33,13 @@ namespace DisplayProfileManager.Helpers
         [StructLayout(LayoutKind.Sequential)]
         public struct DEVMODE
         {
-            public const int DM_PELSWIDTH = 0x80000;
-            public const int DM_PELSHEIGHT = 0x100000;
-            public const int DM_DISPLAYFREQUENCY = 0x400000;
-            private const int CCHDEVICENAME = 32;
-            private const int CCHFORMNAME = 32;
+            public const int DmPelsWidth= 0x80000;
+            public const int DmPelsHeight = 0x100000;
+            public const int DmDisplayFrequency = 0x400000;
+            private const int CchDeviceName = 32;
+            private const int CchFormName = 32;
 
-            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = CCHDEVICENAME)]
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = CchDeviceName)]
             public string dmDeviceName;
             public short dmSpecVersion;
             public short dmDriverVersion;
@@ -56,7 +55,8 @@ namespace DisplayProfileManager.Helpers
             public short dmYResolution;
             public short dmTTOption;
             public short dmCollate;
-            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = CCHFORMNAME)]
+
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = CchFormName)]
             public string dmFormName;
             public short dmLogPixels;
             public short dmBitsPerPel;
@@ -108,30 +108,28 @@ namespace DisplayProfileManager.Helpers
         [Flags]
         public enum ChangeDisplaySettingsFlags : uint
         {
-            CDS_UPDATEREGISTRY = 0x00000001,
-            CDS_TEST = 0x00000002,
-            CDS_FULLSCREEN = 0x00000004,
-            CDS_GLOBAL = 0x00000008,
-            CDS_SET_PRIMARY = 0x00000010,
-            CDS_VIDEOPARAMETERS = 0x00000020,
-            CDS_ENABLE_UNSAFE_MODES = 0x00000100,
-            CDS_DISABLE_UNSAFE_MODES = 0x00000200,
-            CDS_RESET = 0x40000000,
-            CDS_RESET_EX = 0x20000000,
-            CDS_NORESET = 0x10000000,
+            UpdateRegistry = 0x00000001,
+            Test = 0x00000002,
+            Fullscreen = 0x00000004,
+            Global = 0x00000008,
+            SetPrimary = 0x00000010,
+            VideoParameters = 0x00000020,
+            EnableUnsafeModes = 0x00000100,
+            DisableUnsafeModes = 0x00000200,
+            Reset = 0x40000000,
+            ResetEx = 0x20000000,
+            NoReset = 0x10000000,
         }
-
-        // Return codes
-        public enum DISP_CHANGE : int
+        public enum DispChange : int
         {
-            SUCCESSFUL = 0,
-            RESTART = 1,
-            FAILED = -1,
-            BADMODE = -2,
-            NOTUPDATED = -3,
-            BADFLAGS = -4,
-            BADPARAM = -5,
-            BADDUALVIEW = -6
+            Successful = 0,
+            Restart = 1,
+            Failed = -1,
+            BadMode = -2,
+            NotUpdated = -3,
+            BadFlags = -4,
+            BadParam = -5,
+            BadDualView = -6
         }
 
         #endregion
@@ -184,7 +182,7 @@ namespace DisplayProfileManager.Helpers
 
         #endregion
 
-        #region Public Methods
+        #region Methods
 
         public static List<DisplayInfo> GetDisplays()
         {
@@ -201,7 +199,7 @@ namespace DisplayProfileManager.Helpers
                     var devMode = new DEVMODE();
                     devMode.dmSize = (short)Marshal.SizeOf(devMode);
 
-                    if (EnumDisplaySettings(displayDevice.DeviceName, ENUM_CURRENT_SETTINGS, ref devMode))
+                    if (EnumDisplaySettings(displayDevice.DeviceName, EnumCurrentSettings, ref devMode))
                     {
                         var displayInfo = new DisplayInfo
                         {
@@ -217,12 +215,8 @@ namespace DisplayProfileManager.Helpers
                             ReadableDeviceName = displayDevice.DeviceName
                         };
 
-                        // Debug: Log display device details
                         logger.Debug($"Display[{deviceIndex}]: Device={displayDevice.DeviceName}, " +
                             $"String={displayDevice.DeviceString}, DeviceID={displayDevice.DeviceID}, Primary={displayInfo.IsPrimary}");
-
-                        // Get readable name using registry mapping and WMI correlation
-                        //displayInfo.ReadableDeviceName = GetReadableMonitorNameFromWMI(displayInfo, monitors, registryMapping);
 
                         displays.Add(displayInfo);
                     }
@@ -231,10 +225,8 @@ namespace DisplayProfileManager.Helpers
                 deviceIndex++;
             }
 
-            // Handle duplicate monitor names by appending index
-            var nameGroups = displays.GroupBy(d => d.ReadableDeviceName)
-                                   .Where(g => g.Count() > 1);
-
+            // Append index of duplicate monitor names
+            var nameGroups = displays.GroupBy(d => d.ReadableDeviceName).Where(g => g.Count() > 1);
             foreach (var group in nameGroups)
             {
                 int index = 1;
@@ -267,7 +259,7 @@ namespace DisplayProfileManager.Helpers
                     BitsPerPixel = devMode.dmBitsPerPel
                 };
 
-                string key = $"{resolution.Width}x{resolution.Height}@{resolution.Frequency}Hz";
+                string key = $"{resolution.Width}x{resolution.Height} • {resolution.Frequency}Hz";
                 if (!uniqueResolutions.Contains(key))
                 {
                     uniqueResolutions.Add(key);
@@ -289,15 +281,11 @@ namespace DisplayProfileManager.Helpers
         
         public static List<string> GetSupportedResolutionsOnly(string deviceName)
         {
-            if (string.IsNullOrEmpty(deviceName))
-            {
-                return new List<string>();
-            }
+            if (string.IsNullOrEmpty(deviceName)) return new List<string>();
 
             var allResolutions = GetAvailableResolutions(deviceName);
             var uniqueResolutions = new HashSet<string>();
             var resolutionList = new List<(int width, int height, string text)>();
-
             foreach (var resolution in allResolutions)
             {
                 var resolutionText = $"{resolution.Width}x{resolution.Height}";
@@ -308,7 +296,6 @@ namespace DisplayProfileManager.Helpers
                 }
             }
 
-            // Sort by width descending, then height descending
             resolutionList.Sort((a, b) =>
             {
                 if (a.width != b.width) return b.width.CompareTo(a.width);
@@ -320,24 +307,16 @@ namespace DisplayProfileManager.Helpers
 
         public static List<int> GetAvailableRefreshRates(string deviceName, int width, int height)
         {
-            if (string.IsNullOrEmpty(deviceName))
-            {
-                return new List<int>();
-            }
+            if (string.IsNullOrEmpty(deviceName)) return new List<int>();
 
             var refreshRates = new HashSet<int>();
             var allResolutions = GetAvailableResolutions(deviceName);
-
             foreach (var resolution in allResolutions)
-            {
                 if (resolution.Width == width && resolution.Height == height)
-                {
                     refreshRates.Add(resolution.Frequency);
-                }
-            }
 
             var sortedRates = refreshRates.ToList();
-            sortedRates.Sort((a, b) => b.CompareTo(a)); // Descending order (highest first)
+            sortedRates.Sort((a, b) => b.CompareTo(a));
 
             return sortedRates;
         }
@@ -349,8 +328,6 @@ namespace DisplayProfileManager.Helpers
             try
             {
                 logger.Debug("Querying WMI Win32PnPEntity for monitor information...");
-
-                // Query Win32_PnPEntity for monitor devices
                 using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_PnPEntity WHERE Service='monitor' OR PNPClass='Monitor'"))
                 {
                     using (var collection = searcher.Get())
@@ -365,18 +342,13 @@ namespace DisplayProfileManager.Helpers
                                 Description = obj["Description"]?.ToString() ?? "",
                                 Manufacturer = obj["Manufacturer"]?.ToString() ?? ""
                             };
-
                             logger.Debug($"WMI Win32PnPEntity Monitor: Name='{monitor.Name}', DeviceID='{monitor.DeviceID}', PnPDeviceID='{monitor.PnPDeviceID}'");
 
-                            // Filter out non-monitor devices
                             if (!string.IsNullOrEmpty(monitor.Name))
-                            {
                                 monitors.Add(monitor);
-                            }
                         }
                     }
                 }
-
                 logger.Info($"Found {monitors.Count} monitors from WMI Win32PnPEntity");
             }
             catch (Exception ex)
@@ -394,11 +366,8 @@ namespace DisplayProfileManager.Helpers
             try
             {
                 logger.Debug("Querying WMI WmiMonitorID for monitor information...");
-
                 var scope = new ManagementScope(@"\\.\root\wmi");
                 var query = new ObjectQuery("SELECT * FROM WmiMonitorID");
-
-                // Query WmiMonitorID for monitor ids
                 using (var searcher = new ManagementObjectSearcher(scope, query))
                 {
                     using (var collection = searcher.Get())
@@ -420,16 +389,11 @@ namespace DisplayProfileManager.Helpers
                                 $"ProductCodeID='{monitorId.ProductCodeID}', " +
                                 $"SerialNumberID='{monitorId.SerialNumberID}'");
 
-                            // Filter out non-monitor devices
                             if (!string.IsNullOrEmpty(monitorId.InstanceName))
-                            {
                                 monitorIDs.Add(monitorId);
-                            }
-
                         }
                     }
                 }
-
                 logger.Info($"Found {monitorIDs.Count} monitor ids from WMI WmiMonitorID");
             }
             catch (Exception ex)
@@ -444,18 +408,19 @@ namespace DisplayProfileManager.Helpers
         {
             if (arr == null || arr.Length == 0) return string.Empty;
             var chars = arr.Select(u => (char)u).ToArray();
+
             return new string(chars).Trim('\0');
         }
 
-        // ProductCodeID is often numeric; WMI gives ushort[]; convert to hex string for clarity
         private static string ArrayUshortToHexString(ushort[] arr)
         {
             if (arr == null || arr.Length == 0) return string.Empty;
-            // join bytes: each ushort value is a char code; sometimes product ID fits in two bytes
+
+            // Join bytes: each ushort value is a char code; sometimes product ID fits in two bytes
             var bytes = arr.SelectMany(u => BitConverter.GetBytes(u)).ToArray();
-            // strip trailing zeros
             int len = bytes.Length;
             while (len > 0 && bytes[len - 1] == 0) len--;
+
             return BitConverter.ToString(bytes, 0, len).Replace("-", "");
         }
 
@@ -470,12 +435,9 @@ namespace DisplayProfileManager.Helpers
             }
 
             string targetInstanceName = string.Empty;
-
-            // Use provided list if available, otherwise query WMI
             var monitorIDs = monitorIds ?? GetMonitorIDsFromWmiMonitorID();
             foreach (var monitorId in monitorIDs)
             {
-                // Match by ManufacturerName, ProductCodeID and SerialNumberID
                 if (monitorId.ManufacturerName.Equals(manufacturerName, StringComparison.OrdinalIgnoreCase) &&
                     monitorId.ProductCodeID.Equals(productCodeID, StringComparison.OrdinalIgnoreCase) &&
                     monitorId.SerialNumberID.Equals(serialNumberID, StringComparison.OrdinalIgnoreCase))
@@ -511,7 +473,7 @@ namespace DisplayProfileManager.Helpers
             var devMode = new DEVMODE();
             devMode.dmSize = (short)Marshal.SizeOf(devMode);
 
-            return EnumDisplaySettings(deviceName, ENUM_CURRENT_SETTINGS, ref devMode);
+            return EnumDisplaySettings(deviceName, EnumCurrentSettings, ref devMode);
         }
 
         #endregion

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code when working with code in this reposi
 
 ## Project Overview
 
-Display Profile Manager is a Windows desktop application for managing display profiles (resolution, refresh rate, DPI, HDR, rotation, audio devices, scripts) with system tray control. Built with C# (.NET Framework 4.8) and WPF.
+Display Profile Manager is a Windows desktop application for managing display profiles (resolution, refresh rate, rotation, DPI, color profile, HDR, audio devices, scripts) with system tray control. Built with C# (.NET Framework 4.8) and WPF.
 
 This is a fork by [exytral](https://github.com/exytral) based on [zac15987/DisplayProfileManager](https://github.com/zac15987/DisplayProfileManager).
 
@@ -47,19 +47,22 @@ powershell -File dev-build.ps1 [-Configuration Debug|Release] [-Platform x86|x64
 
 Listed roughly in order of invocation during `ApplyProfileAsync`:
 
-- **ProfileManager** — Thread-safe singleton for profile CRUD and application. Stores individual `.dpm` files in `%AppData%\DisplayProfileManager\Profiles\`. Core method: `ApplyProfileAsync(Profile)` returns `ProfileApplyResult`. Orchestrates the full apply sequence: topology → defer → layout → HDR → DPI → audio → scripts. Also handles schema migration via `MigrateProfileAsync` on load.
-- **DisplayConfigHelper** — Primary Windows Display Configuration API wrapper. All topology and layout changes go through here. Implements `ApplyDisplayTopology`, `DeferDisplayLayoutAsync`, `ApplyDisplayLayout`, `ApplyDisplayConfig`, `ApplyHdrSettings`, `VerifyDisplayConfiguration`, `ValidateCloneGroups`. See **Display Configuration Engine** below.
+- **ProfileManager** — Thread-safe singleton for profile CRUD and application. Stores individual `.dpm` files in `%AppData%\DisplayProfileManager\Profiles\`. Core method: `ApplyProfileAsync(Profile)` returns `ProfileApplyResult`. Orchestrates the full apply sequence: topology → defer → layout + advanced color + color profiles → DPI → audio → scripts. Also handles schema migration via `MigrateProfileAsync` on load.
+- **DisplayConfigHelper** — Primary Windows Display Configuration API wrapper. All topology and layout changes go through here. Implements `ApplyDisplayTopology`, `DeferDisplayLayoutAsync`, `ApplyDisplayLayout`, `ApplyDisplayConfig` (async), `ApplyAdvancedColorState`, `ApplyColorProfiles`, `VerifyDisplayConfiguration`, `ValidateCloneGroups`. `SetHdrState` and `SetAcmState` handle per-display Advanced Color routing with Windows version branching (24H2+ uses dedicated type 16/17 API). See **Display Configuration Engine** below.
 - **DpiHelper** — System-wide DPI scaling via P/Invoke, adapted from the windows-DPI-scaling-sample project. Called after layout is committed.
-- **AudioHelper** — Direct native COM/WASAPI integration for low-overhead audio profile configuration and endpoint switching.- **ScriptManager** — Thread-safe singleton for script management. Sandboxed scripts folder at `%AppData%\DisplayProfileManager\Scripts\`. All scripts are copied into this folder on import — arbitrary file paths outside this folder are not supported. Exposes `ExecuteScript`, `AddScript`, `RemoveScript`, `SortScripts`, `ImportScriptAsync`. Called last in the apply sequence.
+- **AudioHelper** — Direct native COM/WASAPI integration for low-overhead audio profile configuration and endpoint switching.
+- **ScriptManager** — Thread-safe singleton for script management. Sandboxed scripts folder at `%AppData%\DisplayProfileManager\Scripts\`. All scripts are copied into this folder on import. Exposes `ExecuteScript(Script)`, `ImportScriptAsync`. `IsEnabled = false` — field exists on `Script`; not currently checked in `ExecuteScript`. Present for future use.
+- **ColorProfileHelper** (`Helpers/ColorProfileHelper.cs`) — P/Invoke wrapper for `mscms.dll`. `GetSystemColorDirectory` returns the system color store path. `GetInstalledColorProfilesFiltered(hdrOnly)` enumerates installed `.icc`/`.icm` files, optionally restricted to HDR-capable profiles via ICC tag inspection (MHC2 presence or CICP transfer function 16/18). `GetDisplayDefaultColorProfile` reads the current per-display OS association. `ApplyColorProfile` sets the default via `ColorProfileSetDisplayDefaultAssociation` with per-user scope.
 - **IconHelper** — Icons sandbox management (`Helpers/IconHelper.cs`). `GetIconsFolderPath` creates `%AppData%\DisplayProfileManager\Icons\` on demand. `ResolveIconPath` rejects path traversal. `LoadImageSource` returns a frozen `BitmapImage` with an in-process `ConcurrentDictionary` cache keyed by `filename|size|lastWriteUtcTicks` — stale entries evict automatically when files change externally. `ImportIconAsync` copies `.ico` files with conflict-resolution renaming. `GetAvailableIcons` returns a sorted list of bare filenames.
 - **SettingsManager** — Thread-safe singleton for app settings. Manages auto-start mode (Registry or Task Scheduler), default profile, current theme, and other persisted preferences.
 - **ThemeHelper** — Theme loading, registration, and switching. Manages built-in themes and user themes from `%AppData%\DisplayProfileManager\Themes\`. Exposes `AvailableThemes` (live list) and `RefreshThemes` (public, rescans and reapplies).
-- **DisplayGroupHelper** (`DisplayGroupHelper.cs`) — Provides display grouping logic for the profile editor UI, handling clone group member aggregation and display of shared settings.
+- **DisplayGroupHelper** (`Helpers/DisplayGroupHelper.cs`) — Groups display settings for UI rendering. `GroupDisplaysForUI` aggregates clone group members behind a representative setting and returns a flat list of display groups. Called from both `MainWindow.UpdateProfileDetails` and `ProfileEditWindow.LoadDisplaySettings`.
 - **GlobalHotkeyHelper** — System-wide hotkey registration using `RegisterHotKey`. Registers per-profile hotkeys; disables automatically when `ProfileEditWindow` is open.
 - **AutoStartHelper** — Registry mode (no admin) or Task Scheduler mode (requires admin for setup, faster launch).
-- **DisplayHelper** — Legacy API wrapper. Used only for monitor connection checks (`IsMonitorConnected`).
+- **DisplayHelper** — Legacy API wrapper. Used only for checks (e.g. `IsMonitorConnected`).
 - **TrayIcon** — System tray integration with dynamically generated context menu from profiles.
 - **AboutHelper** — Version string resolution (`GetVersion`, `GetInformationalVersion`), settings path helper, and static data for the Settings → About panel. `Libraries` nested class holds third-party library metadata. `Contributors` nested class holds contributor names, URLs, link labels, and feature request credits used by `SettingsWindow.LoadContributors` to render the contributors list. Each contributor entry has a `Name`, `Url`, `Desc`, an optional `LinkLabel`/`LinkUrl` pair (renders as a hyperlink in parentheses between the name and description), and an optional `SubText` (italic line below, for community request credits).
+
 ### Display Configuration Engine
 
 The application uses the Windows Display Configuration API (`SetDisplayConfig`) for atomic, reliable profile switching. The apply flow in `ProfileManager.ApplyProfileAsync` is:
@@ -68,9 +71,10 @@ The application uses the Windows Display Configuration API (`SetDisplayConfig`) 
 
 2. **`DeferDisplayLayoutAsync`** — Polls every 250ms (up to 10s timeout) until all expected displays are live and reporting valid dimensions. Only waits for displays confirmed present during disconnected display detection — disconnected displays are excluded so they don't cause a full timeout.
 
-3. **`ApplyDisplayConfig`** — Wrapper that calls `ApplyDisplayLayout` then `ApplyHdrSettings`.
-   - **`ApplyDisplayLayout`** — Issues a fresh `QueryDisplayConfig` (raw IDs from the pre-topology snapshot are stale after `SetDisplayConfig` reconfigures the adapter) then applies resolution, position, rotation, refresh rate, and SourceId normalization via `SDC_USE_SUPPLIED_DISPLAY_CONFIG`. Skips the `SetDisplayConfig` call entirely if all live checks already match the profile. On non-zero return, cross-checks with `VerifyDisplayConfiguration` before failing — Windows sometimes returns non-fatal codes on valid configs.
-   - **`ApplyHdrSettings`** — Issues another fresh `GetDisplayConfigs` query to get live `RawTargetId` values (required by `DisplayConfigSetDeviceInfo`; the base `TargetId` stored in the profile produces error 87). Only toggles HDR state if the live state differs from the profile.
+3. **`ApplyDisplayConfig`** (async) — Calls `ApplyDisplayLayout`, then `ApplyAdvancedColorState`, then `ApplyColorProfiles`.
+   - **`ApplyDisplayLayout`** — Issues a fresh `QueryDisplayConfig` (raw IDs from the pre-topology snapshot are stale after `SetDisplayConfig` reconfigures the adapter) then applies resolution, position, rotation, refresh rate, and SourceId normalization via `SDC_USE_SUPPLIED_DISPLAY_CONFIG`. Skips the `SetDisplayConfig` call entirely if all live checks already match the profile. Rotation is skipped when `profile.Rotation == 0` ("Not Applied"). On non-zero return, cross-checks with `VerifyDisplayConfiguration` before failing — Windows sometimes returns non-fatal codes on valid configs.
+   - **`ApplyAdvancedColorState`** — Issues a fresh `GetDisplayConfigs` query after topology apply to get live `RawTargetId` values. For each enabled display with HDR capability: toggles HDR only if live state differs. ACM is forced on when HDR is on; independently toggled otherwise. `SetHdrState` uses `DisplayConfigSetHdrState` (type 16) on Windows 11 24H2+, falls back to the legacy advanced color path. `SetAcmState` uses `SetWcgState` (type 17) on 24H2+; ACM is not supported on HDR-capable displays before 24H2.
+   - **`ApplyColorProfiles`** — For each enabled display with a non-null `ColorProfile`, builds a transient `DisplaySetting` from live config (to supply the correct `AdapterLuid` and `SourceId`) and calls `ColorProfileHelper.ApplyColorProfile`.
 
 4. **DPI** — Applied per device via `DpiHelper.SetDPIScaling` after layout is committed.
 
@@ -83,6 +87,7 @@ The application uses the Windows Display Configuration API (`SetDisplayConfig`) 
 - **Never use `ChangeDisplaySettingsEx` for topology or resolution changes, always use `DisplayConfigHelper` methods.** `ApplyDisplayLayout` handles resolution atomically inside `SetDisplayConfig`.
 - **SourceId normalization is handled inside `ApplyDisplayTopology` and `ApplyDisplayLayout` via `BuildSourceIdMap` — do not normalize in `ApplyProfileAsync`.** Profiles store raw `SourceId` values which may have gaps when monitors are disabled (e.g. 0, 2, 3 after disabling monitor 1); `SetDisplayConfig` rejects non-contiguous IDs. Normalization is a submission detail handled at the point of each `SetDisplayConfig` call, not at the orchestration layer — `displayConfigs` must preserve the original saved values so that logging, `VerifyDisplayConfiguration`, and clone group detection remain accurate throughout the apply flow.
 - **Clone groups must be set in `ApplyDisplayTopology` with `SDC_TOPOLOGY_SUPPLIED`.** Once the mode array is used for resolution/position, clone groups cannot be changed without invalidating mode indices. `SDC_TOPOLOGY_SUPPLIED` must be present in `SetDisplayConfigFlags` for this to work correctly.
+- **HDR and ACM are distinct.** Do not conflate them. `IsHdrEnabled` and `IsAcmEnabled` are separate API flags; HDR does not imply ACM and vice versa. On pre-24H2 systems, the legacy advanced color path uses a shared toggle — `SetAdvancedColorState` with `Acm` intent must reset the state to `Off` first so Windows initializes ACM rather than re-engaging HDR.
 - **HDR requires a live `RawTargetId`, not the stored profile `TargetId`.** Always call `GetDisplayConfigs` fresh after topology apply, match by base `TargetId` (lower 16 bits), and use `activeDisplay.RawTargetId` for `DisplayConfigSetDeviceInfo`.
 - **Disconnected display detection runs after mapping, before topology.** `ApplyProfileAsync` checks enabled profile displays against live `GetDisplayConfigs()` results by `TargetId`. Missing displays are recorded in `ProfileApplyResult.DisconnectedDisplays`, logged as warnings, and excluded from the defer wait — the rest of the profile still applies. This surfaces a specific error immediately rather than hanging through the full defer timeout.
 
@@ -92,8 +97,49 @@ Clone groups enable display mirroring (multiple monitors showing identical conte
 
 - Encoded in `DISPLAYCONFIG_PATH_SOURCE_INFO.modeInfoIdx`: lower 16 bits = clone group ID (`modeInfoIdx & 0xFFFF`), upper 16 bits = source mode index (`modeInfoIdx >> 16`). Write via `ResetModeAndSetCloneGroup()` for Phase 1; direct field assignment for Phase 2. In `ApplyDisplayLayout`: all members of a clone group share one source mode entry, keyed by normalized `SourceId`. **Do not consume a separate mode entry per display** — that prevents cloning of non-primary displays.
 - Detection: `GetCurrentDisplaySettingsAsync()` groups displays by `SourceId` only (not `DeviceName + SourceId`).
-- Validation: `ValidateCloneGroups()` ensures consistent resolution, refresh rate, SourceId, and position within groups before apply; warns on DPI mismatch (non-blocking).
-- **`BreakClone` uses `NativeWidth`/`NativeHeight`** to restore each non-representative member's resolution. This avoids defaulting to the highest supported resolution (which may be a DCI resolution wider than the panel's native pixel grid). If `NativeWidth` is 0 (old profile not yet migrated), falls back to `AvailableResolutions[0]`.
+- **`Clone()` saves all attached-member pre-clone state BEFORE any modifications.** The primary-transfer block runs after the save loop — it clears `IsPrimary` on attached members, so saving after would record `false` instead of the original value. Correct order: save all `Original*` fields → transfer primary → set clone markers.
+- **`BreakClone()` restores each attached member's full pre-clone display configuration** from values saved in `Clone()`. Restored fields: position (`DisplayPositionX/Y`), `SourceId`, resolution (`Width/Height`), `Frequency`, `DpiScaling`, `Rotation`, `ColorProfile`, `IsHdrEnabled`, `IsAcmEnabled`, and `IsPrimary`. Falls back to native resolution and a position to the right of the source if no saved values are available (old profiles loaded from disk where `[JsonIgnore]` params were never serialized).
+- **`_cloneGroupMembers` is `public`** to allow `RebuildDisplayControls` in `ProfileEditWindow` to read member device names for sort-order capture before a rebuild.
+- **`BreakClone()` does NOT clear `IsCloneSource`** before triggering the `RebuildDisplayControls` rebuild. `GetDisplaySettings()` uses `IsCloneSource` to route each member to its correct parameter source (see below). `GetDisplaySettings()` itself produces output with `IsCloneSource = false` for all members when `CloneGroupId` is empty, so the new independent controls are always created correctly.
+- **`BreakClone()` is order-independent.** It partitions `_cloneGroupMembers` by `IsCloneSource` rather than assuming index 0 is the source. This is necessary because `DisplayGroupHelper.GroupDisplaysForUI` preserves the settings-list order, which may place the attached display first if it had a lower path index than the source.
+- **`RebuildDisplayControls()` captures device order from `_profile.DisplaySettings` before the rebuild.** Using `_cloneGroupMembers` instead would place any interleaved independent display after both clone members, since the clone group control lists source before attached.
+
+**`GetDisplaySettings()` — source vs attached routing:**
+
+```csharp
+bool useOwnParams = !originalSetting.IsCloneSource && string.IsNullOrEmpty(originalSetting.CloneGroupId);
+```
+
+| Situation | `IsCloneSource` | `CloneGroupId` | `useOwnParams` | Result |
+|-----------|-----------------|----------------|----------------|--------|
+| Active clone — source | `true` | non-empty | `false` | reads combo |
+| Active clone — attached | `false` | non-empty | `false` | reads combo (shares source settings) |
+| After BreakClone — source | `true` (retained) | `""` | `false` | reads combo (keeps merged-control value) |
+| After BreakClone — attached | `false` | `""` | `true` | reads own restored params |
+| Independent display | `false` | `""` | `true` | reads own params (single member; same as combo) |
+
+Fields that respect `useOwnParams`: `Width`, `Height`, `Frequency`, `DpiScaling`, `Rotation`, `IsHdrEnabled`, `IsAcmEnabled`, `ColorProfile`. Fields that do not: identity fields, layout (`DisplayPositionX/Y`), `IsEnabled`, `IsHdrSupported`, native dimensions, capabilities.
+
+`IsPrimary` uses `originalSetting.IsPrimary` directly — not gated on list position. After `BreakClone`, attached members have the restored value (`OriginalIsPrimary`) and the source has `!attachedHadPrimary && !primaryExistsElsewhere`.
+
+`IsCloneSource` in output: `originalSetting.IsCloneSource && !string.IsNullOrEmpty(originalSetting.CloneGroupId)` — always `false` for members with empty `CloneGroupId`, ensuring independent controls never inherit the clone-source flag.
+
+**Clone params** (`[JsonIgnore]`, not serialized; populated in `Clone()`, cleared in `BreakClone()`)
+
+| Property | Description |
+|----------|-------------|
+| `OriginalPositionX`, `OriginalPositionY` | Virtual desktop position before clone overwrote it. |
+| `OriginalSourceId` | Adapter SourceId before clone overwrote it. |
+| `OriginalWidth`, `OriginalHeight` | Resolution before the shared-source resolution was applied. |
+| `OriginalFrequency` | Refresh rate before the shared-source rate was applied. |
+| `OriginalIsPrimary` | Whether this display was primary before it became an attached clone member. |
+| `OriginalDpiScaling` | DPI scaling percentage before clone. |
+| `OriginalRotation` | Rotation value before clone. |
+| `OriginalColorProfile` | Color profile filename (or `null` for "Not Applied") before clone. |
+| `OriginalIsHdrEnabled` | HDR enabled state before clone. |
+| `OriginalIsAcmEnabled` | ACM enabled state before clone. |
+
+These fields are copied through `GetDisplaySettings()` so they survive the `RebuildDisplayControls` call that runs immediately after `Clone()`. They are `[JsonIgnore]` so they do not persist in saved `.dpm` files; if a profile is saved while in cloned state and reloaded, Break Clone uses the fallback path.
 
 **Clone Group Profile Structure:**
 ```json
@@ -162,8 +208,9 @@ All flags accept any number of leading dashes or none at all — `--profile`, `-
 ### Script System
 
 - Scripts are sandboxed to `%AppData%\DisplayProfileManager\Scripts\`. When a script is imported, it is copied into this folder. Arbitrary paths outside this folder are not supported.
+- `Profile.Scripts` is `List<Script>`. Each entry carries `FileName` (bare sandbox filename), `Arguments` (empty string default), and `IsEnabled` (bool, default true). `IsEnabled` is not currently checked in `ScriptManager.ExecuteScript`; all scripts in the list execute regardless of this flag.
 - Supported types: `.lnk` (via shell execute), `.ps1` (via `powershell.exe -ExecutionPolicy Bypass`), `.bat`/`.cmd` (via `cmd.exe /c`), `.vbs`/`.js` (via `cscript.exe /nologo`), `.py` (via `python.exe`), `.ahk` (via `autohotkey.exe`). `.exe` files are automatically converted to `.lnk` shortcuts on import to avoid COM reference issues.
-- `EnableScripts` is a per-profile section-level flag. When false, no scripts in that profile execute on apply. There is no per-script enable/disable toggle — scripts are always included or excluded as a group per profile. Scripts remain stored in the profile when `EnableScripts` is false.
+- `EnableScripts` is a per-profile section-level flag. When false, no scripts in that profile execute on apply. Scripts remain stored when `EnableScripts` is false.
 - Arguments can be passed to any script type. They are appended after the script path in the constructed command.
 
 ### Data Storage
@@ -172,7 +219,7 @@ All flags accept any number of leading dashes or none at all — `--profile`, `-
 |------|----------|
 | `%AppData%\DisplayProfileManager\Icons\*.ico` | User icons |
 | `%AppData%\DisplayProfileManager\Logs\*.log` | NLog daily rotation, 30-day retention |
-| `%AppData%\DisplayProfileManager\Profiles\*.dpm` | One JSON file per profile |
+| `%AppData%\DisplayProfileManager\Profiles\*.dpm` | User profiles (JSON) |
 | `%AppData%\DisplayProfileManager\Scripts\` | User scripts |
 | `%AppData%\DisplayProfileManager\Themes\*.xaml` | User themes |
 | `%AppData%\DisplayProfileManager\Settings.json` | App settings |
@@ -190,11 +237,12 @@ A `Profile` object contains the following top-level properties:
 | `IsDefault` | `bool` | `false` | Applied on startup if set |
 | `CreatedDate` | `DateTime` | now | Creation timestamp |
 | `LastModifiedDate` | `DateTime` | now | Last save timestamp |
-| `SchemaVersion` | `int` | `0` | Schema version for migration. Defaults to `0` so old profiles without this field trigger migration on first load. Current version is `2`. |
+| `SchemaVersion` | `int` | `0` | Schema version for migration. Defaults to `0` so old profiles without this field trigger migration on first load. Current version is `3`. |
 | `DisplaySettings` | `List<DisplaySetting>` | `[]` | Per-monitor settings (see below) |
 | `AudioSettings` | `AudioSetting` | default | Playback/recording device config |
+| `EnableAudio` | `bool` | `true` | Field present and copied in `DuplicateProfile`. Not currently checked in `ApplyProfileAsync`; `ApplyPlaybackDevice`/`ApplyCaptureDevice` on `AudioSetting` are the operative flags. |
 | `EnableScripts` | `bool` | `true` | Whether scripts run on apply |
-| `Scripts` | `List<string>` | `[]` | Script filenames in the scripts folder |
+| `Scripts` | `List<Script>` | `[]` | Script objects; each carries `FileName`, `Arguments`, and `IsEnabled` |
 | `HotkeyConfig` | `HotkeyConfig` | default | Global hotkey for this profile |
 
 Each `DisplaySetting` entry (one per physical monitor) includes:
@@ -207,6 +255,7 @@ Each `DisplaySetting` entry (one per physical monitor) includes:
 | `ReadableDeviceName` | CCD friendly name from `DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_NAME` (e.g. "Samsung Odyssey G60SD"). Preferred over WMI name. |
 | `ManufacturerName`, `ProductCodeID`, `SerialNumberID` | EDID identifiers — used for hardware-specific profile matching |
 | `AdapterId` | GPU adapter LUID as hex string |
+| `AdapterLuid` | `[JsonIgnore]` — GPU adapter LUID; not stored. Populated at apply time from live config for use in color profile P/Invoke calls. |
 | `TargetId` | Base target ID (lower 16 bits), stable across sessions — stored in profile. Used for migration backfill and disconnected display detection. |
 | `SourceId` | Adapter source ID; shared by clone group members |
 | `CloneGroupId` | Clone group identifier; empty string = extended (independent) mode |
@@ -225,14 +274,16 @@ Each `DisplaySetting` entry (one per physical monitor) includes:
 |----------|-------------|
 | `DisplayPositionX`, `DisplayPositionY` | Position in the virtual desktop |
 
-**Active configuration**
+**Configuration**
 
 | Property | Description |
 |----------|-------------|
 | `Width`, `Height` | Desired resolution |
 | `Frequency` | Refresh rate in Hz |
-| `Rotation` | Screen orientation: 1=0°, 2=90°, 3=180°, 4=270° (maps to `DISPLAYCONFIG_ROTATION`) |
+| `Rotation` | Screen orientation: 0=Not Applied, 1=0°, 2=90°, 3=180°, 4=270° (maps to `DISPLAYCONFIG_ROTATION`). `ApplyDisplayLayout` skips rotation when value is 0. |
 | `IsHdrSupported`, `IsHdrEnabled` | HDR hardware capability and desired state |
+| `IsAcmEnabled` | ACM desired state. Forced on at apply time when `IsHdrEnabled` is true, regardless of this value. |
+| `ColorProfile` | Bare ICC/ICM filename from the system color store. `null` = not applied (Windows untouched). |
 | `DpiScaling` | Windows DPI scaling percentage |
 
 **Native**
@@ -251,9 +302,14 @@ Each `DisplaySetting` entry (one per physical monitor) includes:
 
 ### Schema Migration
 
-`ProfileManager.LoadProfilesAsync` checks each profile's `SchemaVersion` against `CurrentSchemaVersion` (currently `2`). Profiles with `SchemaVersion < 2` are passed to `MigrateProfileAsync`.
+`ProfileManager.LoadProfilesAsync` checks each profile's `SchemaVersion` against `CurrentSchemaVersion` (currently `3`). Profiles with `SchemaVersion < 3` are passed to `MigrateProfileAsync`.
 
 `SchemaVersion` defaults to `0` in `Profile.cs` so that old profiles without this field deserialize to `0` and trigger migration automatically.
+
+**Version 2 → 3:**
+- Backfills `ColorProfile` on each `DisplaySetting` from `ColorProfileHelper.GetDisplayDefaultColorProfile` (user scope first, system fallback) by matching `TargetId` to live config. Disconnected displays are skipped and backfilled on next load when reconnected.
+- `List<string>` → `List<Script>` promotion is handled transparently at deserialization via `ScriptListConverter`; no per-field migration step is needed.
+- Bumps `SchemaVersion` to `3` and triggers a re-save.
 
 **Version 1 → 2:**
 - No data backfill — `Icon` defaults to `null` via `JsonProperty`
@@ -274,13 +330,16 @@ Each `DisplaySetting` entry (one per physical monitor) includes:
 
 ## Platform Requirements
 
-- **Windows 10 version 1709+ required for full functionality.** Windows 7/8 are unsupported — basic single-display profile switching may incidentally work, but:
+- **Windows 10 version 1709+ required for core functionality.** Windows 7/8 are unsupported — basic single-display profile switching may incidentally work, but:
   - **HDR** — `DISPLAYCONFIG_DEVICE_INFO_GET_ADVANCED_COLOR_INFO` is not available below Windows 10 1709; `DisplayConfigGetDeviceInfo` will fail silently or return garbage.
   - **DPI scaling** — per-monitor V2 awareness (`PROCESS_DPI_AWARENESS_CONTEXT`) requires Windows 8.1 Update 1+; below that, `DpiHelper` P/Invoke calls will return incorrect values.
   - **Clone groups** — `SDC_TOPOLOGY_SUPPLIED` behavior is unreliable on Windows 7/8 drivers; apply will fail non-deterministically.
   - **UI** — MDL2 icon font is not installed on Windows 7/8; icon buttons render as blank squares.
+- **Windows 11 22H2+ required for ACM.** `IsAcmSupported` checks for this at runtime. On earlier builds, ACM is silently skipped; the toggle is hidden on unsupported displays.
+- **Windows 11 24H2+ required for full HDR and ACM API support.** On earlier builds both fall back gracefully:
+  - **HDR** — falls back to the legacy `DISPLAYCONFIG_DEVICE_INFO_SET_ADVANCED_COLOR_STATE` path instead of `SetHdrState` (type 16).
+  - **ACM** — `SetWcgState` (type 17) is unavailable; ACM is not supported on HDR-capable displays and is silently skipped for those targets.
 - **Privileges**: Standard user (`asInvoker`). Admin only required for Task Scheduler auto-start setup.
-- **DPI Awareness**: Per-monitor V2 via app.manifest
 - **Architectures**: AnyCPU (default), x86, x64, ARM64
 
 ## Development Guidelines
@@ -289,30 +348,14 @@ Each `DisplaySetting` entry (one per physical monitor) includes:
 
 - **Short, concise, single-line.** No `<summary>` tags, no step/phase headers, no multi-line blocks.
 - **Verb-oriented wherever appropriate** — comments describe what happens and why, not what exists.
-- **Don't explain self-explanatory code.** If the method name already says it, skip the comment. Getters, setters, simple assignments, obvious one-liners — no comment needed. Possible exception for large methods where a block needs orientation (one line per block, not per statement).
-- When unsure, look at the existing comment style in the file for guidance.
+- **Don't explain self-explanatory code.** Skip comments for simple assignments, properties, or obvious one-liners.
+  - **Structural Milestone Exception**: For long or complex methods, a single concise line per primary logical block is permitted to provide structural orientation and assist scannability.
+  - **XAML.cs Layout Exception**: In code-behind files (`.xaml.cs`), short comments marking UI section boundaries or describing what a logical block of imperative UI construction does are permitted even when the code is self-explanatory. These orient readers who cannot see the corresponding `.xaml` in the same view and aid handoffs where only the `.cs` file is shared.
+  - XAML comments `(<!-- ... -->)` follow the same single-line, verb-oriented rule. Use them sparingly for non-obvious layout decisions or binding sources. Do not comment self-explanatory XAML structure.
+- **Log strings follow the same conciseness principle as comments** — short, verb-oriented, no filler. They are developer-facing and never shown in UI.
+StatusTextBlock.Text strings are user-facing. Use past-tense completion phrasing ("Profile applied", "Profiles refreshed"). No "will be", no "for this profile" padding.
 
-```csharp
-// Good — orients the reader inside a large method without over-explaining
-// fetch live configs once — reused across all profile migrations
-// reject path traversal attempts
-// fall back to default icon if load fails
-// iterate displayConfigs — QueryDisplayConfig correctly reports clone topology unlike legacy API
-
-// Good — marks a non-obvious grouping boundary
-// Identity
-setting.DeviceName = foundConfig.DeviceName;
-// State
-setting.IsEnabled = foundConfig.IsEnabled;
-
-// Bad — explains the method name
-// This method gets the current display settings
-// Returns a list of DisplaySetting objects
-
-// Bad — step/phase narration
-// Step 1: Get the path
-// Step 2: Load the image
-```
+When unsure, look at the existing comment style in the file for guidance.
 
 ### Logging
 ```csharp
@@ -345,7 +388,8 @@ private static readonly Logger logger = LoggerHelper.GetLogger();
 ### JSON Serialization Notes
 - All profile/settings properties use `[JsonProperty("name")]` attributes for consistent naming.
 - New properties must have sensible defaults for loading old `.dpm` files (backward compatibility).
-  - `IsHdrEnabled` → `false`, `Rotation` → `1` (0°), `EnableScripts` → `true`, `CloneGroupId` → `""` (extended mode), `NativeWidth`/`NativeHeight` → `0` (backfilled by migration), `SchemaVersion` → `0` (triggers migration on first load), `Icon` → `null` (no custom icon; `null` is the correct JSON absence).
+  - `IsHdrEnabled` → `false`, `Rotation` → `1` (0°), `EnableScripts` → `false`, `CloneGroupId` → `""` (extended mode), `NativeWidth`/`NativeHeight` → `0` (backfilled by migration), `SchemaVersion` → `0` (triggers migration on first load), `Icon` → `null` (no custom icon; `null` is the correct JSON absence), `EnableAudio` → `true`, `IsAcmEnabled` → `false`, `ColorProfile` → `null`.
+  - `OriginalPositionX/Y`, `OriginalSourceId`, `OriginalWidth/Height`, `OriginalFrequency`, `OriginalIsPrimary`, `OriginalDpiScaling`, `OriginalRotation`, `OriginalColorProfile`, `OriginalIsHdrEnabled`, `OriginalIsAcmEnabled` → `null` (`[JsonIgnore]`, not serialized; ephemeral clone state only).
 
 ### Adding a Contributor
 
@@ -357,11 +401,11 @@ Two files need updating — `AboutHelper.cs` and `SettingsWindow.xaml.cs`.
 public const string ExampleName      = "@example";
 public const string ExampleUrl       = "https://github.com/example";
 public const string ExampleDesc      = "Short description of contribution";
-public const string ExampleLinkLabel = "PR #99";           // omit if no link
+public const string ExampleLinkLabel = "PR #99"; // omit if no link
 public const string ExampleLinkUrl   = "https://github.com/zac15987/DisplayProfileManager/pull/99";
 ```
 
-For forks use the repo URL as `LinkUrl` and `"Fork"` as `LinkLabel`. For the original project use the repo URL and `"Original project"`. Community requesters go in `SubText` on an existing entry — add a `FfgtthrIssueUrl`-style constant if you need to link an issue.
+For forks use the repo URL as `LinkUrl` and `"Fork"` as `LinkLabel`. For the original project use the repo URL and `"Original project"`. Community requesters go in `SubText` on an existing entry.
 
 **`SettingsWindow.xaml.cs` — `LoadContributors`** — add a new entry to the array:
 
@@ -377,7 +421,7 @@ new
 },
 ```
 
-Order: upstream contributors first (chronological by contribution), then `@exytral` last.
+Order: upstream contributors first (chronological by contribution), then `@exytral`, then remaining contributers last (chronological by contribution).
 
 ### File Structure
 ```
@@ -386,14 +430,16 @@ DisplayProfileManager/
 │   ├── HotkeyConfig.cs                          Per-profile hotkey definition
 │   ├── Profile.cs                               Profile model + DisplaySetting, AudioSetting, HotkeyConfig
 │   ├── ProfileManager.cs                        Thread-safe singleton; orchestrates ApplyProfileAsync and MigrateProfileAsync
+│   ├── Script.cs                                Script model with FileName, Arguments, IsEnabled, ToString()
 │   ├── ScriptManager.cs                         Thread-safe singleton; script CRUD and execution
 │   └── SettingsManager.cs                       Thread-safe singleton; persists app settings to Settings.json
 ├── Helpers/
 │   ├── AboutHelper.cs                           Version strings, settings path, Libraries and Contributors nested classes
 │   ├── AudioHelper.cs                           Native Windows WASAPI/COM interface mapping for audio switching
 │   ├── AutoStartHelper.cs                       Registry and Task Scheduler auto-start modes
+│   ├── ColorProfileHelper.cs                    ICC/ICM profile enumeration and application via mscms.dll
 │   ├── DisplayConfigHelper.cs                   Display engine — all SetDisplayConfig logic lives here
-│   ├── DisplayGroupHelper.cs                    Clone group display grouping for the profile editor UI
+│   ├── DisplayGroupHelper.cs                    Groups display settings for UI rendering; clone group aggregation via GroupDisplaysForUI
 │   ├── DisplayHelper.cs                         Legacy API wrapper; used only for IsMonitorConnected
 │   ├── DpiHelper.cs                             System-wide DPI scaling via P/Invoke
 │   ├── GlobalHotkeyHelper.cs                    RegisterHotKey / UnregisterHotKey management
@@ -418,9 +464,9 @@ DisplayProfileManager/
     │   └── ProfileViewModel.cs                  Profile display model; exposes Icon, Name, and binding-friendly properties
     ├── Windows/
     │   ├── CloseConfirmationDialog.xaml(.cs)    Minimize vs Exit prompt with Remember my choice
-    │   ├── MainWindow.xaml(.cs)                 Profile list, details panel, action buttons
+    │   ├── MainWindow.xaml(.cs)                 Profile list, details panel, action buttons; uses DisplayGroupHelper for clone group display
     │   ├── MonitorIdentifyWindow.xaml(.cs)      Numbered overlay for physical monitor identification
-    │   ├── ProfileEditWindow.xaml(.cs)          Profile info, per-monitor settings editor, clone UI, audio, scripts panel
+    │   ├── ProfileEditWindow.xaml(.cs)          Profile info, per-monitor settings editor, clone UI, audio, scripts panel; uses DisplayGroupHelper for display grouping
     │   └── SettingsWindow.xaml(.cs)             Theme, Auto-start, startup profile, notifications, hotkey overview
     └── TrayIcon.cs                              System tray icon and dynamic context menu
 ```
@@ -443,19 +489,18 @@ This section documents non-obvious UI interactions that affect how features shou
 
 ### Main Window — Action Buttons
 
-- **Duplicate, Import, Create** — always visible in the toolbar, no selection required.
+- **Import, Create** — always visible in the toolbar, no selection required.
+- **Duplicate** — appear in the toolbar only when a profile is selected.
+  - Both **Create** and **Duplicate** open the editor immediately — there is no intermediate step.
 - **Edit, Delete** — appear in the Details panel only when a profile is selected.
-- **Duplicate** — requires a profile to be selected. Opens the editor immediately with a copy.
-- **Create** — no selection required. Opens the editor immediately with a blank profile.
-- Both Create and Duplicate open the editor immediately — there is no intermediate step.
 
 ### Main Window — Details Panel
 
 Visible when a profile is selected. Shows:
 - Profile name and description; when a custom icon is set, an 18×18 icon appears inline to the right of the name.
-- Per-monitor cards: resolution, refresh rate, rotation, DPI. Disabled monitors shown with an amber "DISABLED MONITOR" badge. Primary monitor labeled "Primary Display".
+- Per-monitor cards: resolution, refresh rate, rotation, HDR/ACM, DPI, color profile. Disabled monitors shown with an amber badge ("DISABLED MONITOR" or "DISABLED CLONE GROUP" for clone groups). Primary monitor labeled "Primary Display". Clone groups shown with a "Clone Group" indicator.
 - **Display:** section: with consistent 16px top spacing shared across all sections.
-- **Audio:** section: enabled devices show the device name in secondary text; disabled devices show "Output: Not Applied" / "Input: Not Applied" in gray with no device name.
+- **Audio:** section: enabled devices show the device name in secondary text; disabled devices dim "Output: Not Applied" / "Input: Not Applied".
 - Scripts section: labeled "Scripts (Disabled):" when the section-level `EnableScripts` toggle is off.
 - Hotkey Settings: hotkey combination and Enabled/Disabled status. Status is accent-colored when enabled, default text color when disabled.
 - Created and Last Modified timestamps.
@@ -470,12 +515,12 @@ Visible when a profile is selected. Shows:
 - **Load** (Displays) — overwrites all display settings with the current live desktop configuration.
 - **Identify** — overlays each physical monitor with its number temporarily.
 - **Clone dropdown** — per-monitor control. Select another monitor to create a mirror group. The two monitors merge into a single group panel listing both device names. Resolution and refresh rate are shared across the group.
-- **Break Clone** — appears on grouped panels in place of the Clone dropdown. Splits the group back into independent monitors. Restores each non-representative member's resolution from `NativeWidth`/`NativeHeight` where available.
+- **Break Clone** — appears on grouped panels in place of the Clone dropdown. Splits the group back into independent monitors. The source display keeps the merged control's current combo values (resolution, refresh rate, DPI, rotation, color profile, HDR, ACM). The attached display fully restores its pre-clone state: position, source ID, resolution, refresh rate, DPI scaling, rotation, color profile, HDR, ACM, and primary flag. If the attached display was primary before cloning, it takes primary back and the source loses it. Falls back to native resolution and a position to the right of the source if no saved original values exist (profiles saved while in cloned state).
 - **Profile name** — `MaxLength="60"` enforced on the TextBox. Names longer than 63 characters cause tray menu truncation issues; the 60-char limit is the enforced UI ceiling with headroom below the known breakpoint.
 - **Icon picker** — between the name/hotkey section and Display Settings. Import `.ico` files into the Icons sandbox. Select from previously imported icons via a scrollable toggle grid. Clear removes the icon assignment without deleting the file from the sandbox.
 - **Load** (Audio) — overwrites audio settings with current default playback/recording devices.
-- **Clear All Scripts** — danger button in the Scripts section header. Marks all non-deleted scripts for deletion in one click; individual rows can still be restored.
 - The Scripts section has a single **Enable** toggle that controls all scripts for the profile. There is no per-script enable/disable.
+- **Clear All Scripts** — danger button in the Scripts section header. Marks all non-deleted scripts for deletion in one click; individual rows can still be restored.
 - Hotkeys are disabled system-wide while any profile editor window is open.
 - The window opens sized and positioned to match the main window at open time.
 
@@ -496,8 +541,8 @@ Visible when a profile is selected. Shows:
 - Left-click or right-click opens the context menu.
 - Profile list — all profiles listed. Active profile has a checkmark. Clicking any profile applies it directly.
 - The tray icon updates to the active profile's custom icon on each apply, falling back to the default app icon if loading fails. Apply success notification uses `ToolTipIcon.Info`; failure uses `ToolTipIcon.Error`.
-- **Manage Profiles...** — opens the main window.
-- **Settings...** — opens the main window then the Settings window.
+- **Open** — opens the main window.
+- **Settings** — opens the main window, then the Settings window.
 - **Exit** — exits the application.
 
 ## Tests
@@ -512,16 +557,16 @@ DisplayProfileManager.Tests/
 │   ├── DisplayConfigInfoBuilder.cs
 │   └── DisplaySettingBuilder.cs
 └── Tests/
+    ├── CloneGroupTopologyTests.cs
     ├── DisplayConfigNormalizationTests.cs
     ├── DisplayConfigPathSourceInfoTests.cs
     ├── DisplaySettingTests.cs
-    ├── CloneGroupTopologyTests.cs
-    ├── CloneGroupValidationTests.cs
     ├── GetLUIDFromStringTests.cs
     ├── HotkeyConfigTests.cs
-    ├── ScriptHelperTests.cs
+    ├── ProfileManagerTests.cs
     ├── ProfileTests.cs
-    └── ProfileManagerTests.cs
+    ├── ScriptHelperTests.cs
+    └── ScriptTests.cs
 ```
 
 ### Categories

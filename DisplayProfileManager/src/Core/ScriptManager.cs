@@ -1,9 +1,7 @@
 ﻿using DisplayProfileManager.Helpers;
 using NLog;
 using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Threading.Tasks;
 
 namespace DisplayProfileManager.Core
@@ -12,89 +10,44 @@ namespace DisplayProfileManager.Core
     {
         private static readonly Logger logger = LoggerHelper.GetLogger();
 
-        private static readonly Lazy<ScriptManager> _instance =
-            new Lazy<ScriptManager>(() => new ScriptManager());
-
-        public static ScriptManager Instance => _instance.Value;
-        public string ScriptsFolderPath => _scriptsFolderPath;
-
+        private static readonly Lazy<ScriptManager> _instance = new Lazy<ScriptManager>(() => new ScriptManager());
         private readonly string _scriptsFolderPath;
         private readonly ScriptHelper _scriptHelper;
+        public static ScriptManager Instance => _instance.Value;
+        public string ScriptsFolderPath => _scriptsFolderPath;
 
         private ScriptManager()
         {
             _scriptHelper = new ScriptHelper();
 
-            string appData = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "DisplayProfileManager"
-            );
+            string appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DisplayProfileManager");
 
             _scriptsFolderPath = Path.Combine(appData, "Scripts");
-
             if (!Directory.Exists(_scriptsFolderPath))
-            {
                 Directory.CreateDirectory(_scriptsFolderPath);
-            }
         }
 
         private void EnsureScriptsFolderExists()
         {
             if (!Directory.Exists(_scriptsFolderPath))
-            {
                 Directory.CreateDirectory(_scriptsFolderPath);
-                logger.Info("Re-created missing scripts folder.");
-            }
         }
 
-        public string FormatCommand(string fileName, string args)
+        #region Public Methods
+
+        public void ExecuteScript(Script script)
         {
-            string formattedName = fileName.Contains(" ") ? $"\"{fileName}\"" : fileName;
-            return string.IsNullOrWhiteSpace(args) ? formattedName : $"{formattedName} {args.Trim()}";
-        }
+            if (script == null || !script.IsEnabled || string.IsNullOrWhiteSpace(script.FileName)) return;
 
-        public void ExecuteScript(string command)
-        {
-            if (string.IsNullOrWhiteSpace(command)) return;
-
-            var parts = ScriptHelper.ParseScriptString(command);
-            string name = parts.Path;
-            string args = parts.Args;
-
-            string path = Path.Combine(_scriptsFolderPath, name);
-
+            string path = Path.Combine(_scriptsFolderPath, script.FileName);
             if (File.Exists(path))
             {
-                string argsLog = !string.IsNullOrEmpty(args) ? " " + args : "";
-                _ = _scriptHelper.ExecuteScriptAsync(path, args);
-                logger.Info("Executed: " + name + argsLog);
+                string argsLog = !string.IsNullOrEmpty(script.Arguments) ? " " + script.Arguments : "";
+                _ = _scriptHelper.ExecuteScriptAsync(path, script.Arguments);
+                logger.Info("Executed: " + script.FileName + argsLog);
             }
             else
-            {
-                logger.Warn("Script not found: " + name);
-            }
-        }
-
-        public void AddScript(List<string> scripts, string fileName, string cmdArgs = "")
-        {
-            EnsureScriptsFolderExists();
-            string newFullCommand = FormatCommand(fileName, cmdArgs);
-
-            if (!scripts.Contains(newFullCommand, StringComparer.OrdinalIgnoreCase))
-            {
-                scripts.Add(newFullCommand);
-            }
-        }
-
-        public void RemoveScript(List<string> scripts, string fileName, string cmdArgs = "")
-        {
-            string commandToRemove = FormatCommand(fileName, cmdArgs);
-            scripts.RemoveAll(c => string.Equals(c, commandToRemove, StringComparison.OrdinalIgnoreCase));
-        }
-
-        public void SortScripts(List<string> scripts)
-        {
-            scripts.Sort(StringComparer.OrdinalIgnoreCase);
+                logger.Warn("Script not found: " + script.FileName);
         }
 
         public async Task<string> ImportScriptAsync(string sourcePath)
@@ -117,13 +70,7 @@ namespace DisplayProfileManager.Core
                 logger.Debug($"ImportScript sandbox check: dir='{Path.GetFullPath(Path.GetDirectoryName(sourcePath)).TrimEnd(Path.DirectorySeparatorChar)}' sandbox='{Path.GetFullPath(_scriptsFolderPath).TrimEnd(Path.DirectorySeparatorChar)}'");
 
                 // Early-return if already in sandbox
-                if (string.Equals(
-                    Path.GetFullPath(Path.GetDirectoryName(sourcePath)).TrimEnd(Path.DirectorySeparatorChar),
-                    Path.GetFullPath(_scriptsFolderPath).TrimEnd(Path.DirectorySeparatorChar),
-                    StringComparison.OrdinalIgnoreCase))
-                {
-                    return Path.GetFileName(sourcePath);
-                }
+                if (string.Equals(Path.GetFullPath(Path.GetDirectoryName(sourcePath)).TrimEnd(Path.DirectorySeparatorChar), Path.GetFullPath(_scriptsFolderPath).TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase)) return Path.GetFileName(sourcePath);
 
                 int counter = 1;
                 while (File.Exists(destinationPath))
@@ -136,13 +83,9 @@ namespace DisplayProfileManager.Core
                 await Task.Run(() =>
                 {
                     if (isExe)
-                    {
                         CreateShortcut(destinationPath, sourcePath);
-                    }
                     else
-                    {
                         File.Copy(sourcePath, destinationPath);
-                    }
                 });
 
                 return Path.GetFileName(destinationPath);
@@ -153,6 +96,8 @@ namespace DisplayProfileManager.Core
                 return null;
             }
         }
+
+        #endregion
 
         private void CreateShortcut(string shortcutPath, string targetPath)
         {

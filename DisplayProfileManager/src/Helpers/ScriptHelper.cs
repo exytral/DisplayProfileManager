@@ -17,7 +17,6 @@ namespace DisplayProfileManager.Helpers
                 string extension = Path.GetExtension(filePath).ToLower();
                 string fileName = filePath;
                 string finalArguments = "";
-
                 bool useShell = extension == ".lnk";
 
                 if (extension == ".ps1")
@@ -46,15 +45,13 @@ namespace DisplayProfileManager.Helpers
                     finalArguments = $"\"{filePath}\" {cmdArgs}";
                 }
                 else
-                {
                     finalArguments = cmdArgs;
-                }
 
                 ProcessStartInfo psi = new ProcessStartInfo
                 {
                     FileName = fileName,
                     Arguments = finalArguments.Trim(),
-                    UseShellExecute = useShell, // Set to true if .lnk
+                    UseShellExecute = useShell,
                     CreateNoWindow = !useShell, // CreateNoWindow must be false if UseShellExecute is true
                     RedirectStandardError = !useShell // Cannot redirect error stream if using shell execute
                 };
@@ -70,11 +67,11 @@ namespace DisplayProfileManager.Helpers
             }
         }
 
-        public static (string Path, string Args) ParseScriptString(string fullScript)
+        public static (string Path, string Args) ParseScriptString(string scriptString)
         {
-            if (string.IsNullOrWhiteSpace(fullScript)) return (string.Empty, string.Empty);
+            if (string.IsNullOrWhiteSpace(scriptString)) return (string.Empty, string.Empty);
 
-            string input = fullScript.Trim();
+            string input = scriptString.Trim();
 
             if (input.StartsWith("\""))
             {
@@ -91,9 +88,7 @@ namespace DisplayProfileManager.Helpers
             int firstSpace = input.IndexOf(' ');
             if (firstSpace == -1) return (input.Replace("\"", ""), string.Empty);
 
-            return (
-                input.Substring(0, firstSpace).Replace("\"", ""),
-                input.Substring(firstSpace).Trim()
+            return (input.Substring(0, firstSpace).Replace("\"", ""), input.Substring(firstSpace).Trim()
             );
         }
     }

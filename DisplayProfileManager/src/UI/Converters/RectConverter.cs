@@ -16,6 +16,7 @@ namespace DisplayProfileManager.UI.Converters
             {
                 return new Rect(0, 0, width, height);
             }
+
             return new Rect(0, 0, 0, 0);
         }
 

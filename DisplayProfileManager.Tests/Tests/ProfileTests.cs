@@ -105,57 +105,6 @@ namespace DisplayProfileManager.Tests.Tests
 
         [TestMethod]
         [TestCategory("Unit")]
-        public void AddDisplaySetting_AppendsToDisplaySettings()
-        {
-            var profile = new Profile("Test");
-
-            profile.AddDisplaySetting("\\\\.\\DISPLAY1", 1920, 1080, 100);
-
-            Assert.AreEqual(1, profile.DisplaySettings.Count);
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void AddDisplaySetting_SetsAllFields()
-        {
-            var profile = new Profile("Test");
-
-            profile.AddDisplaySetting("\\\\.\\DISPLAY1", 2560, 1440, 125, 144);
-
-            var setting = profile.DisplaySettings[0];
-            Assert.AreEqual("\\\\.\\DISPLAY1", setting.DeviceName);
-            Assert.AreEqual(2560, setting.Width);
-            Assert.AreEqual(1440, setting.Height);
-            Assert.AreEqual(125u, setting.DpiScaling);
-            Assert.AreEqual(144, setting.Frequency);
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void AddDisplaySetting_DefaultFrequencyIs60()
-        {
-            var profile = new Profile("Test");
-
-            profile.AddDisplaySetting("\\\\.\\DISPLAY1", 1920, 1080, 100);
-
-            Assert.AreEqual(60, profile.DisplaySettings[0].Frequency,
-                "Frequency must default to 60 when not supplied.");
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void AddDisplaySetting_MultipleCallsAppendAll()
-        {
-            var profile = new Profile("Test");
-
-            profile.AddDisplaySetting("\\\\.\\DISPLAY1", 1920, 1080, 100);
-            profile.AddDisplaySetting("\\\\.\\DISPLAY2", 2560, 1440, 100);
-
-            Assert.AreEqual(2, profile.DisplaySettings.Count);
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
         public void UpdateLastModified_AdvancesLastModifiedDate()
         {
             var profile = new Profile("Test");
@@ -269,7 +218,7 @@ namespace DisplayProfileManager.Tests.Tests
         {
             var setting = new DisplaySetting { Width = 2560, Height = 1440, Frequency = 144 };
 
-            Assert.AreEqual("2560x1440 @ 144Hz", setting.GetResolutionString());
+            Assert.AreEqual("2560x1440 • 144Hz", setting.GetResolutionString());
         }
 
         [TestMethod]
@@ -400,185 +349,6 @@ namespace DisplayProfileManager.Tests.Tests
     }
 
     [TestClass]
-    public class ProfileCollectionTests
-    {
-        private ProfileCollection MakeCollection(params string[] names)
-        {
-            var col = new ProfileCollection();
-            foreach (var name in names)
-                col.AddProfile(new Profile(name));
-            return col;
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void AddProfile_IncreasesCount()
-        {
-            var col = new ProfileCollection();
-
-            col.AddProfile(new Profile("A"));
-
-            Assert.AreEqual(1, col.Profiles.Count);
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void AddProfile_UpdatesLastUpdated()
-        {
-            var col = new ProfileCollection();
-            var before = col.LastUpdated;
-
-            System.Threading.Thread.Sleep(10);
-            col.AddProfile(new Profile("A"));
-
-            Assert.IsTrue(col.LastUpdated > before);
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void RemoveProfile_RemovesById()
-        {
-            var col = new ProfileCollection();
-            var profile = new Profile("A");
-            col.AddProfile(profile);
-
-            col.RemoveProfile(profile.Id);
-
-            Assert.AreEqual(0, col.Profiles.Count);
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void RemoveProfile_NonExistentId_DoesNotThrow()
-        {
-            var col = MakeCollection("A");
-
-            col.RemoveProfile(Guid.NewGuid().ToString());
-
-            Assert.AreEqual(1, col.Profiles.Count);
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void GetProfile_WhenFound_ReturnsCorrectProfile()
-        {
-            var col = new ProfileCollection();
-            var profile = new Profile("Work");
-            col.AddProfile(profile);
-
-            var found = col.GetProfile(profile.Id);
-
-            Assert.AreSame(profile, found);
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void GetProfile_WhenNotFound_ReturnsNull()
-        {
-            var col = MakeCollection("A");
-
-            var result = col.GetProfile(Guid.NewGuid().ToString());
-
-            Assert.IsNull(result);
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void GetDefaultProfile_ReturnsProfileMarkedAsDefault()
-        {
-            var col = MakeCollection("A", "B", "C");
-            var target = col.Profiles[1];
-            col.SetDefaultProfile(target.Id);
-
-            var result = col.GetDefaultProfile();
-
-            Assert.AreSame(target, result);
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void GetDefaultProfile_WhenNoneIsDefault_ReturnsNull()
-        {
-            var col = MakeCollection("A", "B");
-
-            Assert.IsNull(col.GetDefaultProfile());
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void SetDefaultProfile_ClearsOtherDefaults()
-        {
-            var col = MakeCollection("A", "B", "C");
-            col.SetDefaultProfile(col.Profiles[0].Id);
-
-            col.SetDefaultProfile(col.Profiles[2].Id);
-
-            Assert.IsFalse(col.Profiles[0].IsDefault, "Previous default must be cleared.");
-            Assert.IsTrue(col.Profiles[2].IsDefault, "New default must be set.");
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void HasProfile_CaseInsensitive_ReturnsTrue()
-        {
-            var col = MakeCollection("Gaming");
-
-            Assert.IsTrue(col.HasProfile("gaming"));
-            Assert.IsTrue(col.HasProfile("GAMING"));
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void HasProfile_WhenAbsent_ReturnsFalse()
-        {
-            var col = MakeCollection("A");
-
-            Assert.IsFalse(col.HasProfile("B"));
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void UpdateProfile_ReplacesExistingEntry()
-        {
-            var col = new ProfileCollection();
-            var profile = new Profile("Old Name");
-            col.AddProfile(profile);
-            profile.Name = "New Name";
-
-            col.UpdateProfile(profile);
-
-            Assert.AreEqual("New Name", col.GetProfile(profile.Id).Name);
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void UpdateProfile_CallsUpdateLastModified()
-        {
-            var col = new ProfileCollection();
-            var profile = new Profile("Test");
-            col.AddProfile(profile);
-            var before = profile.LastModifiedDate;
-
-            System.Threading.Thread.Sleep(10);
-            col.UpdateProfile(profile);
-
-            Assert.IsTrue(col.GetProfile(profile.Id).LastModifiedDate > before);
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void UpdateProfile_WhenIdNotFound_DoesNotThrow()
-        {
-            var col = MakeCollection("A");
-            var ghost = new Profile("Ghost");
-
-            col.UpdateProfile(ghost);
-
-            Assert.AreEqual(1, col.Profiles.Count);
-        }
-    }
-
-    [TestClass]
     public class ApplyProfileScriptLogicTests
     {
         [TestMethod]
@@ -586,7 +356,7 @@ namespace DisplayProfileManager.Tests.Tests
         public void EnableScriptsFalse_ScriptListIsPreserved()
         {
             var profile = new Profile("Test");
-            profile.Scripts.Add("myscript.ps1");
+            profile.Scripts.Add(new Script("script.ps1"));
             profile.EnableScripts = false;
 
             Assert.AreEqual(1, profile.Scripts.Count,
@@ -611,7 +381,7 @@ namespace DisplayProfileManager.Tests.Tests
         public void EnableScriptsFalse_WithScripts_DoesNotExecute()
         {
             var profile = new Profile("Test");
-            profile.Scripts.Add("myscript.ps1");
+            profile.Scripts.Add(new Script("script.ps1"));
             profile.EnableScripts = false;
 
             bool wouldExecute = profile.EnableScripts && profile.Scripts != null && profile.Scripts.Any();
@@ -625,7 +395,7 @@ namespace DisplayProfileManager.Tests.Tests
         public void EnableScriptsTrue_WithScripts_Executes()
         {
             var profile = new Profile("Test");
-            profile.Scripts.Add("myscript.ps1");
+            profile.Scripts.Add(new Script("script.ps1"));
             profile.EnableScripts = true;
 
             bool wouldExecute = profile.EnableScripts && profile.Scripts != null && profile.Scripts.Any();

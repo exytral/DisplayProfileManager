@@ -1,4 +1,5 @@
 using DisplayProfileManager.Core;
+using NLog;
 using System;
 using System.Windows;
 
@@ -50,9 +51,6 @@ namespace DisplayProfileManager.UI.Windows
             Close();
         }
 
-        protected override void OnClosed(EventArgs e)
-        {
-            base.OnClosed(e);
-        }
+        protected override void OnClosed(EventArgs e) => base.OnClosed(e);
     }
 }

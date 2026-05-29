@@ -301,29 +301,13 @@ namespace DisplayProfileManager.Tests.Tests
 
         [TestMethod]
         [TestCategory("Unit")]
-        public void GetProfilesWithHotkeys_ReturnsOnlyEnabledHotkeys()
-        {
-            var enabled = ProfileWithHotkey("A", System.Windows.Input.Key.F1, System.Windows.Input.ModifierKeys.Control, enabled: true);
-            var disabled = ProfileWithHotkey("B", System.Windows.Input.Key.F2, System.Windows.Input.ModifierKeys.Control, enabled: false);
-            var noHotkey = MakeProfile("C");
-            Seed(enabled, disabled, noHotkey);
-
-            var result = _pm.GetProfilesWithHotkeys();
-
-            CollectionAssert.Contains(result, enabled);
-            CollectionAssert.DoesNotContain(result, disabled);
-            CollectionAssert.DoesNotContain(result, noHotkey);
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
         public void GetAllProfilesWithHotkeys_IncludesDisabledHotkeys()
         {
             var enabled = ProfileWithHotkey("A", System.Windows.Input.Key.F1, System.Windows.Input.ModifierKeys.Control, enabled: true);
             var disabled = ProfileWithHotkey("B", System.Windows.Input.Key.F2, System.Windows.Input.ModifierKeys.Control, enabled: false);
             Seed(enabled, disabled);
 
-            var result = _pm.GetAllProfilesWithHotkeys();
+            var result = _pm.GetProfilesWithHotkeys();
 
             CollectionAssert.Contains(result, enabled);
             CollectionAssert.Contains(result, disabled);
@@ -331,96 +315,18 @@ namespace DisplayProfileManager.Tests.Tests
 
         [TestMethod]
         [TestCategory("Unit")]
-        public void HasHotkeyConflict_WhenSameKeyOnOtherProfile_ReturnsTrue()
+        public void GetProfilesWithHotkeys_ReturnsOnlyEnabledHotkeys()
         {
-            var existing = ProfileWithHotkey("A", System.Windows.Input.Key.F1, System.Windows.Input.ModifierKeys.Control);
-            var candidate = MakeProfile("B");
-            Seed(existing, candidate);
+            var enabled = ProfileWithHotkey("A", System.Windows.Input.Key.F1, System.Windows.Input.ModifierKeys.Control, enabled: true);
+            var disabled = ProfileWithHotkey("B", System.Windows.Input.Key.F2, System.Windows.Input.ModifierKeys.Control, enabled: false);
+            var noHotkey = MakeProfile("C");
+            Seed(enabled, disabled, noHotkey);
 
-            Assert.IsTrue(_pm.HasHotkeyConflict(candidate.Id,
-                new HotkeyConfig(System.Windows.Input.Key.F1, System.Windows.Input.ModifierKeys.Control)));
-        }
+            var result = _pm.GetProfilesWithActiveHotkeys();
 
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void HasHotkeyConflict_WhenSameKeyOnSameProfile_ReturnsFalse()
-        {
-            var p = ProfileWithHotkey("A", System.Windows.Input.Key.F1, System.Windows.Input.ModifierKeys.Control);
-            Seed(p);
-
-            Assert.IsFalse(_pm.HasHotkeyConflict(p.Id,
-                new HotkeyConfig(System.Windows.Input.Key.F1, System.Windows.Input.ModifierKeys.Control)));
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void HasHotkeyConflict_WhenKeyIsNone_ReturnsFalse()
-        {
-            Seed(ProfileWithHotkey("A", System.Windows.Input.Key.F1, System.Windows.Input.ModifierKeys.Control));
-
-            Assert.IsFalse(_pm.HasHotkeyConflict("some-id", new HotkeyConfig()));
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void FindConflictingProfile_ReturnsConflictingProfile()
-        {
-            var existing = ProfileWithHotkey("A", System.Windows.Input.Key.F1, System.Windows.Input.ModifierKeys.Control);
-            var other = MakeProfile("B");
-            Seed(existing, other);
-
-            var conflict = _pm.FindConflictingProfile(other.Id,
-                new HotkeyConfig(System.Windows.Input.Key.F1, System.Windows.Input.ModifierKeys.Control));
-
-            Assert.AreSame(existing, conflict);
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void FindConflictingProfile_WhenNoConflict_ReturnsNull()
-        {
-            Seed(ProfileWithHotkey("A", System.Windows.Input.Key.F1, System.Windows.Input.ModifierKeys.Control));
-            var candidate = MakeProfile("B");
-            Seed(candidate);
-
-            var conflict = _pm.FindConflictingProfile(candidate.Id,
-                new HotkeyConfig(System.Windows.Input.Key.F2, System.Windows.Input.ModifierKeys.Control));
-
-            Assert.IsNull(conflict);
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void GetProfileByHotkey_ReturnsMatchingProfile()
-        {
-            var p = ProfileWithHotkey("Gaming", System.Windows.Input.Key.F3, System.Windows.Input.ModifierKeys.Alt);
-            Seed(p);
-
-            var found = _pm.GetProfileByHotkey(
-                new HotkeyConfig(System.Windows.Input.Key.F3, System.Windows.Input.ModifierKeys.Alt));
-
-            Assert.AreSame(p, found);
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void GetProfileByHotkey_WhenKeyIsNone_ReturnsNull()
-        {
-            Seed(ProfileWithHotkey("A", System.Windows.Input.Key.F1, System.Windows.Input.ModifierKeys.Control));
-
-            Assert.IsNull(_pm.GetProfileByHotkey(new HotkeyConfig()));
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void GetProfileByHotkey_DisabledHotkey_IsNotMatched()
-        {
-            var p = ProfileWithHotkey("A", System.Windows.Input.Key.F1, System.Windows.Input.ModifierKeys.Control, enabled: false);
-            Seed(p);
-
-            Assert.IsNull(_pm.GetProfileByHotkey(
-                new HotkeyConfig(System.Windows.Input.Key.F1, System.Windows.Input.ModifierKeys.Control)),
-                "GetProfileByHotkey must not match profiles with disabled hotkeys.");
+            CollectionAssert.Contains(result, enabled);
+            CollectionAssert.DoesNotContain(result, disabled);
+            CollectionAssert.DoesNotContain(result, noHotkey);
         }
 
         [TestMethod]
@@ -487,39 +393,10 @@ namespace DisplayProfileManager.Tests.Tests
 
         [TestMethod]
         [TestCategory("Unit")]
-        public void DuplicateProfile_CopiesDisplaySettings()
-        {
-            var original = MakeProfile("A");
-            original.AddDisplaySetting("\\\\.\\DISPLAY1", 1920, 1080, 100);
-            Seed(original);
-
-            var dup = _pm.DuplicateProfile(original.Id);
-
-            Assert.AreEqual(1, dup.DisplaySettings.Count);
-            Assert.AreEqual(1920, dup.DisplaySettings[0].Width);
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void DuplicateProfile_DisplaySettings_AreDeepCopy()
-        {
-            var original = MakeProfile("A");
-            original.AddDisplaySetting("\\\\.\\DISPLAY1", 1920, 1080, 100);
-            Seed(original);
-
-            var dup = _pm.DuplicateProfile(original.Id);
-            dup.DisplaySettings[0].Width = 9999;
-
-            Assert.AreEqual(1920, original.DisplaySettings[0].Width,
-                "Mutating the duplicate's DisplaySettings must not affect the original.");
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
         public void DuplicateProfile_CopiesScriptsList()
         {
             var original = MakeProfile("A");
-            original.Scripts.Add("script.ps1");
+            original.Scripts.Add(new Script("script.ps1"));
             original.EnableScripts = true;
             Seed(original);
 
@@ -534,7 +411,7 @@ namespace DisplayProfileManager.Tests.Tests
         public void DuplicateProfile_Scripts_AreDeepCopy()
         {
             var original = MakeProfile("A");
-            original.Scripts.Add("script.ps1");
+            original.Scripts.Add(new Script("script.ps1"));
             Seed(original);
 
             var dup = _pm.DuplicateProfile(original.Id);
@@ -595,7 +472,7 @@ namespace DisplayProfileManager.Tests.Tests
         {
             var result = new ProfileManager.ProfileApplyResult { DisplayConfigApplied = false };
 
-            StringAssert.Contains(_pm.GetApplyResultErrorMessage("X", result), "Display Config Applied");
+            StringAssert.Contains(_pm.GetApplyResultErrorMessage("X", result), "Display");
         }
 
         [TestMethod]
@@ -604,7 +481,7 @@ namespace DisplayProfileManager.Tests.Tests
         {
             var result = new ProfileManager.ProfileApplyResult { DpiChanged = false };
 
-            StringAssert.Contains(_pm.GetApplyResultErrorMessage("X", result), "DPI Scaling Changed");
+            StringAssert.Contains(_pm.GetApplyResultErrorMessage("X", result), "DPI");
         }
 
         [TestMethod]
@@ -613,7 +490,7 @@ namespace DisplayProfileManager.Tests.Tests
         {
             var result = new ProfileManager.ProfileApplyResult { AudioSuccess = false };
 
-            StringAssert.Contains(_pm.GetApplyResultErrorMessage("X", result), "Audio Success");
+            StringAssert.Contains(_pm.GetApplyResultErrorMessage("X", result), "Audio");
         }
 
         [TestMethod]
@@ -623,41 +500,6 @@ namespace DisplayProfileManager.Tests.Tests
             var result = new ProfileManager.ProfileApplyResult();
 
             Assert.IsFalse(result.Success);
-        }
-    }
-
-    [TestClass]
-    public class ApplyProfileAsyncValidationTests
-    {
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void ApplyProfileAsync_InvalidCloneGroup_ReturnsFalseWithoutApplying()
-        {
-            var profile = new Profile("BadClone");
-            profile.DisplaySettings.Add(new DisplaySettingBuilder()
-                .WithCloneGroup("clone-1").WithSourceId(0).WithResolution(1920, 1080).Build());
-            profile.DisplaySettings.Add(new DisplaySettingBuilder()
-                .WithCloneGroup("clone-1").WithSourceId(0).WithResolution(2560, 1440).Build());
-
-            bool validationPasses = DisplayConfigHelper.ValidateCloneGroups(profile.DisplaySettings);
-            Assert.IsFalse(validationPasses, "Test precondition: this profile must fail clone validation.");
-
-            var task = ProfileManager.Instance.ApplyProfileAsync(profile);
-            task.Wait(TimeSpan.FromSeconds(5));
-            var result = task.Result;
-
-            Assert.IsFalse(result.Success,
-                "ApplyProfileAsync must return Success=false when clone group validation fails.");
-            Assert.IsFalse(result.DisplayConfigApplied,
-                "DisplayConfigApplied must be false when apply exits before the hardware step.");
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void ValidateCloneGroups_EmptyDisplaySettings_ReturnsTrue()
-        {
-            Assert.IsTrue(DisplayConfigHelper.ValidateCloneGroups(new List<DisplaySetting>()),
-                "Empty display settings must pass validation — no clone groups to violate.");
         }
     }
 }

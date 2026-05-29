@@ -13,31 +13,21 @@ namespace DisplayProfileManager.Helpers
     public static class ThemeHelper
     {
         private static readonly Logger logger = LoggerHelper.GetLogger();
+
+        private static readonly Dictionary<string, ResourceDictionary> _themes = new Dictionary<string, ResourceDictionary>(StringComparer.OrdinalIgnoreCase);
+        private static ResourceDictionary _baseTheme;
+        private static ResourceDictionary _currentColorTheme;
+
+        private static readonly string _themesFolderPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DisplayProfileManager", "Themes");
+        private static readonly string[] _themeOrder = { "Light", "Dark", "Black" };
+        private static readonly string[] _requiredThemeKeys = { "WindowBackgroundBrush", "PrimaryTextBrush", "ContentBackgroundBrush", "BorderBrush", "ButtonBackgroundBrush", "ButtonForegroundBrush" };
+
         private const string RegistryKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize";
         private const string RegistryValueName = "AppsUseLightTheme";
 
-        private static ResourceDictionary _baseTheme;
-        private static ResourceDictionary _currentColorTheme;
-        private static readonly Dictionary<string, ResourceDictionary> _themes = new Dictionary<string, ResourceDictionary>(StringComparer.OrdinalIgnoreCase);
-
-        private static readonly string _themesFolderPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "DisplayProfileManager", "Themes");
-
-        private static readonly string[] _themeOrder = { "Light", "Dark", "Black" };
-        private static readonly string[] _requiredThemeKeys = {
-            "WindowBackgroundBrush", "PrimaryTextBrush",
-            "ContentBackgroundBrush", "BorderBrush",
-            "ButtonBackgroundBrush", "ButtonForegroundBrush"
-        };
         public static event EventHandler ThemeChanged;
 
-        // Exposed so settings UI can populate the theme dropdown
-        public static IEnumerable<string> AvailableThemes =>
-            _themeOrder
-                .Concat(_themes.Keys
-                    .Where(k => !_themeOrder.Contains(k, StringComparer.OrdinalIgnoreCase))
-                    .OrderBy(k => k));
+        public static IEnumerable<string> AvailableThemes => _themeOrder.Concat(_themes.Keys.Where(k => !_themeOrder.Contains(k, StringComparer.OrdinalIgnoreCase)).OrderBy(k => k));
 
         static ThemeHelper()
         {
@@ -45,8 +35,6 @@ namespace DisplayProfileManager.Helpers
             {
                 Source = new Uri("/DisplayProfileManager;component/src/UI/Themes/Base.xaml", UriKind.Relative)
             };
-
-            // Register built-in themes
             _themes["Light"] = new ResourceDictionary
             {
                 Source = new Uri("/DisplayProfileManager;component/src/UI/Themes/Light.xaml", UriKind.Relative)
@@ -61,6 +49,12 @@ namespace DisplayProfileManager.Helpers
             };
         }
 
+        private static void EnsureThemesFolderExists()
+        {
+            if (!Directory.Exists(_themesFolderPath))
+                Directory.CreateDirectory(_themesFolderPath);
+        }
+
         public static void InitializeTheme()
         {
             EnsureThemesFolderExists();
@@ -72,19 +66,17 @@ namespace DisplayProfileManager.Helpers
 
             var settings = SettingsManager.Instance.Settings;
             string theme = settings.Theme;
-            // If saved theme no longer exists, fall back to System
             if (theme != "System" && !_themes.ContainsKey(theme))
             {
                 logger.Warn($"Saved theme '{theme}' not found, falling back to System");
                 theme = "System";
-                // Persist the fallback so settings stays consistent
                 _ = SettingsManager.Instance.SetThemeAsync("System");
             }
 
-            ApplyTheme(theme);
-
             if (settings.Theme == "System")
                 SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
+
+            ApplyTheme(theme);
         }
 
         public static void ApplyTheme(string theme)
@@ -101,11 +93,7 @@ namespace DisplayProfileManager.Helpers
                     if (_currentColorTheme != null && appResources.MergedDictionaries.Contains(_currentColorTheme))
                         appResources.MergedDictionaries.Remove(_currentColorTheme);
 
-                    // System is a mode, not a theme file — resolve to dark or light
-                    string resolvedTheme = string.Equals(theme, "System", StringComparison.OrdinalIgnoreCase)
-                        ? (IsSystemUsingDarkTheme() ? "Dark" : "Light")
-                        : theme;
-
+                    string resolvedTheme = string.Equals(theme, "System", StringComparison.OrdinalIgnoreCase) ? (IsSystemUsingDarkTheme() ? "Dark" : "Light") : theme;
                     if (_themes.TryGetValue(resolvedTheme, out var dict))
                         _currentColorTheme = dict;
                     else
@@ -134,7 +122,7 @@ namespace DisplayProfileManager.Helpers
                     {
                         var value = key.GetValue(RegistryValueName);
                         if (value != null)
-                            return (int)value == 0; // 0 = dark, 1 = light
+                            return (int)value == 0;
                     }
                 }
             }
@@ -148,7 +136,6 @@ namespace DisplayProfileManager.Helpers
 
         public static void RefreshThemes()
         {
-            // Only reload user themes, never touch built-ins
             var userKeys = _themes.Keys.Except(_themeOrder, StringComparer.OrdinalIgnoreCase).ToList();
             foreach (var key in userKeys)
                 _themes.Remove(key);
@@ -157,22 +144,12 @@ namespace DisplayProfileManager.Helpers
             ThemeChanged?.Invoke(null, EventArgs.Empty);
         }
 
-        private static void EnsureThemesFolderExists()
-        {
-            if (!Directory.Exists(_themesFolderPath))
-            {
-                Directory.CreateDirectory(_themesFolderPath);
-                logger.Info("Re-created missing themes folder.");
-            }
-        }
-
         public static async Task<string> ImportThemeAsync(string sourcePath)
         {
             try
             {
                 if (!File.Exists(sourcePath)) return null;
 
-                // Load and validate before copying
                 ResourceDictionary dict;
                 try
                 {
@@ -184,10 +161,7 @@ namespace DisplayProfileManager.Helpers
                     return null;
                 }
 
-                // Check minimum required keys
-                string[] requiredKeys = _requiredThemeKeys;
-
-                var missingKeys = requiredKeys.Where(k => !dict.Contains(k)).ToList();
+                var missingKeys = _requiredThemeKeys.Where(k => !dict.Contains(k)).ToList();
                 if (missingKeys.Any())
                 {
                     logger.Warn($"Theme file missing required keys: {string.Join(", ", missingKeys)}");
@@ -196,8 +170,7 @@ namespace DisplayProfileManager.Helpers
 
                 EnsureThemesFolderExists();
 
-                if (string.Equals(Path.GetDirectoryName(sourcePath), _themesFolderPath, StringComparison.OrdinalIgnoreCase))
-                    return Path.GetFileNameWithoutExtension(sourcePath);
+                if (string.Equals(Path.GetDirectoryName(sourcePath), _themesFolderPath, StringComparison.OrdinalIgnoreCase)) return Path.GetFileNameWithoutExtension(sourcePath);
 
                 string fileName = Path.GetFileName(sourcePath);
                 string name = Path.GetFileNameWithoutExtension(fileName);
@@ -224,11 +197,9 @@ namespace DisplayProfileManager.Helpers
                 _themes[importedName] = new ResourceDictionary { Source = new Uri(destPath, UriKind.Absolute) };
 
                 logger.Info($"Imported theme: {importedName}");
-                ThemeChanged?.Invoke(null, EventArgs.Empty);
-
-                // Apply immediately
                 ApplyTheme(importedName);
                 _ = SettingsManager.Instance.SetThemeAsync(importedName);
+                ThemeChanged?.Invoke(null, EventArgs.Empty);
 
                 return importedName;
             }
@@ -246,8 +217,6 @@ namespace DisplayProfileManager.Helpers
             var files = Directory.GetFiles(_themesFolderPath, "*.xaml");
             if (!files.Any()) return;
 
-            string[] requiredKeys = _requiredThemeKeys;
-
             foreach (var file in files)
             {
                 try
@@ -261,7 +230,7 @@ namespace DisplayProfileManager.Helpers
                         continue;
                     }
 
-                    var missingKeys = requiredKeys.Where(k => !dict.Contains(k)).ToList();
+                    var missingKeys = _requiredThemeKeys.Where(k => !dict.Contains(k)).ToList();
                     if (missingKeys.Any())
                     {
                         logger.Warn($"Theme missing required keys ({string.Join(", ", missingKeys)}), skipping: {Path.GetFileName(file)}");
@@ -294,9 +263,6 @@ namespace DisplayProfileManager.Helpers
                 SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
         }
 
-        public static void Cleanup()
-        {
-            SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
-        }
+        public static void Cleanup() => SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
     }
 }

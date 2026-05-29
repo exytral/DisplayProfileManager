@@ -9,23 +9,22 @@ namespace DisplayProfileManager.Helpers
     {
         private static readonly uint[] DpiVals = { 100, 125, 150, 175, 200, 225, 250, 300, 350, 400, 450, 500 };
 
-        #region P/Invoke Declarations
+        #region P/Invoke
 
         [DllImport("user32.dll")]
-        private static extern int DisplayConfigGetDeviceInfo(ref DISPLAYCONFIG_DEVICE_INFO_HEADER requestPacket);
-
+        private static extern int DisplayConfigGetDeviceInfo(ref DisplayConfigDeviceInfoHeader requestPacket);
         [DllImport("user32.dll")]
-        private static extern int DisplayConfigSetDeviceInfo(ref DISPLAYCONFIG_DEVICE_INFO_HEADER setPacket);
+        private static extern int DisplayConfigSetDeviceInfo(ref DisplayConfigDeviceInfoHeader setPacket);
 
         #endregion
 
         #region Enums
 
-        public enum DISPLAYCONFIG_DEVICE_INFO_TYPE_CUSTOM : int
+        public enum DisplayConfigDeviceInfoTypeCustom : int
         {
-            DISPLAYCONFIG_DEVICE_INFO_GET_DPI_SCALE = -3,
-            DISPLAYCONFIG_DEVICE_INFO_SET_DPI_SCALE = -4,
-            DISPLAYCONFIG_DEVICE_INFO_GET_MONITOR_UNIQUE_NAME = -7
+            GetDpiScale = -3,
+            SetDpiScale = -4,
+            GetMonitorUniqueName = -7
         }
 
         #endregion
@@ -40,27 +39,27 @@ namespace DisplayProfileManager.Helpers
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        public struct DISPLAYCONFIG_DEVICE_INFO_HEADER
+        public struct DisplayConfigDeviceInfoHeader
         {
-            public DISPLAYCONFIG_DEVICE_INFO_TYPE_CUSTOM type;
+            public DisplayConfigDeviceInfoTypeCustom type;
             public uint size;
             public LUID adapterId;
             public uint id;
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        public struct DISPLAYCONFIG_SOURCE_DPI_SCALE_GET
+        public struct DisplayConfigSourceDpiScaleGet
         {
-            public DISPLAYCONFIG_DEVICE_INFO_HEADER header;
+            public DisplayConfigDeviceInfoHeader header;
             public int minScaleRel;
             public int curScaleRel;
             public int maxScaleRel;
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        public struct DISPLAYCONFIG_SOURCE_DPI_SCALE_SET
+        public struct DisplayConfigSourceDpiScaleSet
         {
-            public DISPLAYCONFIG_DEVICE_INFO_HEADER header;
+            public DisplayConfigDeviceInfoHeader header;
             public int scaleRel;
         }
 
@@ -83,52 +82,25 @@ namespace DisplayProfileManager.Helpers
 
         #region Public Methods
 
-        public static uint[] GetSupportedDPIScalingOnly(string deviceName)
+        public static uint[] GetSupportedDpiScalingOnly(string deviceName)
         {
             DPIScalingInfo dpiInfo = GetDPIScalingInfo(deviceName);
-
             uint start = dpiInfo.Minimum;
             uint end = dpiInfo.Maximum;
             uint step = 25;
-
-            uint[] dpiValues = Enumerable.Range(0, (int)((end - start) / step) + 1)
-                                   .Select(i => start + (uint)i * step)
-                                   .ToArray();
+            uint[] dpiValues = Enumerable.Range(0, (int)((end - start) / step) + 1).Select(i => start + (uint)i * step).ToArray();
 
             return dpiValues;
-        }
-
-        public static LUID GetLUIDFromString(string adapterId)
-        {
-            string highPartHex = adapterId.Substring(0, 8);
-            uint highPart = Convert.ToUInt32(highPartHex, 16);
-
-            string lowPartHex = adapterId.Substring(8, 8);
-            uint lowPart = Convert.ToUInt32(lowPartHex, 16);
-
-            LUID adapterIdStruct = new LUID
-            {
-                HighPart = (int)highPart,
-                LowPart = lowPart
-            };
-
-            return adapterIdStruct;
         }
 
         public static DPIScalingInfo GetDPIScalingInfo(string deviceName, DisplayConfigHelper.DisplayConfigInfo displayConfig = null)
         {
             DisplayConfigHelper.DisplayConfigInfo foundConfig = displayConfig;
-
-            // Only query if not provided
             if (foundConfig == null)
             {
-                // Get display configs using QueueDisplayConfig
                 List<DisplayConfigHelper.DisplayConfigInfo> displayConfigs = DisplayConfigHelper.GetDisplayConfigs();
-
                 if (displayConfigs.Count > 0)
-                {
                     foundConfig = displayConfigs.Find(x => x.DeviceName == deviceName);
-                }
             }
 
             var dpiInfo = new DPIScalingInfo();
@@ -141,12 +113,12 @@ namespace DisplayProfileManager.Helpers
                     HighPart = foundConfig.AdapterId.HighPart
                 };
 
-                var requestPacket = new DISPLAYCONFIG_SOURCE_DPI_SCALE_GET
+                var requestPacket = new DisplayConfigSourceDpiScaleGet
                 {
-                    header = new DISPLAYCONFIG_DEVICE_INFO_HEADER
+                    header = new DisplayConfigDeviceInfoHeader
                     {
-                        type = DISPLAYCONFIG_DEVICE_INFO_TYPE_CUSTOM.DISPLAYCONFIG_DEVICE_INFO_GET_DPI_SCALE,
-                        size = (uint)Marshal.SizeOf<DISPLAYCONFIG_SOURCE_DPI_SCALE_GET>(),
+                        type = DisplayConfigDeviceInfoTypeCustom.GetDpiScale,
+                        size = (uint)Marshal.SizeOf<DisplayConfigSourceDpiScaleGet>(),
                         adapterId = adapterId,
                         id = foundConfig.SourceId
                     }
@@ -181,9 +153,7 @@ namespace DisplayProfileManager.Helpers
         public static bool SetDPIScaling(string deviceName, uint dpiPercentToSet)
         {
             var dpiScalingInfo = GetDPIScalingInfo(deviceName);
-
-            if (dpiPercentToSet == dpiScalingInfo.Current)
-                return true;
+            if (dpiPercentToSet == dpiScalingInfo.Current) return true;
 
             if (dpiPercentToSet < dpiScalingInfo.Minimum)
                 dpiPercentToSet = dpiScalingInfo.Minimum;
@@ -200,17 +170,15 @@ namespace DisplayProfileManager.Helpers
                     idx2 = i;
             }
 
-            if (idx1 == -1 || idx2 == -1)
-                return false;
+            if (idx1 == -1 || idx2 == -1) return false;
 
             int dpiRelativeVal = idx1 - idx2;
-
-            var setPacket = new DISPLAYCONFIG_SOURCE_DPI_SCALE_SET
+            var setPacket = new DisplayConfigSourceDpiScaleSet
             {
-                header = new DISPLAYCONFIG_DEVICE_INFO_HEADER
+                header = new DisplayConfigDeviceInfoHeader
                 {
-                    type = DISPLAYCONFIG_DEVICE_INFO_TYPE_CUSTOM.DISPLAYCONFIG_DEVICE_INFO_SET_DPI_SCALE,
-                    size = (uint)Marshal.SizeOf<DISPLAYCONFIG_SOURCE_DPI_SCALE_SET>(),
+                    type = DisplayConfigDeviceInfoTypeCustom.SetDpiScale,
+                    size = (uint)Marshal.SizeOf<DisplayConfigSourceDpiScaleSet>(),
                     adapterId = dpiScalingInfo.AdapterId,
                     id = dpiScalingInfo.SourceId
                 },
