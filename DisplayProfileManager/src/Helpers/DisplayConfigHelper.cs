@@ -1149,22 +1149,7 @@ namespace DisplayProfileManager.Helpers
             return SetAdvancedColorState(adapterId, rawTargetId, DisplayConfigColorIntent.Acm);
         }
 
-        public static bool IsAcmSupported(uint targetId)
-        {
-            try
-            {
-                if (!IsWindows1122H2OrGreater())
-                    return false;
-
-                var liveConfigs = GetDisplayConfigs();
-                var display = liveConfigs.FirstOrDefault(c => c.TargetId == targetId);
-                return display?.IsHdrSupported ?? false;
-            }
-            catch
-            {
-                return false;
-            }
-        }
+        public static bool IsAcmSupported(bool isHdrSupported) => IsWindows1122H2OrGreater() && isHdrSupported;
 
         public static bool ApplyColorProfiles(List<DisplayConfigInfo> displayConfigs)
         {

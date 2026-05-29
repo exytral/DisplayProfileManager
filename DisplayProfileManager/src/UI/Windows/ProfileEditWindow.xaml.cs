@@ -1246,7 +1246,7 @@ namespace DisplayProfileManager.UI.Windows
                 _hdrCheckBox.Unchecked += HdrCheckBox_CheckedChanged;
                 leftContentPanel.Children.Add(_hdrCheckBox);
 
-                bool acmSupported = DisplayConfigHelper.IsAcmSupported(_setting.TargetId);
+                bool acmSupported = DisplayConfigHelper.IsAcmSupported(_setting.IsHdrSupported);
                 _acmCheckBox = new CheckBox // Grayed out and force-checked when HDR is active; hidden entirely when ACM is not supported
                 {
                     Content = "ACM",
@@ -1358,7 +1358,7 @@ namespace DisplayProfileManager.UI.Windows
                 _hdrCheckBox.Unchecked += HdrCheckBox_CheckedChanged;
                 leftPanel.Children.Add(_hdrCheckBox);
 
-                bool acmSupported = DisplayConfigHelper.IsAcmSupported(_setting.TargetId);
+                bool acmSupported = DisplayConfigHelper.IsAcmSupported(_setting.IsHdrSupported);
                 _acmCheckBox = new CheckBox // Grayed out and force-checked when HDR is active; hidden entirely when ACM is not supported
                 {
                     Content = "ACM",
@@ -1531,7 +1531,7 @@ namespace DisplayProfileManager.UI.Windows
                 else
                 {
                     _acmCheckBox.IsChecked = _setting.IsAcmEnabled;
-                    _acmCheckBox.IsEnabled = DisplayConfigHelper.IsAcmSupported(_setting.TargetId);
+                    _acmCheckBox.IsEnabled = DisplayConfigHelper.IsAcmSupported(_setting.IsHdrSupported);
                 }
             }
 
@@ -1590,7 +1590,7 @@ namespace DisplayProfileManager.UI.Windows
             if (_acmCheckBox != null)
             {
                 bool hdrForced = _hdrCheckBox?.IsChecked == true && _setting.IsHdrSupported;
-                bool acmSupported = DisplayConfigHelper.IsAcmSupported(_setting.TargetId);
+                bool acmSupported = DisplayConfigHelper.IsAcmSupported(_setting.IsHdrSupported);
                 _acmCheckBox.IsEnabled = isEnabled && acmSupported && !hdrForced;
                 _acmCheckBox.Opacity = acmSupported ? opacity : 0.5;
             }
@@ -1636,7 +1636,7 @@ namespace DisplayProfileManager.UI.Windows
                     if (_acmCheckBox != null)
                     {
                         bool hdrForced = _hdrCheckBox?.IsChecked == true && _setting.IsHdrSupported;
-                        bool acmSupported = DisplayConfigHelper.IsAcmSupported(_setting.TargetId);
+                        bool acmSupported = DisplayConfigHelper.IsAcmSupported(_setting.IsHdrSupported);
                         _acmCheckBox.IsEnabled = isEnabled && acmSupported && !hdrForced;
                         _acmCheckBox.Opacity = acmSupported ? opacity : 0.5;
                     }
