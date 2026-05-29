@@ -98,7 +98,8 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 - **`RefreshButton` disabled during reload** — button is disabled before `LoadProfilesAsync` begins and re-enabled in `finally`, preventing duplicate default profile generation on rapid clicks.
 - **`dev-build.ps1`** — NuGet package restore runs before build; 5-second wait added on build failure so the error is visible.
 - **General improvement** — comment and code cleanup and consistency refined, UI polish. Version string in Settings → About is now a hyperlink to the releases page. `DPMThemeBuilder.pyw` preview window updated.
-___
+
+---
 
 <a id="2.0.5"></a>
 ## [2.0.5] - 2026-05-24
