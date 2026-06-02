@@ -169,11 +169,11 @@ namespace DisplayProfileManager
 
             if (!string.IsNullOrEmpty(profile))
             {
-                await ApplyProfileAsync(profile);
-                if (isHeadless)
+                bool result = await ApplyProfileAsync(profile);
+                if (result)
                 {
-                    logger.Info("Headless application complete. Exiting.");
-                    Shutdown();
+                    logger.Info("Headless apply complete. Exiting.");
+                    Shutdown(result ? 0 : 1);
                     return;
                 }
             }
@@ -644,7 +644,7 @@ namespace DisplayProfileManager
             }
         }
 
-        private async Task ApplyProfileAsync(string profileNameOrId)
+        private async Task<bool> ApplyProfileAsync(string profileNameOrId)
         {
             try
             {
@@ -655,18 +655,23 @@ namespace DisplayProfileManager
                 await _profileManager.LoadProfilesAsync();
 
                 var profile = _profileManager.GetProfileByName(profileNameOrId) ?? _profileManager.GetProfile(profileNameOrId);
-                if (profile != null)
-                {
-                    var result = await _profileManager.ApplyProfileAsync(profile);
-                }
-                else
+
+                if (profile == null)
                 {
                     logger.Warn($"Profile '{profileNameOrId}' not found.");
+                    return false;
                 }
+
+                var result = await _profileManager.ApplyProfileAsync(profile);
+                if (!result.Success)
+                    logger.Warn(_profileManager.GetApplyResultErrorMessage(profile.Name, result));
+
+                return result.Success;
             }
             catch (Exception ex)
             {
                 logger.Error(ex, "Error during ApplyProfileAsync execution");
+                return false;
             }
         }
 

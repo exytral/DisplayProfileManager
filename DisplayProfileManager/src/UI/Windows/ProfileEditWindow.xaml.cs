@@ -17,6 +17,8 @@ using System.Windows.Shell;
 
 namespace DisplayProfileManager.UI.Windows
 {
+    #region ProfileEditWindow
+
     public partial class ProfileEditWindow : Window
     {
         private static readonly Logger logger = LoggerHelper.GetLogger();
@@ -947,10 +949,10 @@ namespace DisplayProfileManager.UI.Windows
         private Profile FindConflictingProfile(HotkeyConfig hotkey)
         {
             var allProfiles = _profileManager.GetAllProfiles();
-            return allProfiles.FirstOrDefault(p =>  p.Id != _profile.Id && p.HotkeyConfig != null && p.HotkeyConfig.Key != Key.None && p.HotkeyConfig.Equals(hotkey));
+            return allProfiles.FirstOrDefault(p => p.Id != _profile.Id && p.HotkeyConfig != null && p.HotkeyConfig.Key != Key.None && p.HotkeyConfig.Equals(hotkey));
         }
 
-        private void EnableHotkeyCheckBox_Checked(object sender, RoutedEventArgs e) => 
+        private void EnableHotkeyCheckBox_Checked(object sender, RoutedEventArgs e) =>
             StatusTextBlock.Text = "Global hotkey enabled";
 
         private void EnableHotkeyCheckBox_Unchecked(object sender, RoutedEventArgs e) =>
@@ -982,6 +984,10 @@ namespace DisplayProfileManager.UI.Windows
         }
     }
 
+    #endregion
+
+    #region ScriptListEntry
+
     public class ScriptListEntry
     {
         public string FilePath { get; set; } = string.Empty;
@@ -990,6 +996,10 @@ namespace DisplayProfileManager.UI.Windows
         public bool IsEnabled { get; set; } = true;
         public bool IsDeleted { get; set; } = false;
     }
+
+    #endregion
+
+    #region DisplaySettingsControl
 
     public class DisplaySettingControl : UserControl
     {
@@ -1124,7 +1134,7 @@ namespace DisplayProfileManager.UI.Windows
             return style;
         }
 
-
+        // _cloneGroupMembers is public so RebuildDisplayControls can read member device names for sort-order capture
         public List<DisplaySetting> _cloneGroupMembers;
         private bool _isCloneGroup;
         private ComboBox _resolutionComboBox;
@@ -1137,6 +1147,8 @@ namespace DisplayProfileManager.UI.Windows
         private ComboBox _dpiComboBox;
         private ComboBox _colorProfileComboBox;
         private TextBlock _colorProfileLabel;
+        // Tracks user's last explicit ACM choice so it can be restored when HDR is toggled off
+        private bool _pendingAcmEnabled;
 
         public DisplaySettingControl(DisplaySetting setting, int monitorIndex = 1, bool isCloneGroup = false, List<DisplaySetting> cloneGroupMembers = null, List<DisplayHelper.MonitorIdInfo> monitorIds = null, List<DisplayConfigHelper.DisplayConfigInfo> displayConfigs = null)
         {
@@ -1148,6 +1160,7 @@ namespace DisplayProfileManager.UI.Windows
             _monitorIndex = monitorIndex;
             _isCloneGroup = isCloneGroup;
             _cloneGroupMembers = cloneGroupMembers ?? new List<DisplaySetting> { setting };
+            _pendingAcmEnabled = setting.IsAcmEnabled;
 
             InitializeControl();
         }
@@ -1251,7 +1264,6 @@ namespace DisplayProfileManager.UI.Windows
                 {
                     Content = "ACM",
                     IsChecked = _setting.IsAcmEnabled || (_setting.IsHdrEnabled && _setting.IsHdrSupported),
-                    
                     IsEnabled = acmSupported && !(_setting.IsHdrEnabled && _setting.IsHdrSupported),
                     Visibility = acmSupported ? Visibility.Visible : Visibility.Collapsed,
                     FontSize = 14,
@@ -1509,75 +1521,10 @@ namespace DisplayProfileManager.UI.Windows
             UpdateControlStates();
         }
 
-        private void EnabledCheckBox_CheckedChanged(object sender, RoutedEventArgs e)
-        {
-            _setting.IsEnabled = _enabledCheckBox.IsChecked ?? true;
-            UpdateControlStates();
-        }
-
-        private void HdrCheckBox_CheckedChanged(object sender, RoutedEventArgs e)
-        {
-            bool hdrOn = _hdrCheckBox.IsChecked == true && _setting.IsHdrSupported;
-            _setting.IsHdrEnabled = hdrOn;
-
-            if (_acmCheckBox != null)
-            {
-                if (hdrOn)
-                {
-                    // HDR forces ACM on
-                    _acmCheckBox.IsChecked = true;
-                    _acmCheckBox.IsEnabled = false;
-                }
-                else
-                {
-                    _acmCheckBox.IsChecked = _setting.IsAcmEnabled;
-                    _acmCheckBox.IsEnabled = DisplayConfigHelper.IsAcmSupported(_setting.IsHdrSupported);
-                }
-            }
-
-            if (_colorProfileComboBox != null && _colorProfileComboBox.Items.Count > 0)
-                _colorProfileComboBox.SelectedIndex = 0;
-
-            UpdateColorProfileLabel();
-            try { PopulateColorProfileComboBox(); } catch (Exception) { }
-        }
-
-        private void AcmCheckBox_CheckedChanged(object sender, RoutedEventArgs e)
-        {
-            if (_hdrCheckBox?.IsChecked != true)
-                _setting.IsAcmEnabled = _acmCheckBox.IsChecked == true;
-        }
-
-        private void UpdateColorProfileLabel()
-        {
-            if (_colorProfileLabel == null) return;
-            bool hdrActive = _hdrCheckBox?.IsChecked == true && _setting.IsHdrSupported;
-            _colorProfileLabel.Text = hdrActive ? "HDR Color" : "SDR Color";
-        }
-
-        private void UpdateColorProfileOpacity()
-        {
-            if (_colorProfileComboBox == null) return;
-            bool notApplied = (_colorProfileComboBox.SelectedItem as ComboBoxItem)?.Tag == null;
-            _colorProfileComboBox.Opacity = notApplied ? 0.5 : 1.0;
-        }
-
-        private void PopulateRotationComboBox()
-        {
-            _rotationComboBox.Items.Clear();
-            _rotationComboBox.Items.Add("Not Applied");
-            _rotationComboBox.Items.Add("0°");
-            _rotationComboBox.Items.Add("90°");
-            _rotationComboBox.Items.Add("180°");
-            _rotationComboBox.Items.Add("270°");
-            _rotationComboBox.SelectedIndex = _setting.Rotation;
-
-            RotationComboBox_SelectionChanged(null, null);
-        }
-
         private void UpdateControlStates()
         {
-            bool isEnabled = _setting.IsEnabled;
+            // Read enabled state from the checkbox — _setting.IsEnabled is not written by handlers
+            bool isEnabled = _enabledCheckBox.IsChecked == true;
             double opacity = isEnabled ? 1.0 : 0.5;
 
             _resolutionComboBox.IsEnabled = isEnabled;
@@ -1618,49 +1565,27 @@ namespace DisplayProfileManager.UI.Windows
             {
                 int enabledCount = 0;
                 foreach (var child in parent.Children)
-                    if (child is DisplaySettingControl control && control._setting.IsEnabled)
+                    if (child is DisplaySettingControl control && control._enabledCheckBox.IsChecked == true)
                         enabledCount++;
 
                 if (enabledCount == 0)
                 {
+                    // Rollback: re-check the checkbox; the Checked event re-enters UpdateControlStates with isEnabled=true
                     _enabledCheckBox.IsChecked = true;
-                    _setting.IsEnabled = true;
                     MessageBox.Show("At least one display must remain enabled.", "Display Configuration",
                         MessageBoxButton.OK, MessageBoxImage.Information);
-
-                    // Rollback visual states
-                    _resolutionComboBox.IsEnabled = true;
-                    _refreshRateComboBox.IsEnabled = true;
-                    _dpiComboBox.IsEnabled = true;
-                    _primaryCheckBox.IsEnabled = true;
-                    if (_acmCheckBox != null)
-                    {
-                        bool hdrForced = _hdrCheckBox?.IsChecked == true && _setting.IsHdrSupported;
-                        bool acmSupported = DisplayConfigHelper.IsAcmSupported(_setting.IsHdrSupported);
-                        _acmCheckBox.IsEnabled = isEnabled && acmSupported && !hdrForced;
-                        _acmCheckBox.Opacity = acmSupported ? opacity : 0.5;
-                    }
-                    _rotationComboBox.Opacity = _rotationComboBox.SelectedIndex == 0 ? 0.5 : 1.0;
-                    _refreshRateComboBox.Opacity = 1.0;
-                    _dpiComboBox.Opacity = 1.0;
-
-                    if (_colorProfileComboBox != null)
-                    {
-                        _colorProfileComboBox.IsEnabled = true;
-                        _colorProfileComboBox.Opacity = (_colorProfileComboBox.SelectedItem as ComboBoxItem)?.Tag == null ? 0.5 : 1.0;
-                    }
+                    return;
                 }
             }
 
             // Transfer primary flag to another enabled display when current primary is disabled
-            if (!isEnabled && _setting.IsPrimary && parent != null)
+            if (!isEnabled && _primaryCheckBox.IsChecked == true && parent != null)
             {
                 _primaryCheckBox.IsChecked = false;
-                _setting.IsPrimary = false;
 
                 foreach (var child in parent.Children)
                 {
-                    if (child is DisplaySettingControl control && control._setting.IsEnabled)
+                    if (child is DisplaySettingControl control && control._enabledCheckBox.IsChecked == true)
                     {
                         control.SetPrimary(true);
                         break;
@@ -1669,329 +1594,9 @@ namespace DisplayProfileManager.UI.Windows
             }
         }
 
-        private void PopulateResolutionComboBox()
+        private void EnabledCheckBox_CheckedChanged(object sender, RoutedEventArgs e)
         {
-            List<string> supportedResolutions;
-
-            // Prefer stored resolutions; fall back to live system query
-            if (_setting.AvailableResolutions != null && _setting.AvailableResolutions.Count > 0)
-                supportedResolutions = _setting.AvailableResolutions;
-            else
-                supportedResolutions = DisplayHelper.GetSupportedResolutionsOnly(_setting.DeviceName);
-
-            string nativeRes = _setting.NativeWidth > 0 ? $"{_setting.NativeWidth}x{_setting.NativeHeight}" : null;
-            foreach (var resolution in supportedResolutions)
-            {
-                bool isNative = nativeRes != null && string.Equals(resolution, nativeRes, StringComparison.OrdinalIgnoreCase);
-                _resolutionComboBox.Items.Add(isNative ? $"{resolution} ★" : resolution);
-            }
-
-            var currentResolution = $"{_setting.Width}x{_setting.Height}";
-            var matchedItem = _resolutionComboBox.Items.Cast<object>().FirstOrDefault(i => i.ToString().StartsWith(currentResolution, StringComparison.OrdinalIgnoreCase));
-
-            if (matchedItem != null)
-                _resolutionComboBox.SelectedItem = matchedItem;
-            else
-            {
-                _resolutionComboBox.Items.Insert(0, currentResolution);
-                _resolutionComboBox.SelectedIndex = 0;
-            }
-        }
-
-        private void PopulateDpiComboBox()
-        {
-            List<uint> dpiValues;
-
-            // Prefer stored values; fall back to live system query
-            if (_setting.AvailableDpiScaling != null && _setting.AvailableDpiScaling.Count > 0)
-                dpiValues = _setting.AvailableDpiScaling;
-            else
-                dpiValues = DpiHelper.GetSupportedDpiScalingOnly(_setting.DeviceName).ToList();
-
-            foreach (uint dpi in dpiValues)
-                _dpiComboBox.Items.Add($"{dpi}%");
-
-            var currentDpi = $"{_setting.DpiScaling}%";
-            if (_dpiComboBox.Items.Contains(currentDpi))
-                _dpiComboBox.SelectedItem = currentDpi;
-            else
-            {
-                _dpiComboBox.Items.Insert(0, currentDpi);
-                _dpiComboBox.SelectedIndex = 0;
-            }
-        }
-
-        private void PopulateColorProfileComboBox()
-        {
-            // Preserve current selection so HDR toggle doesn't lose it on re-population
-            string previousTag = (_colorProfileComboBox.SelectedItem as ComboBoxItem)?.Tag as string ?? _setting.ColorProfile;
-
-            _colorProfileComboBox.Items.Clear();
-
-            var primaryFg = (Brush)Application.Current.Resources["PrimaryTextBrush"];
-            bool hdrMode = _hdrCheckBox?.IsChecked == true && _setting.IsHdrSupported;
-
-            // null sentinel matches "Not Applied"
-            _colorProfileComboBox.Items.Add(new ComboBoxItem
-            {
-                Content = "Not Applied",
-                Tag = (string)null,
-                Foreground = primaryFg
-            });
-
-            var installedProfiles = hdrMode ? ColorProfileHelper.GetInstalledColorProfilesFiltered(hdrOnly: true) : ColorProfileHelper.GetInstalledColorProfilesFiltered(hdrOnly: false);
-            foreach (var filename in installedProfiles)
-            {
-                _colorProfileComboBox.Items.Add(new ComboBoxItem
-                {
-                    Content = filename,
-                    Tag = filename,
-                    Foreground = primaryFg,
-                });
-            }
-
-            SelectColorProfile(previousTag);
-        }
-
-        private void SelectColorProfile(string profileValue)
-        {
-            // null → "Not Applied" (index 0)
-            if (string.IsNullOrEmpty(profileValue))
-            {
-                _colorProfileComboBox.SelectedIndex = 0;
-                UpdateColorProfileOpacity();
-                return;
-            }
-
-            foreach (ComboBoxItem item in _colorProfileComboBox.Items)
-            {
-                if (string.Equals(item.Tag as string, profileValue, StringComparison.OrdinalIgnoreCase))
-                {
-                    _colorProfileComboBox.SelectedItem = item;
-                    UpdateColorProfileOpacity();
-                    return;
-                }
-            }
-
-            // Stored profile no longer installed — insert as a placeholder to preserve value
-            var missing = new ComboBoxItem
-            {
-                Content = $"{profileValue}  (not found)",
-                Tag = profileValue,
-                Foreground = (Brush)Application.Current.Resources["TertiaryTextBrush"],
-                ToolTip = "This color profile is no longer installed on this system"
-            };
-            _colorProfileComboBox.Items.Add(missing);
-            _colorProfileComboBox.SelectedItem = missing;
-            UpdateColorProfileOpacity();
-        }
-
-        private void ColorProfileComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (_colorProfileComboBox?.SelectedItem is ComboBoxItem item)
-                _setting.ColorProfile = item.Tag as string;
-            UpdateColorProfileOpacity();
-        }
-
-        private void RotationComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (_rotationComboBox != null && _setting.IsEnabled)
-                _rotationComboBox.Opacity = _rotationComboBox.SelectedIndex == 0 ? 0.5 : 1.0;
-        }
-
-        private void PopulateRefreshRateComboBox()
-        {
-            _refreshRateComboBox.Items.Clear();
-
-            List<int> refreshRates;
-            var currentResolution = $"{_setting.Width}x{_setting.Height}";
-
-            // Prefer stored rates for the current resolution; fall back to live query
-            if (_setting.AvailableRefreshRates != null && _setting.AvailableRefreshRates.ContainsKey(currentResolution) && _setting.AvailableRefreshRates[currentResolution].Count > 0)
-                refreshRates = _setting.AvailableRefreshRates[currentResolution];
-            else
-                refreshRates = DisplayHelper.GetAvailableRefreshRates(_setting.DeviceName, _setting.Width, _setting.Height);
-
-            int maxRate = refreshRates.Count > 0 ? refreshRates.Max() : -1;
-            foreach (var rate in refreshRates)
-                _refreshRateComboBox.Items.Add(rate == maxRate ? $"{rate}Hz ★" : $"{rate}Hz");
-
-            var currentRefreshRate = $"{_setting.Frequency}Hz";
-            var matchedItem = _refreshRateComboBox.Items.Cast<object>().FirstOrDefault(i => i.ToString().StartsWith(currentRefreshRate, StringComparison.OrdinalIgnoreCase));
-
-            if (matchedItem != null)
-                _refreshRateComboBox.SelectedItem = matchedItem;
-            else if (_refreshRateComboBox.Items.Count > 0)
-            {
-                _refreshRateComboBox.Items.Insert(0, currentRefreshRate);
-                _refreshRateComboBox.SelectedIndex = 0;
-            }
-            else
-            {
-                _refreshRateComboBox.Items.Add(currentRefreshRate);
-                _refreshRateComboBox.SelectedIndex = 0;
-            }
-        }
-
-        private void ResolutionComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (_resolutionComboBox.SelectedItem == null || _refreshRateComboBox == null) return;
-
-            var resolutionText = (_resolutionComboBox.SelectedItem?.ToString() ?? "").Replace(" ★", "").Trim();
-            var resolutionParts = resolutionText.Split('x');
-
-            if (resolutionParts.Length >= 2 && int.TryParse(resolutionParts[0], out int width) && int.TryParse(resolutionParts[1], out int height))
-            {
-                int prevWidth = _setting.Width, prevHeight = _setting.Height;
-                _setting.Width = width;
-                _setting.Height = height;
-                PopulateRefreshRateComboBox();
-
-                _setting.Width = prevWidth;
-                _setting.Height = prevHeight;
-            }
-        }
-
-        public List<DisplaySetting> GetDisplaySettings()
-        {
-            var settings = new List<DisplaySetting>();
-
-            if (_resolutionComboBox.SelectedItem == null || _dpiComboBox.SelectedItem == null || _refreshRateComboBox.SelectedItem == null) return settings;
-
-            var resolutionText = _resolutionComboBox.SelectedItem.ToString().Replace(" ★", "").Replace("★", "").Trim();
-            var dpiText = _dpiComboBox.SelectedItem.ToString();
-            var refreshRateText = _refreshRateComboBox.SelectedItem.ToString();
-
-            var resolutionParts = resolutionText.Split('x');
-            if (resolutionParts.Length < 2) return settings;
-            if (!int.TryParse(resolutionParts[0], out int width)) return settings;
-
-            string heightPart = resolutionParts[1].Replace(" ★", "").Replace("★", "").Trim();
-            if (heightPart.Contains("@")) heightPart = heightPart.Split('@')[0].Trim();
-            if (!int.TryParse(heightPart, out int height)) return settings;
-
-            if (!uint.TryParse(dpiText.Replace("%", ""), out uint dpiScaling)) return settings;
-
-            if (!int.TryParse(refreshRateText.Replace("Hz", "").Replace(" ★", "").Trim(), out int frequency))
-                frequency = 60;
-
-            var isEnabled = _enabledCheckBox.IsChecked == true;
-            var isHdrEnabled = _hdrCheckBox.IsChecked == true;
-            var isAcmEnabled = _acmCheckBox?.IsChecked == true;
-            var rotation = _rotationComboBox.SelectedIndex == 0 ? 0 : _rotationComboBox.SelectedIndex;
-            var colorProfile = (_colorProfileComboBox?.SelectedItem is ComboBoxItem cp) ? cp.Tag as string : null;
-
-            // Source always reads combo; attached reads own restored params only after BreakClone (CloneGroupId cleared)
-            foreach (var originalSetting in _cloneGroupMembers)
-            {
-                bool useOwnParams = !originalSetting.IsCloneSource && string.IsNullOrEmpty(originalSetting.CloneGroupId);
-
-                var displaySetting = new DisplaySetting
-                {
-                    // Identity
-                    DeviceName = originalSetting.DeviceName,
-                    DeviceString = originalSetting.DeviceString,
-                    ReadableDeviceName = originalSetting.ReadableDeviceName,
-                    ManufacturerName = originalSetting.ManufacturerName,
-                    ProductCodeID = originalSetting.ProductCodeID,
-                    SerialNumberID = originalSetting.SerialNumberID,
-                    AdapterId = originalSetting.AdapterId,
-                    TargetId = originalSetting.TargetId,
-                    SourceId = originalSetting.SourceId,
-                    CloneGroupId = originalSetting.CloneGroupId,
-                    IsCloneSource = originalSetting.IsCloneSource && !string.IsNullOrEmpty(originalSetting.CloneGroupId),
-                    PathIndex = originalSetting.PathIndex,
-                    // State
-                    IsEnabled = isEnabled,
-                    IsPrimary = originalSetting.IsPrimary,
-                    // Layout
-                    DisplayPositionX = originalSetting.DisplayPositionX,
-                    DisplayPositionY = originalSetting.DisplayPositionY,
-                    // Active configuration
-                    Width = useOwnParams ? originalSetting.Width : width,
-                    Height = useOwnParams ? originalSetting.Height : height,
-                    Frequency = useOwnParams ? originalSetting.Frequency : frequency,
-                    Rotation = useOwnParams ? originalSetting.Rotation : rotation,
-                    DpiScaling = useOwnParams ? originalSetting.DpiScaling : dpiScaling,
-                    IsHdrSupported = originalSetting.IsHdrSupported,
-                    IsHdrEnabled = useOwnParams ? (originalSetting.IsHdrEnabled && originalSetting.IsHdrSupported) : (isHdrEnabled && originalSetting.IsHdrSupported),
-                    IsAcmEnabled = useOwnParams ? originalSetting.IsAcmEnabled : isAcmEnabled,
-                    ColorProfile = useOwnParams ? originalSetting.ColorProfile : colorProfile,
-                    // Clone
-                    OriginalPositionX = originalSetting.OriginalPositionX,
-                    OriginalPositionY = originalSetting.OriginalPositionY,
-                    OriginalSourceId = originalSetting.OriginalSourceId,
-                    OriginalWidth = originalSetting.OriginalWidth,
-                    OriginalHeight = originalSetting.OriginalHeight,
-                    OriginalFrequency = originalSetting.OriginalFrequency,
-                    OriginalIsPrimary = originalSetting.OriginalIsPrimary,
-                    OriginalDpiScaling = originalSetting.OriginalDpiScaling,
-                    OriginalRotation = originalSetting.OriginalRotation,
-                    OriginalColorProfile = originalSetting.OriginalColorProfile,
-                    OriginalIsHdrEnabled = originalSetting.OriginalIsHdrEnabled,
-                    OriginalIsAcmEnabled = originalSetting.OriginalIsAcmEnabled,
-                    // Native
-                    NativeWidth = originalSetting.NativeWidth,
-                    NativeHeight = originalSetting.NativeHeight,
-                    // Capabilities
-                    AvailableResolutions = originalSetting.AvailableResolutions,
-                    AvailableRefreshRates = originalSetting.AvailableRefreshRates,
-                    AvailableDpiScaling = originalSetting.AvailableDpiScaling
-                };
-                settings.Add(displaySetting);
-            }
-
-            return settings;
-        }
-
-        public bool ValidateInput()
-        {
-            if (_resolutionComboBox.SelectedItem == null)
-            {
-                MessageBox.Show("Please select a resolution for all displays.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
-                _resolutionComboBox.Focus();
-                return false;
-            }
-
-            if (_refreshRateComboBox.SelectedItem == null)
-            {
-                MessageBox.Show("Please select a refresh rate for all displays.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
-                _refreshRateComboBox.Focus();
-                return false;
-            }
-
-            if (_dpiComboBox.SelectedItem == null)
-            {
-                MessageBox.Show("Please select a DPI scaling for all displays.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
-                _dpiComboBox.Focus();
-                return false;
-            }
-
-            if (_setting.IsEnabled)
-            {
-                var parent = Parent as Panel;
-                if (parent != null)
-                {
-                    bool hasPrimary = false;
-                    foreach (var child in parent.Children)
-                    {
-                        if (child is DisplaySettingControl control && control._setting.IsEnabled && control._setting.IsPrimary)
-                        {
-                            hasPrimary = true;
-                            break;
-                        }
-                    }
-
-                    if (!hasPrimary)
-                    {
-                        MessageBox.Show("At least one enabled display must be set as primary.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
-                        _primaryCheckBox.Focus();
-                        return false;
-                    }
-                }
-            }
-
-            return true;
+            UpdateControlStates();
         }
 
         private void PrimaryCheckBox_Checked(object sender, RoutedEventArgs e)
@@ -1999,16 +1604,12 @@ namespace DisplayProfileManager.UI.Windows
             _setting.IsPrimary = true;
             var parent = Parent as Panel;
             if (parent != null)
-            {
                 foreach (var child in parent.Children)
-                {
                     if (child is DisplaySettingControl control && control != this)
                     {
                         control._primaryCheckBox.IsChecked = false;
                         control._setting.IsPrimary = false;
                     }
-                }
-            }
         }
 
         private void PrimaryCheckBox_Unchecked(object sender, RoutedEventArgs e)
@@ -2019,10 +1620,10 @@ namespace DisplayProfileManager.UI.Windows
                 int primaryCount = 0;
                 foreach (var child in parent.Children)
                     if (child is DisplaySettingControl control && control != this)
-                        if (control._primaryCheckBox.IsChecked == true && control._setting.IsEnabled)
+                        if (control._primaryCheckBox.IsChecked == true && control._enabledCheckBox.IsChecked == true)
                             primaryCount++;
 
-                if (primaryCount == 0 && _setting.IsEnabled)
+                if (primaryCount == 0 && _enabledCheckBox.IsChecked == true)
                 {
                     _primaryCheckBox.IsChecked = true;
                     MessageBox.Show("At least one enabled display must be set as primary.", "Display Configuration", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -2032,7 +1633,60 @@ namespace DisplayProfileManager.UI.Windows
             _setting.IsPrimary = false;
         }
 
-        public Action OnCloneGroupChanged;
+        public void SetPrimary(bool isPrimary)
+        {
+            // Update primary checkbox while suppressing event loops
+            _primaryCheckBox.Checked -= PrimaryCheckBox_Checked;
+            _primaryCheckBox.Unchecked -= PrimaryCheckBox_Unchecked;
+
+            _primaryCheckBox.IsChecked = isPrimary;
+            _setting.IsPrimary = isPrimary;
+
+            _primaryCheckBox.Checked += PrimaryCheckBox_Checked;
+            _primaryCheckBox.Unchecked += PrimaryCheckBox_Unchecked;
+
+            // Enforce single-primary constraint across siblings
+            if (isPrimary)
+            {
+                var parent = Parent as Panel;
+                if (parent != null)
+                    foreach (var child in parent.Children)
+                        if (child is DisplaySettingControl control && control != this)
+                            control.SetPrimary(false);
+            }
+        }
+
+        private void HdrCheckBox_CheckedChanged(object sender, RoutedEventArgs e)
+        {
+            bool hdrOn = _hdrCheckBox.IsChecked == true && _setting.IsHdrSupported;
+
+            if (_acmCheckBox != null)
+            {
+                if (hdrOn)
+                {
+                    // HDR forces ACM on; user's pending choice is preserved in _pendingAcmEnabled
+                    _acmCheckBox.IsChecked = true;
+                    _acmCheckBox.IsEnabled = false;
+                }
+                else
+                {
+                    // Restore the user's last explicit ACM choice
+                    _acmCheckBox.IsChecked = _pendingAcmEnabled;
+                    _acmCheckBox.IsEnabled = DisplayConfigHelper.IsAcmSupported(_setting.IsHdrSupported);
+                }
+            }
+
+            // Clear color profile on HDR mode switch — a cross-mode profile is not valid in the new mode
+            UpdateColorProfileLabel();
+            try { PopulateColorProfileComboBox(clearSelection: true); } catch (Exception) { }
+        }
+
+        private void AcmCheckBox_CheckedChanged(object sender, RoutedEventArgs e)
+        {
+            // Only record explicit user changes; HDR-forced toggles fire while the checkbox is disabled
+            if (_hdrCheckBox?.IsChecked != true)
+                _pendingAcmEnabled = _acmCheckBox.IsChecked == true;
+        }
 
         private void CloneButton_Click(object sender, RoutedEventArgs e)
         {
@@ -2108,6 +1762,7 @@ namespace DisplayProfileManager.UI.Windows
             // Save all pre-clone state BEFORE any modifications — IsPrimary is cleared by the primary transfer below
             foreach (var member in other._cloneGroupMembers)
             {
+                member.OriginalSettings = false;
                 member.OriginalPositionX = member.DisplayPositionX;
                 member.OriginalPositionY = member.DisplayPositionY;
                 member.OriginalSourceId = member.SourceId;
@@ -2170,7 +1825,7 @@ namespace DisplayProfileManager.UI.Windows
                     foreach (var m in ctrl._cloneGroupMembers)
                         maxSourceId = Math.Max(maxSourceId, m.SourceId);
 
-            // Partition by role — AllMembers ordering is not guaranteed to match Clone() iteration order
+            // Partition by role — _cloneGroupMembers ordering is not guaranteed to match Clone() iteration order
             var sourceMembers = _cloneGroupMembers.Where(m => m.IsCloneSource).ToList();
             var attachedMembers = _cloneGroupMembers.Where(m => !m.IsCloneSource).ToList();
 
@@ -2186,7 +1841,10 @@ namespace DisplayProfileManager.UI.Windows
                 .Any(c => c._cloneGroupMembers.Any(m => m.IsPrimary)) ?? false;
 
             foreach (var member in sourceMembers)
+            {
                 member.IsPrimary = !attachedHadPrimary && !primaryExistsElsewhere;
+                member.OriginalSettings = false;
+            }
 
             foreach (var member in attachedMembers)
             {
@@ -2221,6 +1879,7 @@ namespace DisplayProfileManager.UI.Windows
                 }
 
                 // Clear all saved originals
+                member.OriginalSettings = true;
                 member.OriginalPositionX = null;
                 member.OriginalPositionY = null;
                 member.OriginalSourceId = null;
@@ -2246,27 +1905,362 @@ namespace DisplayProfileManager.UI.Windows
             OnCloneGroupChanged?.Invoke();
         }
 
-        public void SetPrimary(bool isPrimary)
+        public Action OnCloneGroupChanged;
+
+        private void PopulateResolutionComboBox()
         {
-            // Update primary status while suppressing event loops
-            _primaryCheckBox.Checked -= PrimaryCheckBox_Checked;
-            _primaryCheckBox.Unchecked -= PrimaryCheckBox_Unchecked;
+            List<string> supportedResolutions;
 
-            _primaryCheckBox.IsChecked = isPrimary;
-            _setting.IsPrimary = isPrimary;
+            // Prefer stored resolutions; fall back to live system query
+            if (_setting.AvailableResolutions != null && _setting.AvailableResolutions.Count > 0)
+                supportedResolutions = _setting.AvailableResolutions;
+            else
+                supportedResolutions = DisplayHelper.GetSupportedResolutionsOnly(_setting.DeviceName);
 
-            _primaryCheckBox.Checked += PrimaryCheckBox_Checked;
-            _primaryCheckBox.Unchecked += PrimaryCheckBox_Unchecked;
+            string nativeRes = _setting.NativeWidth > 0 ? $"{_setting.NativeWidth}x{_setting.NativeHeight}" : null;
+            foreach (var resolution in supportedResolutions)
+            {
+                bool isNative = nativeRes != null && string.Equals(resolution, nativeRes, StringComparison.OrdinalIgnoreCase);
+                _resolutionComboBox.Items.Add(isNative ? $"{resolution} ★" : resolution);
+            }
 
-            // Enforce single-primary constraint across siblings
-            if (isPrimary)
+            var currentResolution = $"{_setting.Width}x{_setting.Height}";
+            var matchedItem = _resolutionComboBox.Items.Cast<object>().FirstOrDefault(i => i.ToString().StartsWith(currentResolution, StringComparison.OrdinalIgnoreCase));
+
+            if (matchedItem != null)
+                _resolutionComboBox.SelectedItem = matchedItem;
+            else
+            {
+                _resolutionComboBox.Items.Insert(0, currentResolution);
+                _resolutionComboBox.SelectedIndex = 0;
+            }
+        }
+
+        private void ResolutionComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_resolutionComboBox.SelectedItem == null || _refreshRateComboBox == null) return;
+
+            var resolutionText = (_resolutionComboBox.SelectedItem?.ToString() ?? "").Replace(" ★", "").Trim();
+            var resolutionParts = resolutionText.Split('x');
+
+            if (resolutionParts.Length >= 2 && int.TryParse(resolutionParts[0], out int width) && int.TryParse(resolutionParts[1], out int height))
+            {
+                // Write through temporarily so PopulateRefreshRateComboBox can key into AvailableRefreshRates,
+                // then restore — GetDisplaySettings reads width/height from the combo directly, not from _setting
+                int prevWidth = _setting.Width, prevHeight = _setting.Height;
+                _setting.Width = width;
+                _setting.Height = height;
+                PopulateRefreshRateComboBox();
+                _setting.Width = prevWidth;
+                _setting.Height = prevHeight;
+            }
+        }
+
+        private void PopulateRefreshRateComboBox()
+        {
+            _refreshRateComboBox.Items.Clear();
+
+            List<int> refreshRates;
+            var currentResolution = $"{_setting.Width}x{_setting.Height}";
+
+            // Prefer stored rates for the current resolution; fall back to live query
+            if (_setting.AvailableRefreshRates != null && _setting.AvailableRefreshRates.ContainsKey(currentResolution) && _setting.AvailableRefreshRates[currentResolution].Count > 0)
+                refreshRates = _setting.AvailableRefreshRates[currentResolution];
+            else
+                refreshRates = DisplayHelper.GetAvailableRefreshRates(_setting.DeviceName, _setting.Width, _setting.Height);
+
+            int maxRate = refreshRates.Count > 0 ? refreshRates.Max() : -1;
+            foreach (var rate in refreshRates)
+                _refreshRateComboBox.Items.Add(rate == maxRate ? $"{rate}Hz ★" : $"{rate}Hz");
+
+            var currentRefreshRate = $"{_setting.Frequency}Hz";
+            var matchedItem = _refreshRateComboBox.Items.Cast<object>().FirstOrDefault(i => i.ToString().StartsWith(currentRefreshRate, StringComparison.OrdinalIgnoreCase));
+
+            if (matchedItem != null)
+                _refreshRateComboBox.SelectedItem = matchedItem;
+            else if (_refreshRateComboBox.Items.Count > 0)
+            {
+                _refreshRateComboBox.Items.Insert(0, currentRefreshRate);
+                _refreshRateComboBox.SelectedIndex = 0;
+            }
+            else
+            {
+                _refreshRateComboBox.Items.Add(currentRefreshRate);
+                _refreshRateComboBox.SelectedIndex = 0;
+            }
+        }
+
+        private void PopulateRotationComboBox()
+        {
+            _rotationComboBox.Items.Clear();
+            _rotationComboBox.Items.Add("Not Applied");
+            _rotationComboBox.Items.Add("0°");
+            _rotationComboBox.Items.Add("90°");
+            _rotationComboBox.Items.Add("180°");
+            _rotationComboBox.Items.Add("270°");
+            _rotationComboBox.SelectedIndex = _setting.Rotation;
+
+            RotationComboBox_SelectionChanged(null, null);
+        }
+
+        private void RotationComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_rotationComboBox != null && _enabledCheckBox.IsChecked == true)
+                _rotationComboBox.Opacity = _rotationComboBox.SelectedIndex == 0 ? 0.5 : 1.0;
+        }
+
+        private void PopulateDpiComboBox()
+        {
+            List<uint> dpiValues;
+
+            // Prefer stored values; fall back to live system query
+            if (_setting.AvailableDpiScaling != null && _setting.AvailableDpiScaling.Count > 0)
+                dpiValues = _setting.AvailableDpiScaling;
+            else
+                dpiValues = DpiHelper.GetSupportedDpiScalingOnly(_setting.DeviceName).ToList();
+
+            foreach (uint dpi in dpiValues)
+                _dpiComboBox.Items.Add($"{dpi}%");
+
+            var currentDpi = $"{_setting.DpiScaling}%";
+            if (_dpiComboBox.Items.Contains(currentDpi))
+                _dpiComboBox.SelectedItem = currentDpi;
+            else
+            {
+                _dpiComboBox.Items.Insert(0, currentDpi);
+                _dpiComboBox.SelectedIndex = 0;
+            }
+        }
+
+        private void PopulateColorProfileComboBox(bool clearSelection = false)
+        {
+            // Preserve current selection across repopulation unless HDR mode just changed
+            string previousTag = clearSelection ? null : ((_colorProfileComboBox.SelectedItem as ComboBoxItem)?.Tag as string ?? _setting.ColorProfile);
+
+            _colorProfileComboBox.Items.Clear();
+
+            var primaryFg = (Brush)Application.Current.Resources["PrimaryTextBrush"];
+            bool hdrMode = _hdrCheckBox?.IsChecked == true && _setting.IsHdrSupported;
+
+            // null sentinel matches "Not Applied"
+            _colorProfileComboBox.Items.Add(new ComboBoxItem
+            {
+                Content = "Not Applied",
+                Tag = (string)null,
+                Foreground = primaryFg
+            });
+
+            var installedProfiles = hdrMode
+                ? ColorProfileHelper.GetInstalledColorProfilesFiltered(hdrOnly: true)
+                : ColorProfileHelper.GetInstalledColorProfilesFiltered(hdrOnly: false);
+            foreach (var filename in installedProfiles)
+            {
+                _colorProfileComboBox.Items.Add(new ComboBoxItem
+                {
+                    Content = filename,
+                    Tag = filename,
+                    Foreground = primaryFg,
+                });
+            }
+
+            SelectColorProfile(previousTag);
+        }
+
+        private void SelectColorProfile(string profileValue)
+        {
+            // null → "Not Applied" (index 0)
+            if (string.IsNullOrEmpty(profileValue))
+            {
+                _colorProfileComboBox.SelectedIndex = 0;
+                UpdateColorProfileOpacity();
+                return;
+            }
+
+            foreach (ComboBoxItem item in _colorProfileComboBox.Items)
+            {
+                if (string.Equals(item.Tag as string, profileValue, StringComparison.OrdinalIgnoreCase))
+                {
+                    _colorProfileComboBox.SelectedItem = item;
+                    UpdateColorProfileOpacity();
+                    return;
+                }
+            }
+
+            // Stored profile no longer installed — insert as a placeholder to preserve value
+            var missing = new ComboBoxItem
+            {
+                Content = $"{profileValue}  (not found)",
+                Tag = profileValue,
+                Foreground = (Brush)Application.Current.Resources["TertiaryTextBrush"],
+                ToolTip = "This color profile is no longer installed on this system"
+            };
+            _colorProfileComboBox.Items.Add(missing);
+            _colorProfileComboBox.SelectedItem = missing;
+            UpdateColorProfileOpacity();
+        }
+
+        private void ColorProfileComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            UpdateColorProfileOpacity();
+        }
+
+        private void UpdateColorProfileLabel()
+        {
+            if (_colorProfileLabel == null) return;
+            bool hdrActive = _hdrCheckBox?.IsChecked == true && _setting.IsHdrSupported;
+            _colorProfileLabel.Text = hdrActive ? "HDR Color" : "SDR Color";
+        }
+
+        private void UpdateColorProfileOpacity()
+        {
+            if (_colorProfileComboBox == null) return;
+            bool notApplied = (_colorProfileComboBox.SelectedItem as ComboBoxItem)?.Tag == null;
+            _colorProfileComboBox.Opacity = notApplied ? 0.5 : 1.0;
+        }
+
+        public List<DisplaySetting> GetDisplaySettings()
+        {
+            var settings = new List<DisplaySetting>();
+
+            if (_resolutionComboBox.SelectedItem == null || _dpiComboBox.SelectedItem == null || _refreshRateComboBox.SelectedItem == null) return settings;
+
+            var resolutionText = _resolutionComboBox.SelectedItem.ToString().Replace(" ★", "").Replace("★", "").Trim();
+            var dpiText = _dpiComboBox.SelectedItem.ToString();
+            var refreshRateText = _refreshRateComboBox.SelectedItem.ToString();
+
+            var resolutionParts = resolutionText.Split('x');
+            if (resolutionParts.Length < 2) return settings;
+            if (!int.TryParse(resolutionParts[0], out int width)) return settings;
+
+            string heightPart = resolutionParts[1].Replace(" ★", "").Replace("★", "").Trim();
+            if (heightPart.Contains("@")) heightPart = heightPart.Split('@')[0].Trim();
+            if (!int.TryParse(heightPart, out int height)) return settings;
+
+            if (!uint.TryParse(dpiText.Replace("%", ""), out uint dpiScaling)) return settings;
+
+            if (!int.TryParse(refreshRateText.Replace("Hz", "").Replace(" ★", "").Trim(), out int frequency))
+                frequency = 60;
+
+            var isEnabled = _enabledCheckBox.IsChecked == true;
+            var isHdrEnabled = _hdrCheckBox.IsChecked == true;
+            var isAcmEnabled = _acmCheckBox?.IsChecked == true;
+            var rotation = _rotationComboBox.SelectedIndex == 0 ? 0 : _rotationComboBox.SelectedIndex;
+            var colorProfile = (_colorProfileComboBox?.SelectedItem is ComboBoxItem cp) ? cp.Tag as string : null;
+
+            // Source always reads combo; attached reads own restored params only after BreakClone (CloneGroupId cleared)
+            foreach (var originalSetting in _cloneGroupMembers)
+            {
+                bool useOwnParams = originalSetting.OriginalSettings;
+
+                var displaySetting = new DisplaySetting
+                {
+                    // Identity
+                    DeviceName = originalSetting.DeviceName,
+                    DeviceString = originalSetting.DeviceString,
+                    ReadableDeviceName = originalSetting.ReadableDeviceName,
+                    ManufacturerName = originalSetting.ManufacturerName,
+                    ProductCodeID = originalSetting.ProductCodeID,
+                    SerialNumberID = originalSetting.SerialNumberID,
+                    AdapterId = originalSetting.AdapterId,
+                    TargetId = originalSetting.TargetId,
+                    SourceId = originalSetting.SourceId,
+                    CloneGroupId = originalSetting.CloneGroupId,
+                    IsCloneSource = originalSetting.IsCloneSource && !string.IsNullOrEmpty(originalSetting.CloneGroupId),
+                    PathIndex = originalSetting.PathIndex,
+                    // State
+                    IsEnabled = isEnabled,
+                    IsPrimary = originalSetting.IsPrimary,
+                    // Layout — position always from originalSetting; controls don't expose position editing
+                    DisplayPositionX = originalSetting.DisplayPositionX,
+                    DisplayPositionY = originalSetting.DisplayPositionY,
+                    // Configuration — source and active clone members read from controls; attached reads own restored params after BreakClone
+                    Width = useOwnParams ? originalSetting.Width : width,
+                    Height = useOwnParams ? originalSetting.Height : height,
+                    Frequency = useOwnParams ? originalSetting.Frequency : frequency,
+                    Rotation = useOwnParams ? originalSetting.Rotation : rotation,
+                    DpiScaling = useOwnParams ? originalSetting.DpiScaling : dpiScaling,
+                    IsHdrSupported = originalSetting.IsHdrSupported,
+                    IsHdrEnabled = useOwnParams ? (originalSetting.IsHdrEnabled && originalSetting.IsHdrSupported) : (isHdrEnabled && originalSetting.IsHdrSupported),
+                    IsAcmEnabled = useOwnParams ? originalSetting.IsAcmEnabled : isAcmEnabled,
+                    ColorProfile = useOwnParams ? originalSetting.ColorProfile : colorProfile,
+                    // Clone
+                    OriginalSettings = originalSetting.OriginalSettings,
+                    OriginalPositionX = originalSetting.OriginalPositionX,
+                    OriginalPositionY = originalSetting.OriginalPositionY,
+                    OriginalSourceId = originalSetting.OriginalSourceId,
+                    OriginalWidth = originalSetting.OriginalWidth,
+                    OriginalHeight = originalSetting.OriginalHeight,
+                    OriginalFrequency = originalSetting.OriginalFrequency,
+                    OriginalIsPrimary = originalSetting.OriginalIsPrimary,
+                    OriginalDpiScaling = originalSetting.OriginalDpiScaling,
+                    OriginalRotation = originalSetting.OriginalRotation,
+                    OriginalColorProfile = originalSetting.OriginalColorProfile,
+                    OriginalIsHdrEnabled = originalSetting.OriginalIsHdrEnabled,
+                    OriginalIsAcmEnabled = originalSetting.OriginalIsAcmEnabled,
+                    // Native
+                    NativeWidth = originalSetting.NativeWidth,
+                    NativeHeight = originalSetting.NativeHeight,
+                    // Capabilities
+                    AvailableResolutions = originalSetting.AvailableResolutions,
+                    AvailableRefreshRates = originalSetting.AvailableRefreshRates,
+                    AvailableDpiScaling = originalSetting.AvailableDpiScaling
+                };
+                settings.Add(displaySetting);
+            }
+
+            return settings;
+        }
+
+        public bool ValidateInput()
+        {
+            if (_resolutionComboBox.SelectedItem == null)
+            {
+                MessageBox.Show("Please select a resolution for all displays.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                _resolutionComboBox.Focus();
+                return false;
+            }
+
+            if (_refreshRateComboBox.SelectedItem == null)
+            {
+                MessageBox.Show("Please select a refresh rate for all displays.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                _refreshRateComboBox.Focus();
+                return false;
+            }
+
+            if (_dpiComboBox.SelectedItem == null)
+            {
+                MessageBox.Show("Please select a DPI scaling for all displays.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                _dpiComboBox.Focus();
+                return false;
+            }
+
+            if (_enabledCheckBox.IsChecked == true)
             {
                 var parent = Parent as Panel;
                 if (parent != null)
+                {
+                    bool hasPrimary = false;
                     foreach (var child in parent.Children)
-                        if (child is DisplaySettingControl control && control != this)
-                            control.SetPrimary(false);
+                    {
+                        if (child is DisplaySettingControl control && control._enabledCheckBox.IsChecked == true && control._primaryCheckBox.IsChecked == true)
+                        {
+                            hasPrimary = true;
+                            break;
+                        }
+                    }
+
+                    if (!hasPrimary)
+                    {
+                        MessageBox.Show("At least one enabled display must be set as primary.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        _primaryCheckBox.Focus();
+                        return false;
+                    }
+                }
             }
+
+            return true;
         }
     }
+
+    #endregion
 }

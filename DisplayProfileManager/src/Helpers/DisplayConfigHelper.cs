@@ -1021,11 +1021,10 @@ namespace DisplayProfileManager.Helpers
         public static bool ApplyAdvancedColorState(List<DisplayConfigInfo> displayConfigs)
         {
             logger.Info("Applying Advanced Color state...");
-
+            
             // Fresh live query — RawTargetId values are required by DisplayConfigSetDeviceInfo
             var currentConfigs = GetDisplayConfigs();
             bool allSuccessful = true;
-
             foreach (var profileDisplay in displayConfigs)
             {
                 if (!profileDisplay.IsEnabled) continue;
@@ -1041,37 +1040,38 @@ namespace DisplayProfileManager.Helpers
                     continue;
                 }
 
-                // Skip if HDR state already matches
-                if (profileDisplay.IsHdrSupported)
+                // Per-device isolation — IDD virtual paths throw ERROR_GEN_FAILURE/ERROR_INVALID_PARAMETER
+                try
                 {
-                    if (activeDisplay.IsHdrEnabled != profileDisplay.IsHdrEnabled)
+                    if (profileDisplay.IsHdrSupported)
                     {
-                        logger.Info($"Setting {activeDisplay.FriendlyName} -> HDR to {(profileDisplay.IsHdrEnabled ? "on" : "off")}");
-                        if (!SetHdrState(activeDisplay.AdapterId, activeDisplay.RawTargetId, profileDisplay.IsHdrEnabled))
+                        if (activeDisplay.IsHdrEnabled != profileDisplay.IsHdrEnabled)
                         {
-                            logger.Error($"Failed to apply HDR setting for {activeDisplay.FriendlyName}.");
-                            allSuccessful = false;
+                            logger.Info($"Setting {activeDisplay.FriendlyName} -> HDR to {(profileDisplay.IsHdrEnabled ? "on" : "off")}");
+                            if (!SetHdrState(activeDisplay.AdapterId, activeDisplay.RawTargetId, profileDisplay.IsHdrEnabled))
+                            {
+                                logger.Error($"Failed to apply HDR setting for {activeDisplay.FriendlyName}.");
+                                allSuccessful = false;
+                            }
                         }
+                        else
+                            logger.Debug($"Skipping {activeDisplay.FriendlyName} -> HDR is already {(profileDisplay.IsHdrEnabled ? "on" : "off")}");
+                    }
+
+                    // ACM — forced on when HDR is on; independently toggleable otherwise
+                    bool wantAcm = profileDisplay.IsHdrEnabled || profileDisplay.IsAcmEnabled;
+                    if (wantAcm != activeDisplay.IsAcmEnabled)
+                    {
+                        logger.Info($"Setting {activeDisplay.FriendlyName} -> ACM to {(wantAcm ? "on" : "off")}");
+                        if (!SetAcmState(activeDisplay.AdapterId, activeDisplay.RawTargetId, wantAcm))
+                            logger.Warn($"ACM state change failed for {activeDisplay.FriendlyName} (expected on W11 pre-24H2 HDR displays).");
                     }
                     else
-                    {
-                        logger.Debug($"Skipping {activeDisplay.FriendlyName} -> HDR is already {(profileDisplay.IsHdrEnabled ? "on" : "off")}");
-                    }
+                        logger.Debug($"Skipping {activeDisplay.FriendlyName} -> ACM is already {(wantAcm ? "on" : "off")}");
                 }
-
-                // ACM — forced on when HDR is on; independently toggleable otherwise
-                bool wantAcm = profileDisplay.IsHdrEnabled || profileDisplay.IsAcmEnabled;
-                if (wantAcm != activeDisplay.IsAcmEnabled)
+                catch (Exception ex)
                 {
-                    logger.Info($"Setting {activeDisplay.FriendlyName} -> ACM to {(wantAcm ? "on" : "off")}");
-                    if (!SetAcmState(activeDisplay.AdapterId, activeDisplay.RawTargetId, wantAcm))
-                    {
-                        logger.Warn($"ACM state change failed for {activeDisplay.FriendlyName} (expected on W11 pre-24H2 HDR displays).");
-                    }
-                }
-                else
-                {
-                    logger.Debug($"Skipping {activeDisplay.FriendlyName} -> ACM is already {(wantAcm ? "on" : "off")}");
+                    logger.Warn(ex, $"Advanced color state failed for {activeDisplay.FriendlyName} (TargetId {activeDisplay.TargetId}) — likely an uninitialized IDD virtual path. Skipping.");
                 }
             }
 

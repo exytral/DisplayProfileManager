@@ -120,6 +120,7 @@ namespace DisplayProfileManager.Core
         public string ColorProfile { get; set; } = null;
 
         // Clone
+        [JsonIgnore] public bool OriginalSettings { get; set; } = false;
         [JsonIgnore] public int? OriginalPositionX { get; set; } = null;
         [JsonIgnore] public int? OriginalPositionY { get; set; } = null;
         [JsonIgnore] public uint? OriginalSourceId { get; set; } = null;

@@ -100,6 +100,8 @@ Save as `launch-bigpicture.ps1` and add it to your TV profile. Steam must alread
 
 > For the reverse — automatically switching profiles *when* Big Picture Mode opens or closes rather than triggering it manually — see [CLI Reference — Steam Big Picture Mode watcher](./cli.md#steam-big-picture-mode-watcher).
 
+> For general game and app launch integration — switching profiles when you launch any game through Steam, Epic, GOG Galaxy, or other launchers — see [CLI Reference — DPM Shortcut Builder](./cli.md#dpm-shortcut-builder).
+
 ---
 
 ### Control an LG TV via LGTV Companion

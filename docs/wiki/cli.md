@@ -2,6 +2,9 @@
 
 DPM accepts command-line arguments for profile application, theme switching, and refresh. Commands route to a running instance via named pipe when one is detected — a new process only fully starts if DPM is not already running.
 
+> Looking to switch profiles automatically when launching a game or app? **[DPM Shortcut Builder](#dpm-shortcut-builder)** handles that without any manual scripting — jump to that section below.
+
+---
 Flags accept any number of leading dashes, or none at all:
 
 ```
@@ -174,3 +177,27 @@ powershell.exe -WindowStyle Hidden -ExecutionPolicy Bypass -File "%AppData%\Roam
 Update `$appPath` and the profile names to match your setup. The script maintains its own BPM state (`$global:BPM`) to avoid redundant triggers.
 
 > For the version that *launches* Big Picture Mode as part of a profile switch rather than watching for it, see [Scripts — Launch Steam Big Picture Mode on profile apply](./scripts.md#launch-steam-big-picture-mode-on-profile-apply).
+
+---
+
+## DPM Shortcut Builder
+
+DPM Shortcut Builder (`DPMShortcutBuilder.pyw`) is a standalone Python tool for creating game and app launch shortcuts that automatically switch your display profile before launch and restore it on exit.
+
+**Requirements:** Python 3.8+ with Tkinter (standard on Windows). `pywin32` is required for `.lnk` generation — `pip install pywin32`.
+
+> The standalone `DPMShortcutBuilder.exe` bundles all dependencies and does not have requirements.
+
+![Shortcut Builder](../img/shortcut-builder.png)
+
+**Workflow:**
+
+1. Click **New** and set your **Target** application — browse to an `.exe`, `.lnk`, or any supported script type. The working directory is populated automatically from the target's location.
+2. Select a **Display profile** to switch to before the app launches.
+3. Select a **Restore profile on exit** — defaults to the profile active at launch time, or pick any saved profile.
+4. Optionally add **Pre-start applications** — scripts or executables to run after the profile switch but before the target launches. Each entry supports custom arguments, a **Kill on exit** toggle, and a configurable delay (up to 10.0s).
+5. Give the shortcut a name, then click **Save** — the shortcut is stored to `%AppData%\DisplayProfileManager\Shortcuts\<name>\`. Click **Export .lnk…** to copy the `.lnk` to any location.
+
+**Launcher integration:** The **Launcher integration** panel at the bottom provides ready-to-paste launch option strings for Steam, Epic Games, GOG Galaxy, Heroic, Playnite, and Generic / Desktop shortcuts, so the native play button in your launcher uses the shortcut automatically.
+
+> **Note:** A target application and selected display profile is required to Save a shortcut.

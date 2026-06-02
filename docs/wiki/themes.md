@@ -29,8 +29,9 @@ Open **Settings** and select a theme from the **Theme** dropdown. The change app
 
 DPM Theme Builder (`DPMThemeBuilder.pyw`) is a standalone Python tool that converts color schemes from the [tinted-themes](https://github.com/tinted-theming/base24) database (Base16 and Base24) into DPM-compatible `.xaml` files.
 
-**Requirements:** Python 3.8+ with Tkinter (included by default on Windows). No third-party packages required.
-- Optionally install `pyyaml` (`pip install pyyaml`) for more robust YAML parsing — the built-in fallback handles most schemes (including all [tinted-themes](https://github.com/tinted-theming/base24)), but `pyyaml` is more reliable with unusual formatting or non-ASCII characters in scheme files.
+**Requirements:** Python 3.8+ with Tkinter (standard on Windows). No third-party packages required.
+
+> The standalone `DPMThemeBuilder.exe` bundles all dependencies and does not have requirements.
 
 ![Theme Builder](../img/theme-builder.png)
 
@@ -41,7 +42,7 @@ DPM Theme Builder (`DPMThemeBuilder.pyw`) is a standalone Python tool that conve
 3. Toggle **Seamless title bar** to blend or differentiate the title bar and window background.
 4. Click **Save theme…** — the dialog opens to `%AppData%\Roaming\DisplayProfileManager\Themes\` by default. Save there and and the theme will automatically apply.
 
-You can also click **Load local YAML…** to convert a Base16/Base24 YAML file without fetching from GitHub.
+You can also click **Load local YAML…** to convert a Base16/Base24 YAML file without fetching from GitHub. For local files with unusual formatting or non-ASCII characters, install `pyyaml` (`pip install pyyaml`) for more reliable parsing — the built-in fallback handles all standard schemes.
 
 **GitHub token (optional):** The unauthenticated GitHub API allows 60 requests per hour. If you hit this limit, paste a GitHub personal access token into the token field at the top of the window. The token only needs public repo read access and is not stored by the tool.
 

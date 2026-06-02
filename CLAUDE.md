@@ -118,7 +118,7 @@ bool useOwnParams = !originalSetting.IsCloneSource && string.IsNullOrEmpty(origi
 | After BreakClone — attached | `false` | `""` | `true` | reads own restored params |
 | Independent display | `false` | `""` | `true` | reads own params (single member; same as combo) |
 
-Fields that respect `useOwnParams`: `Width`, `Height`, `Frequency`, `DpiScaling`, `Rotation`, `IsHdrEnabled`, `IsAcmEnabled`, `ColorProfile`. Fields that do not: identity fields, layout (`DisplayPositionX/Y`), `IsEnabled`, `IsHdrSupported`, native dimensions, capabilities.
+Fields that respect `useOwnParams` (i.e. read from model when `UseRestoredParams` is true): `Width`, `Height`, `Frequency`, `DpiScaling`, `Rotation`, `IsHdrEnabled`, `IsAcmEnabled`, `ColorProfile`. Fields that do not: identity fields, layout (`DisplayPositionX/Y`), `IsEnabled`, `IsHdrSupported`, native dimensions, capabilities.
 
 `IsPrimary` uses `originalSetting.IsPrimary` directly — not gated on list position. After `BreakClone`, attached members have the restored value (`OriginalIsPrimary`) and the source has `!attachedHadPrimary && !primaryExistsElsewhere`.
 
@@ -128,6 +128,7 @@ Fields that respect `useOwnParams`: `Width`, `Height`, `Frequency`, `DpiScaling`
 
 | Property | Description |
 |----------|-------------|
+| `OriginalSettings` | Set by `BreakClone()` on the attached member after restoring pre-clone state. Signals `GetDisplaySettings()` to read configuration from the model rather than the controls. Never true for independent displays or clone source members. |
 | `OriginalPositionX`, `OriginalPositionY` | Virtual desktop position before clone overwrote it. |
 | `OriginalSourceId` | Adapter SourceId before clone overwrote it. |
 | `OriginalWidth`, `OriginalHeight` | Resolution before the shared-source resolution was applied. |
@@ -167,6 +168,35 @@ These fields are copied through `GetDisplaySettings()` so they survive the `Rebu
 
 Profiles can contain both clone groups and independent displays in the same configuration. Old profiles without `CloneGroupId` load normally (defaults to empty string = extended mode).
 
+### CLI
+
+All flags accept any number of leading dashes or none at all — `--profile`, `-profile`, `profile` are all equivalent. The argument string is lowercased and all leading dashes stripped before matching.
+
+`--tray` and `--dev` are matched exactly (after stripping dashes). All other flags use prefix matching — any unambiguous prefix resolves to the full flag name.
+
+| Flag | Behavior |
+|------|----------|
+| `--tray` | Start minimized to tray. Exact match only. |
+| `--dev` | Bypass single-instance check (for build scripts). Exact match only. |
+| `--refresh`/`--reload`/`-r` | Rescan profiles and themes folder, reapply current theme. Does not re-apply the active display profile. |
+| `--theme` [name] | Apply named theme. No name = refresh current theme. |
+| `--profile` [name\|ID] | Apply profile by name or ID. No argument = reapply current active profile. |
+| `--headless` [name\|ID] | Apply profile and exit without UI. No argument = reapply current active profile headlessly. Exit code 0 on success, 1 on apply failure or profile not found. |
+
+**Argument matching:** Profile name and theme name arguments are matched case-insensitively. Flag names are fuzzy-matched by prefix (e.g. `--pro` resolves to `--profile`).
+
+**IPC:** Commands are sent to a running instance via named pipe (`DPM_ProfilePipe`) first. Falls back to local execution if no instance is found. `--refresh` and `--theme` with no argument exit if no instance is running rather than launching UI. `--headless` forwards to a running instance if one exists, otherwise applies locally and exits — no window or tray icon is created in either case.
+
+**DPM Shortcut Builder** (`DPMShortcutBuilder.pyw`) — standalone Python tool included with the release. Creates game/app launch shortcuts that switch a display profile before launch and restore it on exit. Pre-start applications (scripts and executables) can be queued to run (with configurable delay up to 10.0s) after profile switching but before the target launches. Shortcuts are sandboxed to `%AppData%\DisplayProfileManager\Shortcuts\<name>\`; each shortcut gets its own subfolder containing the generated `.ps1`, `.lnk`, and `.vbs`. Includes launcher integration guides (Steam, Epic, GOG Galaxy, Heroic, Playnite, Generic) for wiring native play buttons to the shortcut.
+
+### Script System
+
+- Scripts are sandboxed to `%AppData%\DisplayProfileManager\Scripts\`. When a script is imported, it is copied into this folder. Arbitrary paths outside this folder are not supported.
+- `Profile.Scripts` is `List<Script>`. Each entry carries `FileName` (bare sandbox filename), `Arguments` (empty string default), and `IsEnabled` (bool, default true). `IsEnabled` is not currently checked in `ScriptManager.ExecuteScript`; all scripts in the list execute regardless of this flag.
+- Supported types: `.lnk` (via shell execute), `.ps1` (via `powershell.exe -ExecutionPolicy Bypass`), `.bat`/`.cmd` (via `cmd.exe /c`), `.vbs`/`.js` (via `cscript.exe /nologo`), `.py` (via `python.exe`), `.ahk` (via `autohotkey.exe`). `.exe` files are automatically converted to `.lnk` shortcuts on import to avoid COM reference issues.
+- `EnableScripts` is a per-profile section-level flag. When false, no scripts in that profile execute on apply. Scripts remain stored when `EnableScripts` is false.
+- Arguments can be passed to any script type. They are appended after the script path in the constructed command.
+
 ### Theme System
 
 Themes are split into two layers:
@@ -185,33 +215,6 @@ Themes are split into two layers:
 - `InitializeTheme()` — falls back to System if saved theme key is missing; persists fallback.
 
 **DPM Theme Builder** (`DPMThemeBuilder.pyw`) — standalone Python tool included with the release. Generates `.xaml` theme files from the [tinted-themes](https://github.com/tinted-theming/tinted-themes) database. A 0.5s polling loop watches the themes folder for new or modified `.xaml` files. When a change is detected, DPM is signaled via `--theme <name>` (if the file is in the themes folder) or `--refresh` (otherwise), removing the need for a manual refresh step.
-
-### CLI
-
-All flags accept any number of leading dashes or none at all — `--profile`, `-profile`, `profile` are all equivalent. The argument string is lowercased and all leading dashes stripped before matching.
-
-`--tray` and `--dev` are matched exactly (after stripping dashes). All other flags use prefix matching — any unambiguous prefix resolves to the full flag name.
-
-| Flag | Behavior |
-|------|----------|
-| `--tray` | Start minimized to tray. Exact match only. |
-| `--dev` | Bypass single-instance check (for build scripts). Exact match only. |
-| `--refresh`/`--reload`/`-r` | Rescan profiles and themes folder, reapply current theme. Does not re-apply the active display profile. |
-| `--theme` [name] | Apply named theme. No name = refresh current theme. |
-| `--profile` [name\|ID] | Apply profile by name or ID. No argument = reapply current active profile. |
-| `--headless` [name\|ID] | Apply profile and exit without UI. No argument = reapply current active profile headlessly. |
-
-**Argument matching:** Profile name and theme name arguments are matched case-insensitively. Flag names are fuzzy-matched by prefix (e.g. `--pro` resolves to `--profile`).
-
-**IPC:** Commands are sent to a running instance via named pipe (`DPM_ProfilePipe`) first. Falls back to local execution if no instance is found. `--refresh` and `--theme` with no argument exit if no instance is running rather than launching UI. `--headless` forwards to a running instance if one exists, otherwise applies locally and exits — no window or tray icon is created in either case.
-
-### Script System
-
-- Scripts are sandboxed to `%AppData%\DisplayProfileManager\Scripts\`. When a script is imported, it is copied into this folder. Arbitrary paths outside this folder are not supported.
-- `Profile.Scripts` is `List<Script>`. Each entry carries `FileName` (bare sandbox filename), `Arguments` (empty string default), and `IsEnabled` (bool, default true). `IsEnabled` is not currently checked in `ScriptManager.ExecuteScript`; all scripts in the list execute regardless of this flag.
-- Supported types: `.lnk` (via shell execute), `.ps1` (via `powershell.exe -ExecutionPolicy Bypass`), `.bat`/`.cmd` (via `cmd.exe /c`), `.vbs`/`.js` (via `cscript.exe /nologo`), `.py` (via `python.exe`), `.ahk` (via `autohotkey.exe`). `.exe` files are automatically converted to `.lnk` shortcuts on import to avoid COM reference issues.
-- `EnableScripts` is a per-profile section-level flag. When false, no scripts in that profile execute on apply. Scripts remain stored when `EnableScripts` is false.
-- Arguments can be passed to any script type. They are appended after the script path in the constructed command.
 
 ### Data Storage
 
@@ -389,7 +392,7 @@ private static readonly Logger logger = LoggerHelper.GetLogger();
 - All profile/settings properties use `[JsonProperty("name")]` attributes for consistent naming.
 - New properties must have sensible defaults for loading old `.dpm` files (backward compatibility).
   - `IsHdrEnabled` → `false`, `Rotation` → `1` (0°), `EnableScripts` → `false`, `CloneGroupId` → `""` (extended mode), `NativeWidth`/`NativeHeight` → `0` (backfilled by migration), `SchemaVersion` → `0` (triggers migration on first load), `Icon` → `null` (no custom icon; `null` is the correct JSON absence), `EnableAudio` → `true`, `IsAcmEnabled` → `false`, `ColorProfile` → `null`.
-  - `OriginalPositionX/Y`, `OriginalSourceId`, `OriginalWidth/Height`, `OriginalFrequency`, `OriginalIsPrimary`, `OriginalDpiScaling`, `OriginalRotation`, `OriginalColorProfile`, `OriginalIsHdrEnabled`, `OriginalIsAcmEnabled` → `null` (`[JsonIgnore]`, not serialized; ephemeral clone state only).
+  - `OriginalSettings` → `false` (`[JsonIgnore]`, not serialized; set by `BreakClone()` on attached members only), `OriginalPositionX/Y`, `OriginalSourceId`, `OriginalWidth/Height`, `OriginalFrequency`, `OriginalIsPrimary`, `OriginalDpiScaling`, `OriginalRotation`, `OriginalColorProfile`, `OriginalIsHdrEnabled`, `OriginalIsAcmEnabled` → `null` (`[JsonIgnore]`, not serialized; ephemeral clone state only).
 
 ### Adding a Contributor
 

@@ -85,10 +85,21 @@ jobs:
       - name: Install PyInstaller and dependencies
         run: pip install pyinstaller requests
 
+      - name: Build DPMShortcutBuilder executable
+        shell: pwsh
+        run: |
+          cd DPMBuilder
+          pyinstaller `
+            --onefile `
+            --windowed `
+            --icon="icon.ico" `
+            --name="DPMShortcutBuilder" `
+            DPMShortcutBuilder.pyw
+
       - name: Build DPMThemeBuilder executable
         shell: pwsh
         run: |
-          cd DPMThemeBuilder
+          cd DPMBuilder
           pyinstaller `
             --onefile `
             --windowed `
@@ -120,13 +131,36 @@ jobs:
           }
 
       # ── E: Create GitHub Release and upload assets ───────────────────
+      - name: Parse Release File
+        id: parse_release
+        shell: pwsh
+        run: |
+          $content = Get-Content -Raw -Path "RELEASE-NOTES.md"
+          
+          if ($content -match '(?s)^\s*#\s*(.*?)\r?\n(.*)') {
+              $titleText = $matches[1].Trim()
+              $body = $matches[2].TrimStart()
+          } else {
+              $titleText = "Update"
+              $body = $content
+          }
+          
+          $tag = "${{ github.ref_name }}"
+          $finalTitle = "$tag: $titleText"
+          
+          $body | Out-File -FilePath "RELEASE-BODY.md" -Encoding utf8
+          echo "release_title=$finalTitle" >> $env:GITHUB_OUTPUT
+
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          name: Display Profile Manager ${{ github.ref_name }}
+          name: ${{ steps.parse_release.outputs.release_title }}
+          body_path: RELEASE-BODY.md
           generate_release_notes: false
           files: |
             dist/installers/*.exe
             dist/*.zip
-            DPMThemeBuilder/dist/DPMThemeBuilder.exe
-            DPMThemeBuilder/DPMThemeBuilder.pyw
+            DPMBuilder/dist/DPMShortcutBuilder.exe
+            DPMBuilder/DPMShortcutBuilder.pyw
+            DPMBuilder/dist/DPMThemeBuilder.exe
+            DPMBuilder/DPMThemeBuilder.pyw

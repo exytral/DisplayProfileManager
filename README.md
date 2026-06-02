@@ -28,6 +28,7 @@ This is a fork based on [zac15987/DisplayProfileManager](https://github.com/zac1
 - 🔊 **Audio device switching** — automatically switch default playback and recording devices with each profile
 - 📜 **Script execution** — run `.exe`, `.ps1`, `.bat`, `.vbs`, `.js`, `.py`, or `.ahk` scripts automatically on profile apply
 - 💻 **CLI support** — apply profiles, switch themes, and trigger refreshes from scripts or external tools
+- 🎮 **DPM Shortcut Builder** — included Python tool to create game/app launch shortcuts that auto-switch display profiles before launch and restore them on exit, with launcher integration for Steam, Epic, GOG Galaxy, Heroic, and Playnite
 - 🚀 **Auto-start with Windows** — Registry mode (no admin) or Task Scheduler mode (faster, one-time admin setup)
 
 **Themes**
@@ -68,7 +69,7 @@ This is a fork based on [zac15987/DisplayProfileManager](https://github.com/zac1
 - [Scripts](./docs/wiki/scripts.md) — supported types, execution, arguments, examples
 - [Settings](./docs/wiki/settings.md) — set theme and UX behavior, see configured hotkeys and attributions
 - [Themes & DPM Theme Builder](./docs/wiki/themes.md) — built-in themes, importing, generating custom themes
-- [CLI Reference](./docs/wiki/cli.md) — all flags and usage examples
+- [CLI & DPM Shortcut Builder](./docs/wiki/cli.md) — all flags, usage examples, generating custom shortcuts
 - [Reporting Issues](./docs/wiki/bug_report.md) — what to include when filing a bug report
 
 ---

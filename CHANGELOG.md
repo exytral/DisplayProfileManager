@@ -6,6 +6,34 @@ For user-facing release notes, see the [GitHub Releases](https://github.com/Exyt
 
 ---
 
+<a id="2.1.1"></a>
+## [2.1.1] - 2026-06-02
+
+_[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManager/releases/tag/2.1.1)_
+
+### feat — DPM Shortcut Builder
+
+- **DPM Shortcut Builder** (`DPMShortcutBuilder.pyw`) — new standalone Python tool for creating game and app launch shortcuts. Select a target application, assign a display profile to switch to before launch, and a profile to restore on exit. Pre-start applications (or any script type DPM supports) can be queued to run after profile switching and before the target launches, each with optional kill-on-exit and a configurable delay. Shortcuts are sandboxed to `%AppData%\DisplayProfileManager\Shortcuts\<name>\` as a `.ps1` + `.lnk` + `.vbs` set. Launcher integration panel provides ready-to-paste launch options for Steam, Epic Games, GOG Galaxy, Heroic, Playnite, and Generic / Desktop shortcuts. Export copies the `.lnk` to any location while keeping the sandbox files in place.
+- **DPMBuilder folder** — `DPMThemeBuilder/` renamed to `DPMBuilder/`.
+
+### fix — profile editor
+
+- **Display setting changes discarded on save for all independent displays** — `GetDisplaySettings()` used `useOwnParams` (derived from `!IsCloneSource && CloneGroupId == ""`) to decide whether to read configuration from controls or from the model. This condition is true for every independent display — not just post-BreakClone attached members as intended — so all resolution, refresh rate, rotation, and DPI changes were silently discarded at save time and the original model values were written to disk. Fixed by replacing the ambiguous derivation with an explicit `[JsonIgnore]` flag `UseRestoredParams` on `DisplaySetting`. `BreakClone()` sets it on attached members after restoring their pre-clone state; all other code paths leave it false. `GetDisplaySettings()` checks only this flag, so independent displays always read from controls and post-BreakClone attached members always return their restored values.
+
+### fix — display
+
+- **Disconnected display detection removed** — pre-topology detection incorrectly identified deep-sleep monitors as disconnected, excluding them from the defer wait and causing immediate layout failure. Reverted to the original defer behavior (physically disconnected displays time out after 10s as before).
+
+### fix — headless exit code
+
+- **`--headless` returned exit code 0 on apply failure** — three compounding issues: (1) the private `ApplyProfileAsync(string)` wrapper in `App.xaml.cs` captured `ProfileApplyResult` but discarded it — result was never read; (2) the headless branch called bare `Shutdown()` with no argument, defaulting to exit code 0 regardless of outcome; (3) the profile-not-found path fell through the same zero-exit branch. Fixed by changing `ApplyProfileAsync` to return `Task<bool>` (true = applied, false = not found or apply failed), and passing the result to `Shutdown(applySucceeded ? 0 : 1)` in the headless branch. Non-headless callers ignore the return value. Profile-not-found now also exits 1.
+
+### fix — IDD virtual monitor crash
+
+- **`ApplyAdvancedColorState` unhandled Win32 exception on IDD paths** — software virtual monitors (SuperDisplay, Spacedesk, etc.) expose CCD paths that appear valid but lack backing kernel viewport objects. Calling `SetHdrState` or `SetAcmState` against an uninitialized IDD handle throws `ERROR_GEN_FAILURE` (31) or `ERROR_INVALID_PARAMETER` (87) immediately, unwinding out of `ApplyDisplayConfig` and aborting color profile application for all remaining physical monitors. Wrapped the per-display HDR/ACM block in a targeted `try-catch`; IDD failures are logged as non-fatal warnings and the pipeline continues. Physical monitor deployment is unaffected.
+
+---
+
 <a id="2.1.0"></a>
 ## [2.1.0] - 2026-05-29
 
@@ -99,6 +127,7 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 - **`dev-build.ps1`** — NuGet package restore runs before build; 5-second wait added on build failure so the error is visible.
 - **General improvement** — comment and code cleanup and consistency refined, UI polish. Version string in Settings → About is now a hyperlink to the releases page. `DPMThemeBuilder.pyw` preview window updated.
 
+> Note: Profile editor does not commit display setting changes on save. Resolution, refresh rate, rotation, DPI scaling, HDR, ACM, and color profile changes made in the editor are discarded; the original profile values are saved instead. Resolved in [2.1.1](#2.1.1).
 ---
 
 <a id="2.0.5"></a>
@@ -160,7 +189,7 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 - **Dependency updates** — NLog updated to 6.1.3; Newtonsoft.Json updated to 13.0.4.
 - **General improvements** — comment density reduced, UI consistency refined. `DPMThemeBuilder.pyw` preview window updated.
 
-_Note: Icon support in 2.0.4 — profile list cards collapse to zero width rather than hiding the `Image` element when the icon file is missing from disk. Icon assignment is also not reflected in the tray menu, on boot, or on profile updates outside of an explicit apply. Resolved in [2.1.0](#2.1.0)._
+> Note: Icon support in 2.0.4 — profile list cards collapse to zero width rather than hiding the `Image` element when the icon file is missing from disk. Icon assignment is also not reflected in the tray menu, on boot, or on profile updates outside of an explicit apply. Resolved in [2.1.0](#2.1.0).
 
 ---
 
@@ -204,7 +233,7 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 
 ### feat — display
 
-- **Disconnected display detection** — `ApplyProfileAsync` checks enabled profile displays against live configs before topology apply. Missing displays are recorded in `ProfileApplyResult.DisconnectedDisplays`, logged as warnings immediately, and excluded from the defer wait. The remaining displays still apply. Previously, a disconnected display would cause the full 10s defer timeout before any error surfaced.
+- ~~**Disconnected display detection** — `ApplyProfileAsync` checks enabled profile displays against live configs before topology apply. Missing displays are recorded in `ProfileApplyResult.DisconnectedDisplays`, logged as warnings immediately, and excluded from the defer wait. The remaining displays still apply. Previously, a disconnected display would cause the full 10s defer timeout before any error surfaced.~~ Broke deep sleep detection, removed in [2.1.1](#2.1.1).
 
 ### fix — audio
 
@@ -393,7 +422,7 @@ _[Fork](https://github.com/rvahilario/DisplayProfileManager/tree/fix/clone-displ
 
 - **MSTest project established** — initial test infrastructure with builder helpers (`DisplayConfigInfoBuilder`, `DisplaySettingBuilder`) and regression coverage for the clone group bugs fixed in this release: `DISPLAYCONFIG_PATH_SOURCE_INFO` bit encoding, clone group topology, and clone group validation.
 
-_Note: `ApplyDisplayPosition` removed but not replaced; desktop layout no longer applied. Clone creation for non-primary displays remained broken — `EnableDisplays` reassigned SourceIds sequentially without respecting clone groups. `SDC_TOPOLOGY_SUPPLIED` erroneously removed from `SetDisplayConfigFlags` enum — required for proper clone group topology application. All three fully resolved in [2.0.0](#2.0.0)._
+> Note: `ApplyDisplayPosition` removed but not replaced; desktop layout no longer applied. Clone creation for non-primary displays remained broken — `EnableDisplays` reassigned SourceIds sequentially without respecting clone groups. `SDC_TOPOLOGY_SUPPLIED` erroneously removed from `SetDisplayConfigFlags` enum — required for proper clone group topology application. All three fully resolved in [2.0.0](#2.0.0).
 
 ---
 
@@ -413,7 +442,7 @@ _[zac15987/DisplayProfileManager](https://github.com/zac15987/DisplayProfileMana
 - Phase 1/Phase 2 apply pattern — topology first (`SDC_TOPOLOGY_SUPPLIED`, null modes), then full config (`SDC_USE_SUPPLIED_DISPLAY_CONFIG` with modes)
 - Clone group UI in `ProfileEditWindow` — Clone dropdown button, Break Clone button, member name stacking, link icon
 
-_Note: clone creation only worked when the primary display was part of the group — source mode consumption iterated per-display instead of per-SourceId. `SourceModeInfoIdx` setter overwrote entire `modeInfoIdx`. HDR used wrong `TargetId`. Resolved in [v1.4.0](#v1.4.0), but `TargetId` remains stripped._
+> Note: clone creation only worked when the primary display was part of the group — source mode consumption iterated per-display instead of per-SourceId. `SourceModeInfoIdx` setter overwrote entire `modeInfoIdx`. HDR used wrong `TargetId`. Resolved in [v1.4.0](#v1.4.0), but `TargetId` remains stripped.
 
 ---
 
@@ -429,7 +458,7 @@ _[zac15987/DisplayProfileManager](https://github.com/zac15987/DisplayProfileMana
 - ~~Staged application mode~~ — applied settings in two phases with a configurable delay as a workaround for displays not receiving settings if woken up from deep sleep. Fixed delay was non-deterministic. Removed in [2.0.0](#2.0.0)
 - ~~Atomic `SetDisplayConfig`~~ — initial attempt at using `SetDisplayConfig` for display configuration. Separate post-calls for resolution and primary display were still required due to malformed path/mode construction. Resolved in [2.0.0](#2.0.0)
 
-_Note: HDR broken — `DisplayConfigSetDeviceInfo` was passed the stripped base `TargetId` from the profile instead of the live raw `TargetId`. Resulted in `ERROR_INVALID_PARAMETER` (error 87). Resolved in [2.0.0](#2.0.0)._
+> Note: HDR broken — `DisplayConfigSetDeviceInfo` was passed the stripped base `TargetId` from the profile instead of the live raw `TargetId`. Resulted in `ERROR_INVALID_PARAMETER` (error 87). Resolved in [2.0.0](#2.0.0).
 
 ---
 
@@ -533,4 +562,4 @@ _[zac15987/DisplayProfileManager](https://github.com/zac15987/DisplayProfileMana
 - ~~Print Screen detection for profile switching.~~ Removed in [v1.1.0](#v1.1.0)
 - Per-monitor DPI awareness (V2) via manifest
 
-_Note: used legacy `ChangeDisplaySettings` API. Replaced by `QueryDisplayConfig` in [v1.2.0](#v1.2.0)_
+> Note: used legacy `ChangeDisplaySettings` API. Replaced by `QueryDisplayConfig` in [v1.2.0](#v1.2.0).

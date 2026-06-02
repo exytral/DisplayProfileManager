@@ -15,6 +15,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		dev-build.ps1 = dev-build.ps1
 		LICENSE = LICENSE
 		README.md = README.md
+		RELEASE-NOTES.md = RELEASE-NOTES.md
 		THIRD-PARTY-LICENSES.md = THIRD-PARTY-LICENSES.md
 	EndProjectSection
 EndProject
@@ -47,8 +48,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ISSUE_TEMPLATE", "ISSUE_TEM
 		.github\ISSUE_TEMPLATE\bug_report.yml = .github\ISSUE_TEMPLATE\bug_report.yml
 	EndProjectSection
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "DPMThemeBuilder", "DPMThemeBuilder", "{3AF2AD87-98B5-47C8-BA65-158F5855DFF0}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "DPMBuilder", "DPMBuilder", "{3AF2AD87-98B5-47C8-BA65-158F5855DFF0}"
 	ProjectSection(SolutionItems) = preProject
+		DPMThemeBuilder\DPMShortcutBuilder.pyw = DPMThemeBuilder\DPMShortcutBuilder.pyw
 		DPMThemeBuilder\DPMThemeBuilder.pyw = DPMThemeBuilder\DPMThemeBuilder.pyw
 		DPMThemeBuilder\icon.ico = DPMThemeBuilder\icon.ico
 	EndProjectSection

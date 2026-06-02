@@ -1092,20 +1092,25 @@ class App(tk.Tk):
         except Exception:
             self._status.set(f"Synced \u2192 {os.path.basename(saved_path)}")
 
-    def _find_dpm_exe(self) -> "str | None":
-        """Locates the DPM binary with priority on installed versions."""
-        prog_files = os.environ.get("ProgramFiles", r"C:\Program Files")
-        local_app  = os.environ.get("LOCALAPPDATA", "")
+    def find_dpm_exe() -> "str | None":
         exe_name   = "DisplayProfileManager.exe"
+        prog_files = os.environ.get("PROGRAMFILES", "C:\\Program Files")
+        local_app  = os.environ.get("LOCALAPPDATA", "")
         script_dir = os.path.dirname(os.path.abspath(__file__))
-
         candidates = [
             os.path.join(prog_files, "Display Profile Manager", exe_name),
-            os.path.join(local_app, "DisplayProfileManager", exe_name),
+            os.path.join(local_app,  "Programs", "DisplayProfileManager", exe_name),
+            os.path.join(local_app,  "DisplayProfileManager", exe_name),
             os.path.join(script_dir, exe_name),
             os.path.join(script_dir, "..", exe_name),
         ]
-
+        try:
+            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\DisplayProfileManager")
+            install_path, _ = winreg.QueryValueEx(key, "InstallPath")
+            if install_path:
+                candidates.insert(0, install_path)
+        except Exception:
+            pass
         for p in candidates:
             if os.path.isfile(p):
                 return os.path.normpath(p)

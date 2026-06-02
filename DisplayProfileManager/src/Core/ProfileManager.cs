@@ -604,8 +604,7 @@ namespace DisplayProfileManager.Core
 
                 // Defer until Topology is Stabilized
                 var deferWatch = Stopwatch.StartNew();
-                var connectedConfigs = displayConfigs.Where(dc => !result.DisconnectedDisplays.Any(name => name.Equals(dc.FriendlyName, StringComparison.OrdinalIgnoreCase))).ToList();
-                await DisplayConfigHelper.DeferDisplayLayoutAsync(connectedConfigs);
+                await DisplayConfigHelper.DeferDisplayLayoutAsync(displayConfigs);
                 deferWatch.Stop();
 
                 // Apply Display Configuration

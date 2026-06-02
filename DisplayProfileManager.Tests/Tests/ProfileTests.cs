@@ -40,12 +40,11 @@ namespace DisplayProfileManager.Tests.Tests
 
         [TestMethod]
         [TestCategory("Unit")]
-        public void Profile_DefaultConstructor_EnableScriptsIsTrue()
+        public void Profile_DefaultConstructor_EnableScriptsIsFalse()
         {
             var profile = new Profile();
 
-            Assert.IsTrue(profile.EnableScripts,
-                "EnableScripts must default true so scripts run on apply unless explicitly disabled.");
+            Assert.IsFalse(profile.EnableScripts);
         }
 
         [TestMethod]
