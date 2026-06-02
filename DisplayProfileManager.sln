@@ -37,6 +37,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "img", "img", "{AB0556B1-B19
 		docs\img\main-window.webp = docs\img\main-window.webp
 		docs\img\profile-editor.png = docs\img\profile-editor.png
 		docs\img\settings.png = docs\img\settings.png
+		docs\img\shortcut-builder.png = docs\img\shortcut-builder.png
 		docs\img\theme-builder.png = docs\img\theme-builder.png
 		docs\img\themes-dropdown.png = docs\img\themes-dropdown.png
 	EndProjectSection
@@ -50,8 +51,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ISSUE_TEMPLATE", "ISSUE_TEM
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "DPMBuilder", "DPMBuilder", "{3AF2AD87-98B5-47C8-BA65-158F5855DFF0}"
 	ProjectSection(SolutionItems) = preProject
-		DPMThemeBuilder\DPMShortcutBuilder.pyw = DPMThemeBuilder\DPMShortcutBuilder.pyw
-		DPMThemeBuilder\DPMThemeBuilder.pyw = DPMThemeBuilder\DPMThemeBuilder.pyw
+		DPMBuilder\DPMShortcutBuilder.pyw = DPMBuilder\DPMShortcutBuilder.pyw
+		DPMBuilder\DPMThemeBuilder.pyw = DPMBuilder\DPMThemeBuilder.pyw
 		DPMThemeBuilder\icon.ico = DPMThemeBuilder\icon.ico
 	EndProjectSection
 EndProject

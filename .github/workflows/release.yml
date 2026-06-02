@@ -146,7 +146,7 @@ jobs:
           }
           
           $tag = "${{ github.ref_name }}"
-          $finalTitle = "$tag: $titleText"
+          $finalTitle = "${tag}: $titleText"
           
           $body | Out-File -FilePath "RELEASE-BODY.md" -Encoding utf8
           echo "release_title=$finalTitle" >> $env:GITHUB_OUTPUT
