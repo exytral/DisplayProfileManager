@@ -88,7 +88,6 @@ Refreshed to a cleaner, more minimal layout.
 
 ---
 
-
 ### 📥 Downloads
 
 | File | Description |
