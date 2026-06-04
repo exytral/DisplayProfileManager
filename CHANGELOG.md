@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 Technical entries are intended for developers and contributors.
 For user-facing release notes, see the [GitHub Releases](https://github.com/Exytral/DisplayProfileManager/releases) page.
 
+___
+
+<a id="2.1.2"></a>
+## [2.1.2] - 2026-06-03
+
+_[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManager/releases/tag/2.1.2)_
+
+### fix — DPM Shortcut Builder
+
+- **Pipe communications removed from generated shortcut script** — `Invoke-DpmApply` previously attempted IPC pipe apply before falling back to `--headless`. The pipe server is receive-only (`PipeDirection.In`); the pipe path returned success on message delivery, not on apply completion, meaning the target could launch before display settling finished. `Get-ActiveProfileId` had the same issue — the `QUERY_ACTIVE` branch could never receive a response. Both functions now use `--headless` exclusively, which blocks until apply completes and surfaces a real exit code. `$pipeName` removed from generated header.
+
 ---
 
 <a id="2.1.1"></a>

@@ -372,7 +372,6 @@ $profileId      = '{{PROFILE_ID}}'
 $profileName    = '{{PROFILE_NAME}}'   # display only; ID is authoritative
 $restoreMode    = '{{RESTORE_MODE}}'   # 'dynamic' | 'none' | '<guid>'
 $restoreId      = '{{RESTORE_ID}}'     # populated when restoreMode is a guid
-$pipeName       = 'DPM_ProfilePipe'
 $dpmExe         = ''                   # resolved at runtime if empty
 
 $preStart = @(
@@ -409,20 +408,6 @@ function Find-DpmExe {
 }
 
 function Get-ActiveProfileId {
-    # Try IPC pipe first
-    try {
-        $pipe = New-Object System.IO.Pipes.NamedPipeClientStream('.', $pipeName,
-            [System.IO.Pipes.PipeDirection]::InOut)
-        $pipe.Connect(500)
-        $writer = New-Object System.IO.StreamWriter($pipe)
-        $reader = New-Object System.IO.StreamReader($pipe)
-        $writer.AutoFlush = $true
-        $writer.WriteLine('QUERY_ACTIVE')
-        $response = $reader.ReadLine()
-        $pipe.Dispose()
-        if ($response -match '^ACTIVE:(.+)$') { return $Matches[1].Trim() }
-    } catch {}
-    # Fall back to DPM state file
     try {
         $statePath = Join-Path $env:APPDATA 'DisplayProfileManager\Settings.json'
         if (Test-Path $statePath) {
@@ -434,20 +419,6 @@ function Get-ActiveProfileId {
 }
 
 function Invoke-DpmApply([string]$id) {
-    # Try IPC pipe first
-    try {
-        $pipe = New-Object System.IO.Pipes.NamedPipeClientStream('.', $pipeName,
-            [System.IO.Pipes.PipeDirection]::InOut)
-        $pipe.Connect(500)
-        $writer = New-Object System.IO.StreamWriter($pipe)
-        $reader = New-Object System.IO.StreamReader($pipe)
-        $writer.AutoFlush = $true
-        $writer.WriteLine("PROFILE:$id")
-        $response = $reader.ReadLine()
-        $pipe.Dispose()
-        if ($response -eq 'OK') { return $true }
-    } catch {}
-    # Fall back to --headless CLI
     $exe = Find-DpmExe
     if (-not $exe) {
         Write-Warning "DPM Shortcut: DisplayProfileManager.exe not found. Launching target without profile switch."

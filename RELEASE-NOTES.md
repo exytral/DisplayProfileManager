@@ -1,6 +1,6 @@
 # Display Engine Rewrite, CLI, Scripts, Custom Themes & More
 
-## Display Profile Manager 2.1.1
+## Display Profile Manager 2.1.2
 
 #### 🎉 A complete overhaul of the display engine, a full CLI rewrite, script execution, custom themes, and more.
 
@@ -51,6 +51,8 @@ Commands work whether or not the app is already running, forwarded to the runnin
 
 Flags are fuzzy-matched by prefix — `--pro`, `-p`, `pro` all resolve to `--profile`.
 
+🎮 **DPM Shortcut Builder** — included standalone Python tool. Create game/app launch shortcuts that auto-switch display profiles before launch and restore them on exit, with launcher integration for Steam, Epic, GOG Galaxy, Heroic, and Playnite
+
 ---
 
 ### 🎨 Custom themes
@@ -78,25 +80,11 @@ Refreshed to a cleaner, more minimal layout.
 
 ---
 
-## 2.1.1 - Profile editor, CLI, virtual monitor fixes
-
-- **Profile editor now saves changes** — resolution, refresh rate, rotation, DPI, HDR, ACM, and color profile changes made in the editor were silently discarded on save after 2.1.0 clone restore changes.
-- **Disconnected monitor check reverted** — pre-topology detection incorrectly identified deep-sleep monitors as disconnected, excluding them from the defer wait and causing immediate layout failure. Reverted to original defer behavior.
-- **`--headless` exit code** — `--headless` now correctly returns exit code 1 on apply failure or profile not found (was always 0).
-- **IDD virtual monitor crash** — software virtual monitors (SuperDisplay, Spacedesk, etc.) no longer cause an unhandled exception during profile apply.
+## 2.1.2 — DPM Shortcut Builder fix
 
 ### 🎮 DPM Shortcut Builder
 
-Create game and app shortcuts that automatically switch to a chosen display profile before launch and restore the previous (or chosen) on exit.
-
-- Pick a target app or game, assign a **Display profile** to switch to on launch, and a **Restore profile** for when it exits.
-- **Pre-start applications** — queue scripts or executables to run after the profile switch but before the game opens, each with optional kill-on-exit and a configurable delay up to 10.0s.
-- **Launcher integration** — built-in guides for Steam, Epic Games, GOG Galaxy, Heroic, Playnite, and generic desktop shortcuts.
-- **Save** stores the shortcut to `%AppData%\DisplayProfileManager\Shortcuts\`; **Export** copies the `.lnk` anywhere you like.
-
-**Requirements:** Python 3.8+ with Tkinter (standard on Windows). `pywin32` is required for `.lnk` generation — `pip install pywin32`.
-
-> The standalone `DPMShortcutBuilder.exe` bundles all dependencies and does not have requirements.
+- **Pipe communications removed** — the generated shortcut script no longer attempts IPC pipe communication for profile apply or active profile query. The pipe server is receive-only; the apply confirmation was optimistic (returned success on message delivery, not on apply completion), meaning the target could launch before the display finished settling. The script now uses `--headless` exclusively, which blocks until apply completes and returns a real exit code.
 
 ---
 
@@ -105,12 +93,12 @@ Create game and app shortcuts that automatically switch to a chosen display prof
 
 | File | Description |
 |------|-------------|
-| `DisplayProfileManager-2.1.1-arm64-Portable.zip` | Portable — arm64 |
-| `DisplayProfileManager-2.1.1-Setup-arm64.exe` | Installer — arm64 |
-| `DisplayProfileManager-2.1.1-x64-Portable.zip` | Portable — 64-bit |
-| `DisplayProfileManager-2.1.1-Setup-x64.exe` | Installer — 64-bit |
-| `DisplayProfileManager-2.1.1-x86-Portable.zip` | Portable — 32-bit |
-| `DisplayProfileManager-2.1.1-Setup-x86.exe` | Installer — 32-bit |
+| `DisplayProfileManager-2.1.2-arm64-Portable.zip` | Portable — arm64 |
+| `DisplayProfileManager-2.1.2-Setup-arm64.exe` | Installer — arm64 |
+| `DisplayProfileManager-2.1.2-x64-Portable.zip` | Portable — 64-bit |
+| `DisplayProfileManager-2.1.2-Setup-x64.exe` | Installer — 64-bit |
+| `DisplayProfileManager-2.1.2-x86-Portable.zip` | Portable — 32-bit |
+| `DisplayProfileManager-2.1.2-Setup-x86.exe` | Installer — 32-bit |
 | `DPMShortcutBuilder.exe` | Shortcut Builder (standalone) |
 | `DPMShortcutBuilder.pyw` | Shortcut Builder (Python) |
 | `DPMThemeBuilder.exe` | Theme Builder (standalone) |
