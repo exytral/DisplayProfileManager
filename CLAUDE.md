@@ -176,12 +176,12 @@ All flags accept any number of leading dashes or none at all — `--profile`, `-
 
 | Flag | Behavior |
 |------|----------|
+| `--profile` "name/ID" | Apply profile by name or ID. No argument = reapply current active profile. |
+| `--headless` "name/ID" | Apply profile and exit without UI. No argument = reapply current active profile headlessly. Exit code 0 on success, 1 on apply failure or profile not found. |
+| `--theme` "name" | Apply named theme. No name = refresh current theme. |
+| `--refresh`/`--reload`/`-r` | Rescan profiles and themes folder, reapply current theme. Does not re-apply the active display profile. |
 | `--tray` | Start minimized to tray. Exact match only. |
 | `--dev` | Bypass single-instance check (for build scripts). Exact match only. |
-| `--refresh`/`--reload`/`-r` | Rescan profiles and themes folder, reapply current theme. Does not re-apply the active display profile. |
-| `--theme` [name] | Apply named theme. No name = refresh current theme. |
-| `--profile` [name\|ID] | Apply profile by name or ID. No argument = reapply current active profile. |
-| `--headless` [name\|ID] | Apply profile and exit without UI. No argument = reapply current active profile headlessly. Exit code 0 on success, 1 on apply failure or profile not found. |
 
 **Argument matching:** Profile name and theme name arguments are matched case-insensitively. Flag names are fuzzy-matched by prefix (e.g. `--pro` resolves to `--profile`).
 
@@ -202,7 +202,7 @@ All flags accept any number of leading dashes or none at all — `--profile`, `-
 Themes are split into two layers:
 
 1. **`Base.xaml`** — all control styles (TextBox, ComboBox, ScrollBar, ComboBoxItem, etc.). Shared across all themes. Adding a new theme does not require touching this file.
-2. **Color/brush files** (e.g. `LightTheme.xaml`, `DarkTheme.xaml`, `BlackTheme.xaml`) — define only brush and color keys. Base `Color` keys (`BackgroundColor`, `SurfaceColor`, `BorderColor`, `HoverColor`, `AccentColor`) are defined here; most brushes derive from these automatically.
+2. **Color/brush files** (e.g. `Light.xaml`, `Dark.xaml`, `Black.xaml`) — define only brush and color keys. Base `Color` keys (`BackgroundColor`, `SurfaceColor`, `BorderColor`, `HoverColor`, `AccentColor`) are defined here; most brushes derive from these automatically.
 
 **Built-in themes:** Light, Dark, Black. `System` is reserved (follows Windows theme).
 
