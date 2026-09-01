@@ -35,7 +35,7 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "img", "img", "{AB0556B1-B191-4242-97C7-1BB1381173BA}"
 	ProjectSection(SolutionItems) = preProject
 		docs\img\main-window-details.png = docs\img\main-window-details.png
-		docs\img\main-window.webm = docs\img\main-window.webm
+		docs\img\main-window.webp = docs\img\main-window.webp
 		docs\img\profile-editor.png = docs\img\profile-editor.png
 		docs\img\settings.png = docs\img\settings.png
 		docs\img\shortcut-builder.png = docs\img\shortcut-builder.png
