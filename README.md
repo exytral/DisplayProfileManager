@@ -51,11 +51,12 @@ A lightweight Windows desktop application for managing display profiles — save
 
 ---
 
-## 🌐 Related Projects
+## 🔗 Check Out
 
-- [Icons Saver](https://github.com/KilluaZoldyck0099/Icons-Saver) (MIT) — save and restore Windows desktop icon layouts with display-aware positioning, a tray app, and a CLI
-- [Microsoft PowerToys](https://github.com/microsoft/PowerToys) (MIT) — collection of Windows utilities, notably [Workspaces](https://learn.microsoft.com/en-us/windows/powertoys/workspaces) and [Power Display](https://learn.microsoft.com/en-us/windows/powertoys/power-display)
-- [tinted-theming/schemes](https://github.com/tinted-theming/schemes) (MIT) — color schemes used by DPM Theme Builder
+- **[WindowAnchor](https://github.com/marvintrvl/WindowAnchor)** `MIT` — save and restore Windows workspaces with application, window, file, and browser-session restoration
+- **[Icons Saver](https://github.com/KilluaZoldyck0099/Icons-Saver)** `MIT` — save and restore Windows desktop icon layouts with display-aware positioning and a scriptable CLI
+- **[Microsoft PowerToys](https://github.com/microsoft/PowerToys)** `MIT` — customize and streamline Windows with utilities such as [Workspaces](https://learn.microsoft.com/en-us/windows/powertoys/workspaces) and [Power Display](https://learn.microsoft.com/en-us/windows/powertoys/power-display)
+- **[tinted-theming/schemes](https://github.com/tinted-theming/schemes)** `MIT` — base color schemes used by DPM Theme Builder
 
 ---
 
