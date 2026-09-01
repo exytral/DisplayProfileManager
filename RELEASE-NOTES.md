@@ -46,7 +46,7 @@ Switch profiles with global hotkeys, the system tray, or the desktop classic rig
 - **EDID-based display matching** — profiles can follow the same physical monitor when it moves to another connector, using stored panel identity when available.
 - **Dynamic refresh-rate support** — supported displays preserve virtual refresh-rate information during profile queries and application.
 - **Display wake handling** — displays that are unavailable are kept out of the stabilization wait, while displays that are temporarily missing from the active path during wake-up remain eligible for later polling.
-- **HDR and ACM detection** — HDR and Auto Color Management state are read from Windows directly, improving detection on systems where the previous detection could conflate the two states.
+- **HDR and ACM detection** — adapted fixes from @vivittel, HDR and Auto Color Management state are read from Windows directly, improving detection on systems where the previous detection could conflate the two states.
 - **Display recovery** — certain Windows display-configuration failures can now recover through the supplied display configuration instead of failing unconditionally.
 
 ### 🛡️ Reliability
@@ -188,7 +188,7 @@ Switch profiles with global hotkeys, the system tray, or the desktop classic rig
 
 ### 🛡️ Reliability
 
-- **Reliability fixes** — adapted fixes from [@xtrilla](https://github.com/xtrilla) reduce idle audio resource usage and make profile/settings saves and application exit safer against interrupted writes.
+- **Reliability fixes** — adapted fixes from @xtrilla reduce idle audio resource usage and make profile/settings saves and application exit safer against interrupted writes.
 
 ---
 
