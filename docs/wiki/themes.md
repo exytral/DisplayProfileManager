@@ -1,72 +1,96 @@
 # Themes
 
-DPM ships with three  built-in themes and supports importing custom `.xaml` theme files. The easiest way to generate a custom theme is with DPM Theme Builder.
+Display Profile Manager ships with three packaged visual themes and a **"System"** theme option, and supports importing custom `.xaml` theme files. **DPM Theme Builder** can generate compatible themes from Base16 and Base24 schemes.
 
 ---
 
-## Built-in themes
+## Built-in theme options
 
-| Theme | Description |
-|---|---|
-| **Light** | Light grey backgrounds, blue accent |
-| **Dark** | Dark grey backgrounds, blue accent |
-| **Black** | True black backgrounds, suitable for OLED or high-contrast preference |
-| **System** | Follows your Windows light/dark mode setting automatically |
+| Theme option | Description                                        |
+| ------------ | -------------------------------------------------- |
+| **System**   | Follows the Windows light/dark setting             |
+| **Light**    | Light theme with Windows accent integration        |
+| **Dark**     | Neutral dark theme with Windows accent integration |
+| **Black**    | Black theme with Windows accent integration        |
 
 ---
 
 ## Switching themes
 
-Open **Settings** and select a theme from the **Theme** dropdown. The change applies immediately.
-
-![Themes Dropdown](../img/themes-dropdown.png)
+Open **"Settings"** and select a theme from the **Theme** dropdown. The change applies immediately.
 
 > You can also switch themes from the command line — see [CLI Reference](./cli.md).
 
 ---
 
+## Importing a theme
+
+Use **"Import"** in the main or settings window to select a compatible `.xaml` theme file. Display Profile Manager validates the file before copying it into:
+
+```text
+%AppData%\Roaming\DisplayProfileManager\Themes\
+```
+
+A successfully imported theme is loaded, applied immediately, and selected as the current theme.
+
+Files placed directly into the themes folder are discovered when the theme list is initialized or refreshed. Direct file drops do not go through the import validation step.
+
+### Required keys
+
+Display Profile Manager requires these six resource keys when loading a custom theme:
+
+- `WindowBackgroundBrush`
+- `PrimaryTextBrush`
+- `ContentBackgroundBrush`
+- `BorderBrush`
+- `ButtonBackgroundBrush`
+- `ButtonForegroundBrush`
+
+A theme can define additional resources used by the shared styles and controls. Missing resources beyond the required six are not rejected by `ThemeHelper`, although the base theme may provide corresponding resources for shared controls.
+
+The built-in theme files are the best reference for the complete resource set expected by the current UI.
+
+## Theme files
+
+Custom themes are ordinary WPF `ResourceDictionary` files. The file name becomes the theme name shown in Settings.
+
+`System` is reserved and cannot be used as a custom theme name.
+
+A custom theme can use the same name as a packaged theme. In that case, the user file shadows the packaged theme until the custom file is removed; deleting it restores the packaged theme.
+
+---
+
 ## DPM Theme Builder
 
-DPM Theme Builder (`DPMThemeBuilder.pyw`) is a standalone Python tool that converts color schemes from the [tinted-themes](https://github.com/tinted-theming/base24) database (Base16 and Base24) into DPM-compatible `.xaml` files.
+DPM Theme Builder (`DPMThemeBuilder.pyw`) is a standalone Python tool that converts color schemes from the [`tinted-theming/schemes` repository](https://github.com/tinted-theming/schemes) into Display Profile Manager-compatible `.xaml` files.
 
-**Requirements:** Python 3.8+ with Tkinter (standard on Windows). No third-party packages required.
+**Requirements:** Python 3.8+ with Tkinter. No third-party packages are required. `pyyaml` is optional and provides more robust YAML parsing.
 
-> The standalone `DPMThemeBuilder.exe` bundles all dependencies and does not have requirements.
+> The standalone `DPMThemeBuilder.exe` bundles the required runtime and does not require a separate Python installation.
 
 ![Theme Builder](../img/theme-builder.png)
 
 **Workflow:**
 
-1. The tool fetches the full scheme list from GitHub on launch. Use the search box or the Base16/Base24 filter to find a scheme.
-2. Click a scheme name to generate the XAML and update the preview.
-3. Toggle **Seamless title bar** to blend or differentiate the title bar and window background.
-4. Click **Save theme…** — the dialog opens to `%AppData%\Roaming\DisplayProfileManager\Themes\` by default. Save there and and the theme will automatically apply.
+1. The tool loads the Base16 and Base24 scheme lists from GitHub.
+2. Use the search box and system filter to find a scheme.
+3. Select a scheme to generate the corresponding Display Profile Manager XAML and preview it.
+4. Toggle **"Seamless title bar"** to make the title bar share the window background color.
+5. Click **"Save theme…"** to save the generated `.xaml` file. The dialog defaults to the Display Profile Manager themes folder.
 
-You can also click **Load local YAML…** to convert a Base16/Base24 YAML file without fetching from GitHub. For local files with unusual formatting or non-ASCII characters, install `pyyaml` (`pip install pyyaml`) for more reliable parsing — the built-in fallback handles all standard schemes.
+The builder also supports **"Load local YAML…"** for converting a local Base16 or Base24 scheme.
 
-**GitHub token (optional):** The unauthenticated GitHub API allows 60 requests per hour. If you hit this limit, paste a GitHub personal access token into the token field at the top of the window. The token only needs public repo read access and is not stored by the tool.
+When a generated theme is saved into the Display Profile Manager themes folder, the builder signals the application to apply the theme. Saving elsewhere does not add the file to the application's themes folder.
 
-> The preview panel is a simplified canvas render, not a live WPF window. The saved `.xaml` is always accurate — check it applied in DPM for the real result.
+> The Theme Builder preview is an approximation of the Display Profile Manager main window. The generated XAML is the actual theme file loaded by the application.
 
----
+### Theme compatibility
 
-## Importing a theme manually
+Theme Builder generates the six resource keys required by Display Profile Manager and the additional resources used by the application's shared theme styles.
 
-Use the **Import** button to drop any compatible `.xaml` file into:
+The generated file is a standard WPF `ResourceDictionary`, so custom themes can also be created manually. The built-in theme files under `UI/Themes/` are the authoritative reference for the current resource vocabulary.
 
-```
-%AppData%\Roaming\DisplayProfileManager\Themes\
-```
-
-And the theme will automatically apply. (Adding through file explorer requires a manual reload event — click **Refresh** in DPM or run `DisplayProfileManager.exe --refresh`.)
-
----
-
-## Theme file compatibility
-
-A compatible theme file is a WPF `ResourceDictionary` that defines all required brush and effect keys. The six keys required for a valid import are: `WindowBackgroundBrush`, `PrimaryTextBrush`, `ContentBackgroundBrush`, `BorderBrush`, `ButtonBackgroundBrush`, and `ButtonForegroundBrush`. All remaining keys are expected for correct rendering — missing ones fall back to defaults silently.
-
-Use this template as a starting point. Replace the placeholder hex values with your palette:
+### Theme template
 
 ```xml
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"

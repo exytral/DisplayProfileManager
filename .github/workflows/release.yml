@@ -6,6 +6,8 @@ on:
       - "*"
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -15,21 +17,38 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      # ── A1: Checkout ─────────────────────────────────────────────────
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # ── A2: MSBuild ──────────────────────────────────────────────────
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
 
-      # ── A3: NuGet restore ────────────────────────────────────────────
-      - name: Restore NuGet packages
-        run: nuget restore DisplayProfileManager.sln
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
 
-      # ── B: Multi-arch .NET build ─────────────────────────────────────
+      - name: Verify release version
+        shell: pwsh
+        run: |
+          $tagVersion = "${{ github.ref_name }}".TrimStart('v')
+          $assemblyInfo = Get-Content -Raw -Path "DisplayProfileManager/Properties/AssemblyInfo.cs"
+          $match = [regex]::Match($assemblyInfo, '\[assembly:\s*AssemblyInformationalVersion\("([^"]+)"\)\]')
+
+          if (-not $match.Success) {
+            throw "AssemblyInformationalVersion was not found in AssemblyInfo.cs."
+          }
+
+          $assemblyVersion = $match.Groups[1].Value
+          if ($assemblyVersion -ne $tagVersion) {
+            throw "Release tag $tagVersion does not match AssemblyInformationalVersion $assemblyVersion."
+          }
+
+      - name: Restore
+        run: dotnet restore DisplayProfileManager.sln
+
       - name: Build x64
         run: >
           msbuild DisplayProfileManager/DisplayProfileManager.csproj
@@ -51,21 +70,40 @@ jobs:
           /p:Platform=ARM64
           /p:SolutionDir="${{ github.workspace }}\"
 
-      # ── B: Package portable zips ─────────────────────────────────────
+      - name: Build DisplayProfileManager.ShellExt x64
+        run: >
+          msbuild DisplayProfileManager.ShellExt/DisplayProfileManager.ShellExt.vcxproj
+          /p:Configuration=Release
+          /p:Platform=x64
+          /p:SolutionDir="${{ github.workspace }}\"
+
+      - name: Build DisplayProfileManager.ShellExt x86
+        run: >
+          msbuild DisplayProfileManager.ShellExt/DisplayProfileManager.ShellExt.vcxproj
+          /p:Configuration=Release
+          /p:Platform=Win32
+          /p:SolutionDir="${{ github.workspace }}\"
+
+      - name: Build DisplayProfileManager.ShellExt ARM64
+        run: >
+          msbuild DisplayProfileManager.ShellExt/DisplayProfileManager.ShellExt.vcxproj
+          /p:Configuration=Release
+          /p:Platform=ARM64
+          /p:SolutionDir="${{ github.workspace }}\"
+
+      - name: Run tests
+        run: dotnet test DisplayProfileManager.Tests/DisplayProfileManager.Tests.csproj --configuration Release --no-restore -p:Platform=x64
+
       - name: Package portable zips
         shell: pwsh
         run: |
-          $exclude = @('*.pdb', '*.xml', '*.tmp', '*.log')
+          $exclude = @('*.pdb', '*.xml', '*.tmp', '*.log', '*.exp', '*.lib')
           $archs = @('x64', 'x86', 'ARM64')
           $version = "${{ github.ref_name }}".TrimStart('v')
 
           foreach ($arch in $archs) {
             $src  = "DisplayProfileManager/bin/$arch/Release"
             $dest = "dist/portable/$arch"
-            
-            # Formats output as arm64 even if source is ARM64
-            $outArch = $arch.ToLower()
-            $zip  = "dist/DisplayProfileManager-$version-$outArch-Portable.zip"
 
             New-Item -ItemType Directory -Force -Path $dest | Out-Null
 
@@ -74,10 +112,17 @@ jobs:
               -not ($exclude | Where-Object { $name -like $_ })
             } | Copy-Item -Destination $dest
 
+            $runtimes = Join-Path $src 'runtimes'
+            if (Test-Path $runtimes) {
+              Copy-Item -Path $runtimes -Destination $dest -Recurse -Force
+            }
+
+            $outArch = $arch.ToLower()
+            $zip = "dist/DisplayProfileManager-$version-$outArch-Portable.zip"
+
             Compress-Archive -Path "$dest/*" -DestinationPath $zip
           }
 
-      # ── C: Python build (DPMThemeBuilder) ────────────────────────────
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -108,7 +153,6 @@ jobs:
             --name="DPMThemeBuilder" `
             DPMThemeBuilder.pyw
 
-      # ── D: Inno Setup installers ─────────────────────────────────────
       - name: Build installers
         shell: pwsh
         run: |
@@ -121,35 +165,81 @@ jobs:
           foreach ($arch in $archs) {
             $outArch = $arch.ToLower()
             $outputName = "DisplayProfileManager-$version-$outArch-Setup"
-            
+
             & $iscc $iss `
               "/DTargetArch=$arch" `
               "/DMyAppVersion=$tag" `
               "/O$PWD/dist/installers" `
               "/F$outputName"
-            
+
             if ($LASTEXITCODE -ne 0) { exit 1 }
           }
 
-      # ── E: Create GitHub Release and upload assets ───────────────────
+      - name: Attest build provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: |
+            dist/installers/*.exe
+            dist/*.zip
+
       - name: Parse Release File
         id: parse_release
         shell: pwsh
         run: |
           $content = Get-Content -Raw -Path "RELEASE-NOTES.md"
-          
-          if ($content -match '(?s)^\s*#\s*(.*?)\r?\n(.*)') {
-              $titleText = $matches[1].Trim()
-              $body = $matches[2].TrimStart()
-          } else {
-              $titleText = "Update"
-              $body = $content
+          $version = "${{ github.ref_name }}".TrimStart('v')
+
+          $versionPattern = '(?ms)^##\s+' + [regex]::Escape($version) + '\b.*?(?=^##\s+|\z)'
+          $versionMatch = [regex]::Match($content, $versionPattern)
+
+          if (-not $versionMatch.Success) {
+            throw "No release-notes section found for version $version."
           }
-          
+
+          $versionSection = $versionMatch.Value.Trim()
+
+          $cumulativePattern = '(?ms)^##\s+[^\r\n]+\r?\n.*?(?=^---\s*$)'
+          $cumulativeMatch = [regex]::Match($content, $cumulativePattern)
+
+          if (-not $cumulativeMatch.Success) {
+            throw "No cumulative release-notes overview found."
+          }
+
+          $cumulativeSection = $cumulativeMatch.Value.Trim()
+
+          $assetPattern = '(?ms)^#\s+Current Release Assets\s*\r?\n.*\z'
+          $assetMatch = [regex]::Match($content, $assetPattern)
+
+          if (-not $assetMatch.Success) {
+            throw "No Current Release Assets block found."
+          }
+
+          $assetsSection = $assetMatch.Value.Trim()
+
+          $section = @(
+            $cumulativeSection
+            ""
+            "---"
+            ""
+            $versionSection
+            ""
+            "---"
+            ""
+            $assetsSection
+          ) -join "`r`n"
+
+          $section = $section -replace '\{\{VERSION\}\}', $version
+
+          if ($cumulativeSection -match '(?s)^##\s+(.*?)\r?\n') {
+            $cumulativeTitle = $matches[1].Trim()
+          } else {
+            throw "Cumulative release-notes heading not found."
+          }
+
           $tag = "${{ github.ref_name }}"
-          $finalTitle = "${tag}: $titleText"
-          
-          $body | Out-File -FilePath "RELEASE-BODY.md" -Encoding utf8
+          $finalTitle = "${tag}: $cumulativeTitle"
+
+          $section | Out-File -FilePath "RELEASE-BODY.md" -Encoding utf8
           echo "release_title=$finalTitle" >> $env:GITHUB_OUTPUT
 
       - name: Create release
@@ -165,3 +255,79 @@ jobs:
             DPMBuilder/DPMShortcutBuilder.pyw
             DPMBuilder/dist/DPMThemeBuilder.exe
             DPMBuilder/DPMThemeBuilder.pyw
+
+      - name: Downgrade previous release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $currentTag = "${{ github.ref_name }}"
+          $currentVersion = $currentTag.TrimStart('v')
+          $tags = gh api repos/${{ github.repository }}/tags --paginate --jq '.[].name' |
+            Where-Object { $_ -match '^v?\d+\.\d+\.\d+$' } |
+            ForEach-Object {
+              [PSCustomObject]@{
+                Tag = $_
+                Version = $_.TrimStart('v')
+              }
+            } |
+            Sort-Object { [version]$_.Version } -Descending
+
+          $previous = $tags |
+            Where-Object { [version]$_.Version -lt [version]$currentVersion } |
+            Select-Object -First 1
+
+          if (-not $previous) {
+            Write-Host "No previous semver tag found."
+            exit 0
+          }
+
+          $previousVersion = $previous.Version
+          $previousTag = $previous.Tag
+          $releaseJson = gh api "repos/${{ github.repository }}/releases/tags/$previousTag" 2>$null
+          if (-not $releaseJson) {
+            Write-Host "No published release found for $previousTag."
+            exit 0
+          }
+
+          $release = $releaseJson | ConvertFrom-Json
+          $body = [string]$release.body
+
+          $versionHeadingPattern = '(?m)^##\s+' + [regex]::Escape($previousVersion) + '\b.*$'
+          $versionHeadingMatch = [regex]::Match($body, $versionHeadingPattern)
+          if (-not $versionHeadingMatch.Success) {
+            throw "Could not locate the $previousVersion version-specific heading in its published release body."
+          }
+
+          $firstHeadingMatch = [regex]::Match($body, '(?m)^##\s+.*$')
+          if ($firstHeadingMatch.Success -and $firstHeadingMatch.Index -eq $versionHeadingMatch.Index) {
+            Write-Host "Release $previousVersion is already historical-only; leaving it unchanged."
+            exit 0
+          }
+
+          $newBody = $body.Substring($versionHeadingMatch.Index).Trim()
+
+          $titleMatch = [regex]::Match($versionHeadingMatch.Value, '^##\s+' + [regex]::Escape($previousVersion) + '\s*[—\-:]*\s*(.*)$')
+          if (-not $titleMatch.Success) {
+            throw "Could not extract the previous release's version-specific title."
+          }
+          $versionTitle = $titleMatch.Groups[1].Value.Trim()
+
+          $releaseTitle = if ($versionTitle) { "$previousVersion`: $versionTitle" } else { "$previousVersion" }
+          $bodyPath = "PREVIOUS-RELEASE-BODY.md"
+          $newBody | Out-File -FilePath $bodyPath -Encoding utf8
+
+          $payload = @{
+            name = $releaseTitle
+            body = Get-Content -Raw $bodyPath
+          } | ConvertTo-Json -Compress
+
+          $payloadPath = "PREVIOUS-RELEASE-PATCH.json"
+          $payload | Out-File -FilePath $payloadPath -Encoding utf8
+
+          gh api --method PATCH "repos/${{ github.repository }}/releases/$($release.id)" `
+            --input $payloadPath
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to downgrade release $previousVersion."
+          }

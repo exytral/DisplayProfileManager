@@ -1,0 +1,4 @@
+#include "resource.h"
+
+// Keep shared application icon relative to ShellExt project directory.
+IDI_APPICON ICON "..\DisplayProfileManager\icon.ico"

@@ -8,6 +8,7 @@ namespace DisplayProfileManager.UI.ViewModels
     public class ProfileViewModel : INotifyPropertyChanged
     {
         private readonly Profile _profile;
+        private bool _isDefault;
         private bool _isActive;
 
         public ProfileViewModel(Profile profile)
@@ -21,11 +22,23 @@ namespace DisplayProfileManager.UI.ViewModels
         public string Name => _profile.Name;
         public string Description => _profile.Description;
         public string Icon => _profile.Icon;
-        public bool IsDefault => _profile.IsDefault;
         public DateTime CreatedDate => _profile.CreatedDate;
         public DateTime LastModifiedDate => _profile.LastModifiedDate;
         public System.Collections.Generic.List<DisplaySetting> DisplaySettings => _profile.DisplaySettings;
         public HotkeyConfig HotkeyConfig => _profile.HotkeyConfig;
+
+        public bool IsDefault
+        {
+            get => _isDefault;
+            set
+            {
+                if (_isDefault != value)
+                {
+                    _isDefault = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
         public bool IsActive
         {

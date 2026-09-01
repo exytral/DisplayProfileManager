@@ -56,6 +56,8 @@
         <Style x:Key="SecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
             <Setter Property="Background" Value="{DynamicResource SecondaryButtonBackgroundBrush}"/>
             <Setter Property="Foreground" Value="{DynamicResource SecondaryButtonForegroundBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SecondaryButtonBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
                     <Setter Property="Background" Value="{DynamicResource SecondaryButtonHoverBackgroundBrush}"/>
@@ -76,6 +78,9 @@
                 <Trigger Property="IsPressed" Value="True">
                     <Setter Property="Background" Value="{DynamicResource DangerButtonHoverBackgroundBrush}"/>
                 </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="0.4"/>
+                </Trigger>
             </Style.Triggers>
         </Style>
 
@@ -88,6 +93,42 @@
         <Style x:Key="LabelTextBlockStyle" TargetType="TextBlock" BasedOn="{StaticResource PrimaryTextBlockStyle}">
             <Setter Property="FontWeight" Value="Medium"/>
             <Setter Property="Margin" Value="0,0,0,4"/>
+        </Style>
+
+        <Style x:Key="IconTileStyle" TargetType="ToggleButton">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource ListItemHoverBackgroundBrush}"/>
+                </Trigger>
+                <Trigger Property="IsChecked" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource ListItemSelectedBackgroundBrush}"/>
+                    <Setter Property="BorderBrush" Value="{DynamicResource {x:Static SystemColors.AccentColorBrushKey}}"/>
+                </Trigger>
+                <MultiTrigger>
+                    <MultiTrigger.Conditions>
+                        <Condition Property="IsChecked" Value="True"/>
+                        <Condition Property="IsMouseOver" Value="True"/>
+                    </MultiTrigger.Conditions>
+                    <Setter Property="Background" Value="{DynamicResource ListItemSelectedHoverBackgroundBrush}"/>
+                </MultiTrigger>
+            </Style.Triggers>
         </Style>
 
         <Style x:Key="WindowControlButtonStyle" TargetType="Button">
@@ -133,11 +174,11 @@
 
     <Grid Background="{DynamicResource WindowBackgroundBrush}">
         <Grid.RowDefinitions>
-            <!-- Title bar area (32px normal, 40px maximized) -->
+            <!-- Title Bar Area -->
             <RowDefinition Name="TitleBarRowDefinition" Height="32"/>
-            <!-- Main content area -->
+            <!-- Main Content Area -->
             <RowDefinition Height="*"/>
-            <!-- Footer area -->
+            <!-- Footer Area -->
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
@@ -177,7 +218,7 @@
         </Grid>
 
         <!-- Main Content Area -->
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,16,0" Margin="16,16,0,0">
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Focusable="False" Padding="0,0,16,0" Margin="16,16,0,0" Style="{StaticResource OverlayScrollViewerStyle}">
             <StackPanel>
                 <TextBlock Text="Profile"
                            Style="{StaticResource LabelTextBlockStyle}"
@@ -227,10 +268,11 @@
                                       Foreground="{DynamicResource PrimaryTextBrush}"/>
                         </Grid>
 
-                        <TextBox Grid.Row="2"
-                                 Name="ProfileNameTextBox"
-                                 Style="{StaticResource PrimaryTextBoxStyle}"
-                                 MaxLength="60"/>
+                        <Grid Grid.Row="2">
+                            <TextBox Name="ProfileNameTextBox"
+                                     Style="{StaticResource PrimaryTextBoxStyle}"
+                                     MaxLength="60"/>
+                        </Grid>
 
                         <!-- Global Hotkey -->
                         <Grid Grid.Row="4">
@@ -287,13 +329,14 @@
                                    Text="Description"
                                    Margin="0,0,8,0"
                                    Style="{StaticResource LabelTextBlockStyle}"/>
-                        <TextBox Grid.Row="2"
-                                 MaxHeight="104"
-                                 Name="ProfileDescriptionTextBox"
-                                 Style="{StaticResource PrimaryTextBoxStyle}"
-                                 TextWrapping="Wrap"
-                                 VerticalScrollBarVisibility="Auto"
-                                 AcceptsReturn="True"/>
+                        <Grid Grid.Row="2">
+                            <TextBox MaxHeight="104"
+                                     Name="ProfileDescriptionTextBox"
+                                     Style="{StaticResource PrimaryTextBoxStyle}"
+                                     TextWrapping="Wrap"
+                                     VerticalScrollBarVisibility="Auto"
+                                     AcceptsReturn="True"/>
+                        </Grid>
                     </Grid>
                 </Grid>
 
@@ -361,19 +404,31 @@
                         </StackPanel>
                     </Grid>
 
-                    <ScrollViewer Grid.Row="2"
-                                  MaxHeight="156"
-                                  VerticalScrollBarVisibility="Auto"
-                                  HorizontalScrollBarVisibility="Disabled"
-                                  Background="{DynamicResource TextBoxBackgroundBrush}"
-                                  MinHeight="56"
-                                  Padding="14,8,0,8"
-                                  PreviewMouseWheel="IconScrollViewer_PreviewMouseWheel">
-                        <WrapPanel Name="BuiltinIconsPanel"/>
-                    </ScrollViewer>
+                    <Grid Grid.Row="2">
+                        <ScrollViewer Style="{StaticResource OverlayScrollViewerStyle}"
+                                      MaxHeight="148"
+                                      MinHeight="52"
+                                      Padding="2"
+                                      Background="{DynamicResource TextBoxBackgroundBrush}"
+                                      VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      PreviewMouseWheel="IconScrollViewer_PreviewMouseWheel">
+                            <WrapPanel Name="BuiltinIconsPanel"/>
+                        </ScrollViewer>
+                        <TextBlock Name="NoBuiltinIconsTextBlock"
+                                   Text="No icons available. Click 'Import' to add an icon."
+                                   Style="{StaticResource PrimaryTextBlockStyle}"
+                                   Foreground="{DynamicResource TertiaryTextBrush}"
+                                   TextAlignment="Center"
+                                   TextWrapping="Wrap"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Visibility="Collapsed"
+                                   IsHitTestVisible="False"/>
+                    </Grid>
                 </Grid>
 
-                <!-- Display Settings Section -->
+                <!-- Display Section -->
                 <Grid Margin="0,0,0,16">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -418,26 +473,237 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Audio Settings Section -->
+                <!-- Wallpaper Section -->
+                <Grid Margin="0,16,0,16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Wallpaper"
+                                   Style="{StaticResource LabelTextBlockStyle}"
+                                   FontSize="24"
+                                   Margin="0,0,8,0"
+                                   VerticalAlignment="Center"/>
+                        <CheckBox Name="EnableWallpaperCheckBox"
+                                  Content="Enable"
+                                  FontSize="14"
+                                  Padding="6,0,0,0"
+                                  Margin="0,6,8,0"
+                                  VerticalAlignment="Center"
+                                  VerticalContentAlignment="Center"
+                                  Foreground="{DynamicResource PrimaryTextBrush}"
+                                  ToolTip="Capture the current wallpaper when saving, and restore it when this profile is applied"
+                                  Checked="EnableWallpaperCheckBox_Changed"
+                                  Unchecked="EnableWallpaperCheckBox_Changed"/>
+                    </StackPanel>
+                    <Button Grid.Column="2"
+                            Name="LoadWallpaperButton"
+                            Content="Load"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Width="60"
+                            Click="LoadWallpaperButton_Click"
+                            ToolTip="Capture the current wallpaper now"/>
+                </Grid>
+
+                <Border Name="WallpaperOptionsBorder"
+                        Background="{DynamicResource ContentBackgroundBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        Padding="16">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="16"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="16"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="16"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="16"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="16"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Preview -->
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Name="WallpaperModeTextBlock"
+                                       Text="None"
+                                       FontWeight="Medium"
+                                       Margin="0,0,0,4"
+                                       Foreground="{DynamicResource PrimaryTextBrush}"/>
+                            <Border Width="64" Height="32"
+                                    CornerRadius="3"
+                                    BorderThickness="1"
+                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    Background="{DynamicResource ControlBackgroundBrush}">
+                                <Grid>
+                                    <TextBlock Name="WallpaperPreviewEmptyText"
+                                               Text="None"
+                                               FontSize="11"
+                                               Width="64" Height="32"
+                                               TextAlignment="Center"
+                                               Padding="0,8,0,0"
+                                               Foreground="{DynamicResource SecondaryTextBrush}"/>
+                                    <Border Name="WallpaperPreviewSolid" Visibility="Collapsed"/>
+                                    <Image Name="WallpaperPreviewImage" Stretch="UniformToFill"/>
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- Color -->
+                        <StackPanel Grid.Column="2" Name="WallpaperColorPanel">
+                            <TextBlock Text="Color"
+                                       FontWeight="Medium"
+                                       Margin="0,0,0,4"
+                                       Foreground="{DynamicResource PrimaryTextBrush}"/>
+                            <Button Name="WallpaperColorButton"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Height="32"
+                                    Padding="10,0"
+                                    ToolTip="Color shown behind the picture in Fit and Center, and used for Solid Color mode"
+                                    Click="WallpaperColorButton_Click">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Pick" VerticalAlignment="Center"/>
+                                    <Border Name="WallpaperColorSwatch"
+                                            Width="12"
+                                            Height="12"
+                                            CornerRadius="6"
+                                            Margin="8,1,0,0"
+                                            VerticalAlignment="Center"
+                                            BorderThickness="1"
+                                            BorderBrush="{DynamicResource ControlBorderBrush}"/>
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+
+                        <!-- Fitment -->
+                        <StackPanel Grid.Column="4" Name="WallpaperFitmentPanel">
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <TextBlock Name="WallpaperFitmentLabel"
+                                           Text="Fitment"
+                                           FontWeight="Medium"
+                                           Foreground="{DynamicResource PrimaryTextBrush}"/>
+                            </StackPanel>
+                            <Grid>
+                                <ComboBox Name="WallpaperFitmentComboBox"
+                                      Style="{StaticResource PrimaryComboBoxStyle}"
+                                      Height="32"
+                                      IsEnabled="False"
+                                      ToolTip="How the picture is scaled. Windows applies one Fitment to the whole desktop."
+                                      SelectionChanged="WallpaperFitmentComboBox_SelectionChanged">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+                                                <Border Width="12" Height="12"
+                                                        CornerRadius="6"
+                                                        Margin="8,1,0,0"
+                                                        VerticalAlignment="Center"
+                                                        BorderThickness="1"
+                                                        BorderBrush="{DynamicResource ControlBorderBrush}"
+                                                        Background="{Binding Background}"
+                                                        Visibility="{Binding ShowSwatch}"
+                                                        ToolTip="Background color shown around the picture"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                    <ComboBox.ItemContainerStyle>
+                                        <Style TargetType="ComboBoxItem"
+                                               BasedOn="{StaticResource {x:Type ComboBoxItem}}">
+                                            <Setter Property="Padding" Value="8,4"/>
+                                        </Style>
+                                    </ComboBox.ItemContainerStyle>
+                                </ComboBox>
+
+                            </Grid>
+                        </StackPanel>
+
+                        <!-- Slideshow Interval -->
+                        <StackPanel Grid.Column="6" Name="WallpaperIntervalPanel">
+                            <TextBlock Name="WallpaperIntervalLabel"
+                                       Text="Interval"
+                                       FontWeight="Medium"
+                                       Margin="0,0,0,4"
+                                       Foreground="{DynamicResource PrimaryTextBrush}"/>
+                            <ComboBox Name="WallpaperIntervalComboBox"
+                                      Style="{StaticResource PrimaryComboBoxStyle}"
+                                      Height="32"
+                                      IsEnabled="False"
+                                      ToolTip="How often the slideshow advances"
+                                      SelectionChanged="WallpaperIntervalComboBox_SelectionChanged">
+                                <ComboBox.ItemContainerStyle>
+                                    <Style TargetType="ComboBoxItem"
+                                           BasedOn="{StaticResource {x:Type ComboBoxItem}}">
+                                        <Setter Property="Padding" Value="8,4"/>
+                                    </Style>
+                                </ComboBox.ItemContainerStyle>
+                            </ComboBox>
+                        </StackPanel>
+
+                        <!-- Slideshow Source -->
+                        <StackPanel Grid.Column="10" Name="WallpaperSourcePanel">
+                            <TextBlock Text="Source"
+                                       FontWeight="Medium"
+                                       Margin="0,0,0,4"
+                                       Foreground="{DynamicResource PrimaryTextBrush}"/>
+                            <Button Name="WallpaperSourceButton"
+                                    Content="Folder"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Height="32"
+                                    Padding="10,0"
+                                    ToolTip="Choose the folder the slideshow draws from"
+                                    Click="WallpaperSourceButton_Click"/>
+                        </StackPanel>
+
+                        <!-- Shuffle -->
+                        <StackPanel Grid.Column="8" Name="WallpaperShufflePanel">
+                            <TextBlock Name="WallpaperShuffleLabel"
+                                       Text="Order"
+                                       FontWeight="Medium"
+                                       Margin="0,0,0,4"
+                                       Foreground="{DynamicResource PrimaryTextBrush}"/>
+                            <CheckBox Name="WallpaperShuffleCheckBox"
+                                      Content="Shuffle"
+                                      Height="32"
+                                      IsEnabled="False"
+                                      VerticalContentAlignment="Center"
+                                      Foreground="{DynamicResource PrimaryTextBrush}"
+                                      ToolTip="Play the slideshow in random order"
+                                      Checked="WallpaperShuffleCheckBox_Changed"
+                                      Unchecked="WallpaperShuffleCheckBox_Changed"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- Audio Section -->
                 <Grid Margin="0,16,0,16">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
-                    <TextBlock Grid.Column="0"
-                               Text="Audio"
-                               Style="{StaticResource LabelTextBlockStyle}"
-                               FontSize="24"
-                               VerticalAlignment="Center"/>
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Audio"
+                                   Style="{StaticResource LabelTextBlockStyle}"
+                                   FontSize="24"
+                                   Margin="0,0,8,0"
+                                   VerticalAlignment="Center"/>
+                        <CheckBox Name="EnableAudioCheckBox"
+                                  Content="Enable"
+                                  FontSize="14"
+                                  Padding="6,0,0,0"
+                                  Margin="0,6,8,0"
+                                  VerticalAlignment="Center"
+                                  VerticalContentAlignment="Center"
+                                  Foreground="{DynamicResource PrimaryTextBrush}"
+                                  Checked="EnableAudioCheckBox_Changed"
+                                  Unchecked="EnableAudioCheckBox_Changed"/>
+                    </StackPanel>
 
-                    <Button Grid.Column="1"
-                            Name="LoadAudioButton"
-                            Content="Load"
-                            Style="{StaticResource SecondaryButtonStyle}"
-                            Width="60"
-                            Click="LoadAudioButton_Click"
-                            ToolTip="Load audio devices from current state"/>
                 </Grid>
 
                 <Border Background="{DynamicResource ContentBackgroundBrush}"
@@ -461,7 +727,7 @@
 
                             <CheckBox Grid.Column="0"
                                       Name="ApplyOutputDeviceCheckBox"
-                                      Content="Apply Output"
+                                      Content="Output"
                                       FontSize="14"
                                       Padding="6,0,0,0"
                                       Margin="0,0,10,0"
@@ -471,27 +737,50 @@
                                       Checked="ApplyOutputDeviceCheckBox_Checked"
                                       Unchecked="ApplyOutputDeviceCheckBox_Unchecked"/>
 
-                            <ComboBox Grid.Column="1" Name="OutputDeviceComboBox"
-                                      Style="{StaticResource PrimaryComboBoxStyle}"
-                                      Height="32"
-                                      IsEnabled="False"
-                                      SelectionChanged="OutputDeviceComboBox_SelectionChanged">
-                                <ComboBox.ItemContainerStyle>
-                                    <Style TargetType="ComboBoxItem">
-                                        <Setter Property="Padding" Value="8,4"/>
-                                        <Setter Property="Background" Value="{DynamicResource ComboBoxItemBackgroundBrush}"/>
-                                        <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
-                                        <Style.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter Property="Background" Value="{DynamicResource ComboBoxItemHoverBackgroundBrush}"/>
-                                            </Trigger>
-                                            <Trigger Property="IsSelected" Value="True">
-                                                <Setter Property="Background" Value="{DynamicResource ComboBoxItemSelectedBackgroundBrush}"/>
-                                            </Trigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </ComboBox.ItemContainerStyle>
-                            </ComboBox>
+                            <Grid Grid.Column="1">
+                                <ComboBox Name="OutputDeviceComboBox"
+                                          DropDownOpened="AudioDeviceComboBox_DropDownOpened"
+                                          Style="{StaticResource PrimaryComboBoxStyle}"
+                                          Height="32"
+                                          SelectionChanged="OutputDeviceComboBox_SelectionChanged">
+                                    <ComboBox.ItemContainerStyle>
+                                        <Style TargetType="ComboBoxItem">
+                                            <Setter Property="Padding" Value="8,4"/>
+                                            <Setter Property="Background" Value="{DynamicResource ComboBoxItemBackgroundBrush}"/>
+                                            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
+                                            <Style.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter Property="Background" Value="{DynamicResource ComboBoxItemHoverBackgroundBrush}"/>
+                                                </Trigger>
+                                                <Trigger Property="IsSelected" Value="True">
+                                                    <Setter Property="Background" Value="{DynamicResource ComboBoxItemSelectedBackgroundBrush}"/>
+                                                </Trigger>
+                                                <DataTrigger Binding="{Binding IsAvailable}" Value="False">
+                                                    <Setter Property="Opacity" Value="0.5"/>
+                                                    <Setter Property="Foreground" Value="{DynamicResource TertiaryTextBrush}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ComboBox.ItemContainerStyle>
+                                </ComboBox>
+                                <TextBlock Text="Select a playback device..."
+                                           IsHitTestVisible="False"
+                                           Foreground="{DynamicResource TertiaryTextBrush}"
+                                           FontSize="13"
+                                           Margin="8,0,0,0"
+                                           VerticalAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedIndex, ElementName=OutputDeviceComboBox}" Value="-1">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
                         </Grid>
 
                         <!-- Input Device (Capture) -->
@@ -503,7 +792,7 @@
 
                             <CheckBox Grid.Column="0"
                                       Name="ApplyInputDeviceCheckBox"
-                                      Content="Apply Input"
+                                      Content="Input"
                                       FontSize="14"
                                       Padding="6,0,0,0"
                                       Margin="0,0,8,0"
@@ -513,32 +802,55 @@
                                       Checked="ApplyInputDeviceCheckBox_Checked"
                                       Unchecked="ApplyInputDeviceCheckBox_Unchecked"/>
 
-                            <ComboBox Grid.Column="1" Name="InputDeviceComboBox"
-                                      Style="{StaticResource PrimaryComboBoxStyle}"
-                                      Height="32"
-                                      IsEnabled="False"
-                                      SelectionChanged="InputDeviceComboBox_SelectionChanged">
-                                <ComboBox.ItemContainerStyle>
-                                    <Style TargetType="ComboBoxItem">
-                                        <Setter Property="Padding" Value="8,4"/>
-                                        <Setter Property="Background" Value="{DynamicResource ComboBoxItemBackgroundBrush}"/>
-                                        <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
-                                        <Style.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter Property="Background" Value="{DynamicResource ComboBoxItemHoverBackgroundBrush}"/>
-                                            </Trigger>
-                                            <Trigger Property="IsSelected" Value="True">
-                                                <Setter Property="Background" Value="{DynamicResource ComboBoxItemSelectedBackgroundBrush}"/>
-                                            </Trigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </ComboBox.ItemContainerStyle>
-                            </ComboBox>
+                            <Grid Grid.Column="1">
+                                <ComboBox Name="InputDeviceComboBox"
+                                          DropDownOpened="AudioDeviceComboBox_DropDownOpened"
+                                          Style="{StaticResource PrimaryComboBoxStyle}"
+                                          Height="32"
+                                          SelectionChanged="InputDeviceComboBox_SelectionChanged">
+                                    <ComboBox.ItemContainerStyle>
+                                        <Style TargetType="ComboBoxItem">
+                                            <Setter Property="Padding" Value="8,4"/>
+                                            <Setter Property="Background" Value="{DynamicResource ComboBoxItemBackgroundBrush}"/>
+                                            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
+                                            <Style.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter Property="Background" Value="{DynamicResource ComboBoxItemHoverBackgroundBrush}"/>
+                                                </Trigger>
+                                                <Trigger Property="IsSelected" Value="True">
+                                                    <Setter Property="Background" Value="{DynamicResource ComboBoxItemSelectedBackgroundBrush}"/>
+                                                </Trigger>
+                                                <DataTrigger Binding="{Binding IsAvailable}" Value="False">
+                                                    <Setter Property="Opacity" Value="0.5"/>
+                                                    <Setter Property="Foreground" Value="{DynamicResource TertiaryTextBrush}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ComboBox.ItemContainerStyle>
+                                </ComboBox>
+                                <TextBlock Text="Select a recording device..."
+                                           IsHitTestVisible="False"
+                                           Foreground="{DynamicResource TertiaryTextBrush}"
+                                           FontSize="13"
+                                           Margin="8,0,0,0"
+                                           VerticalAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedIndex, ElementName=InputDeviceComboBox}" Value="-1">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
                         </Grid>
                     </Grid>
                 </Border>
 
-                <!-- Scripts Section -->
+                <!-- Script Section -->
                 <Grid Margin="0,16,0,16">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -589,6 +901,8 @@
                                 <DataTemplate>
                                     <Grid Name="ScriptRow" Margin="0,0,0,16">
                                         <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <!-- Enable -->
                                             <ColumnDefinition Width="*"/>
                                             <!-- File -->
                                             <ColumnDefinition Width="2*"/>
@@ -597,25 +911,53 @@
                                             <!-- Delete -->
                                         </Grid.ColumnDefinitions>
 
+                                        <!-- Enable -->
+                                        <CheckBox Grid.Column="0"
+                                                  Name="ScriptEnabledCheckBox"
+                                                  IsChecked="{Binding IsEnabled, Mode=TwoWay}"
+                                                  Checked="ScriptEnabledCheckBox_Changed"
+                                                  Unchecked="ScriptEnabledCheckBox_Changed"
+                                                  VerticalAlignment="Bottom"
+                                                  Height="36"
+                                                  VerticalContentAlignment="Center"
+                                                  Margin="0,0,10,0"
+                                                  ToolTip="Run this script when the profile is applied"/>
+
                                         <!-- File Path (Read-Only) -->
-                                        <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                                        <StackPanel Grid.Column="1" Margin="0,0,16,0">
+                                            <StackPanel.Style>
+                                                <Style TargetType="StackPanel">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                                                            <Setter Property="Opacity" Value="0.7"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </StackPanel.Style>
                                             <TextBlock x:Name="FileLabel"
                                                        Text="File"
                                                        Style="{StaticResource LabelTextBlockStyle}"
                                                        FontSize="12"
-                                                       Margin="0,4"
-                                                       Opacity="{Binding Tag, RelativeSource={RelativeSource AncestorType=ItemsControl}}"/>
+                                                       Margin="0,4"/>
                                             <TextBox x:Name="FileBox"
                                                      Text="{Binding FileName, Mode=OneWay}"
                                                      IsReadOnly="True"
                                                      Style="{StaticResource PrimaryTextBoxStyle}"
                                                      Background="{DynamicResource TextBoxBackgroundBrush}"
-                                                     Foreground="{DynamicResource TertiaryTextBrush}"
-                                                     Opacity="{Binding Tag, RelativeSource={RelativeSource AncestorType=ItemsControl}}"/>
+                                                     Foreground="{DynamicResource TertiaryTextBrush}"/>
                                         </StackPanel>
 
                                         <!-- Arguments (Editable) -->
-                                        <StackPanel Grid.Column="1" Margin="0,0,16,0">
+                                        <StackPanel Grid.Column="2" Margin="0,0,16,0">
+                                            <StackPanel.Style>
+                                                <Style TargetType="StackPanel">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                                                            <Setter Property="Opacity" Value="0.7"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </StackPanel.Style>
                                             <TextBlock x:Name="ArgsLabel"
                                                        Text="Arguments"
                                                        Style="{StaticResource LabelTextBlockStyle}"
@@ -627,7 +969,7 @@
                                         </StackPanel>
 
                                         <!-- Delete / Restore Button -->
-                                        <Button Grid.Column="2"
+                                        <Button Grid.Column="3"
                                                 Content="&#xE74D;"
                                                 x:Name="DeleteButton"
                                                 FontFamily="Segoe MDL2 Assets"
@@ -646,6 +988,7 @@
                                             <Setter TargetName="ArgsBox" Property="Opacity" Value="0.5"/>
                                             <Setter TargetName="FileBox" Property="IsEnabled" Value="False"/>
                                             <Setter TargetName="ArgsBox" Property="IsEnabled" Value="False"/>
+                                            <Setter TargetName="ScriptEnabledCheckBox" Property="IsEnabled" Value="False"/>
                                             <Setter TargetName="DeleteButton" Property="IsEnabled" Value="True"/>
                                         </DataTrigger>
                                     </DataTemplate.Triggers>
@@ -665,9 +1008,10 @@
             </StackPanel>
         </ScrollViewer>
 
+        <!-- Status Bar -->
         <Border Grid.Row="2"
                 Background="{DynamicResource WindowBackgroundBrush}"
-                Padding="24,16">
+                Padding="16">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>

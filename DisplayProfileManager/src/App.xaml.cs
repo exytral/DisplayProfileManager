@@ -4,9 +4,6 @@ using DisplayProfileManager.UI;
 using DisplayProfileManager.UI.Windows;
 using NLog;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -21,6 +18,8 @@ namespace DisplayProfileManager
 
         private TrayIcon _trayIcon;
         private MainWindow _mainWindow;
+        private Task<UpdateCheckResult> _updateCheckTask;
+        private UpdateCheckResult _latestUpdateCheckResult;
 
         private ProfileManager _profileManager;
         private SettingsManager _settingsManager;
@@ -29,42 +28,13 @@ namespace DisplayProfileManager
         private Mutex _instanceMutex;
         private EventWaitHandle _showWindowEvent;
         private CancellationTokenSource _cancellationTokenSource;
+        private bool _ownsInstanceMutex;
 
         private bool _hotkeysDisabledForEditing = false;
         private int _profileEditWindowCount = 0;
 
-        #region P/Invoke
-
-        [DllImport("user32.dll")]
-        private static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
-        [DllImport("user32.dll")]
-        private static extern bool SetForegroundWindow(IntPtr hWnd);
-        [DllImport("user32.dll")]
-        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-        [DllImport("user32.dll")]
-        private static extern bool IsIconic(IntPtr hWnd);
-        [DllImport("user32.dll")]
-        private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
-        [DllImport("user32.dll")]
-        private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
-        [DllImport("user32.dll")]
-        private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
-        [DllImport("kernel32.dll")]
-        private static extern uint GetCurrentThreadId();
-
-        #endregion
-
-        #region Constants
-
-        private const int SW_RESTORE = 9;
-        private const uint SWP_NOMOVE = 0x0002;
-        private const uint SWP_NOSIZE = 0x0001;
-        private const uint SWP_SHOWWINDOW = 0x0040;
-        private static readonly IntPtr HWND_TOP = IntPtr.Zero;
-        private const string MUTEX_NAME = "DisplayProfileManager_SingleInstance";
-        private const string SHOW_WINDOW_EVENT_NAME = "DisplayProfileManager_ShowWindow";
-
-        #endregion
+        private const string MutexName = "DPM_Mutex";
+        private const string ShowWindowEventName = "DPM_ShowWindow";
 
         protected override async void OnStartup(StartupEventArgs e)
         {
@@ -75,48 +45,99 @@ namespace DisplayProfileManager
 
             logger.Info($"Display Profile Manager Starting | Version: {System.Reflection.Assembly.GetExecutingAssembly().GetName().Version}");
 
-            bool startInTray = false, devMode = false, isRefresh = false, isTheme = false, isProfile = false, isHeadless = false;
-            string profile = null, theme = null;
+            var cli = CliParser.Parse(e.Args);
 
-            var commandQueue = new List<string>();
-
-            if (e.Args?.Length > 0)
+            if (cli.ShellAction == ShellAction.Unregister)
             {
-                for (int i = 0; i < e.Args.Length; i++)
+                bool wasRegistered = ShellContextMenuHelper.IsRegistered();
+                bool ok = ShellContextMenuHelper.Unregister();
+
+                if (!ok)
                 {
-                    string arg = e.Args[i].ToLower().TrimStart('-');
-
-                    if (arg == "dev") { devMode = true; continue; }
-                    if (arg == "tray") { startInTray = true; continue; }
-
-                    if (arg.StartsWith("ref") || arg.StartsWith("rel") || arg == "r")
-                    {
-                        isRefresh = true;
-                        commandQueue.Add("CMD:REFRESH");
-                    }
-                    else if (arg.StartsWith("t") && "theme".StartsWith(arg))
-                    {
-                        isTheme = true;
-                        if (i + 1 < e.Args.Length && !e.Args[i + 1].StartsWith("-"))
-                            theme = e.Args[++i];
-                        commandQueue.Add($"THEME:{theme ?? ""}");
-                    }
-                    else if (arg.StartsWith("p") && "profile".StartsWith(arg))
-                    {
-                        isProfile = true;
-                        if (i + 1 < e.Args.Length && !e.Args[i + 1].StartsWith("-"))
-                            profile = e.Args[++i];
-                        commandQueue.Add($"PROFILE:{profile ?? ""}");
-                    }
-                    else if (arg.StartsWith("h") && "headless".StartsWith(arg))
-                    {
-                        isHeadless = true; isProfile = true;
-                        if (i + 1 < e.Args.Length && !e.Args[i + 1].StartsWith("-"))
-                            profile = e.Args[++i];
-                        if (!commandQueue.Any(c => c.StartsWith("PROFILE:")))
-                            commandQueue.Add($"PROFILE:{profile ?? ""}");
-                    }
+                    logger.Error("--unshell: shell extension removal failed. Exiting.");
+                    Shutdown(1);
+                    return;
                 }
+
+                bool loaded = await SettingsManager.Instance.LoadSettingsAsync();
+                if (loaded)
+                    await SettingsManager.Instance.SetDesktopContextMenuAsync(false);
+                else
+                    logger.Warn("--unshell: settings failed to load, skipping DesktopContextMenuEnabled save");
+
+                if (wasRegistered)
+                {
+                    if (!ShellContextMenuHelper.RestartExplorer())
+                    {
+                        logger.Error("--unshell: shell extension was removed, but Explorer restart failed. Exiting.");
+                        Shutdown(1);
+                        return;
+                    }
+
+                    logger.Info("--unshell: shell extension removed and Explorer restarted. Exiting.");
+                    Shutdown(0);
+                }
+                else
+                {
+                    logger.Info("--unshell: shell extension was not registered. Exiting.");
+                    Shutdown(2);
+                }
+
+                return;
+            }
+
+            if (cli.ShellAction == ShellAction.Register)
+            {
+                bool wasRegistered = ShellContextMenuHelper.IsRegistered();
+                bool ok = ShellContextMenuHelper.Register();
+
+                if (!ok)
+                {
+                    logger.Error("--shell: shell extension registration failed. Exiting.");
+                    Shutdown(1);
+                    return;
+                }
+
+                bool loaded = await SettingsManager.Instance.LoadSettingsAsync();
+                if (loaded)
+                    await SettingsManager.Instance.SetDesktopContextMenuAsync(true);
+                else
+                    logger.Warn("--shell: settings failed to load, skipping DesktopContextMenuEnabled save");
+
+                if (wasRegistered)
+                {
+                    logger.Info("--shell: shell extension was already registered. Exiting.");
+                    Shutdown(2);
+                }
+                else
+                {
+                    logger.Info("--shell: shell extension registered. Exiting.");
+                    Shutdown(0);
+                }
+
+                return;
+            }
+
+            bool startInTray = cli.StartInTray, devMode = cli.DevMode;
+            bool isRefresh = cli.IsRefresh, isTheme = cli.IsTheme, isProfile = cli.IsProfile, isHeadless = cli.IsHeadless, isExit = cli.IsExit;
+            string profile = cli.Profile, theme = cli.Theme;
+            var commandQueue = cli.CommandQueue;
+
+            if (isExit)
+            {
+                bool sent = await IpcServer.SendAsync("CMD:EXIT");
+                if (!sent)
+                {
+                    logger.Info("--exit: no active instance found. Exiting.");
+                    Shutdown(2);
+                }
+                else
+                {
+                    logger.Info("--exit command sent. Exiting.");
+                    Shutdown(0);
+                }
+
+                return;
             }
 
             if (!devMode && commandQueue.Count > 0)
@@ -124,7 +145,7 @@ namespace DisplayProfileManager
                 bool allSent = true;
                 foreach (var cmd in commandQueue)
                 {
-                    if (!await SendIPCMessageAsync(cmd))
+                    if (!await IpcServer.SendAsync(cmd))
                     {
                         allSent = false;
                         break;
@@ -138,10 +159,9 @@ namespace DisplayProfileManager
                     return;
                 }
 
-                // IPC failed — fall back to local execution
                 if (isRefresh || (isTheme && string.IsNullOrEmpty(theme)))
                 {
-                    logger.Info("Target maintenance command requires an active instance. Exiting.");
+                    logger.Info("Target maintenance command requires active instance. Exiting.");
                     Shutdown();
                     return;
                 }
@@ -149,49 +169,73 @@ namespace DisplayProfileManager
                 // Persistent theme update if no instance is found
                 if (isTheme && !string.IsNullOrEmpty(theme))
                 {
-                    await _settingsManager.LoadSettingsAsync();
-                    await _settingsManager.UpdateSettingAsync("Theme", theme);
+                    bool saved = false;
+
+                    if (!await _settingsManager.LoadSettingsAsync())
+                        logger.Warn("--theme: settings failed to load -> not saved");
+                    else if (!ThemeHelper.ThemeExists(theme))
+                        logger.Error($"--theme: '{theme}' is not available theme -> not saved");
+                    else
+                    {
+                        await _settingsManager.UpdateSettingAsync("Theme", theme);
+                        saved = true;
+                    }
+
                     if (!isProfile)
                     {
-                        logger.Info($"Theme '{theme}' saved locally. Exiting.");
+                        if (saved)
+                            logger.Info($"Theme '{theme}' saved. Exiting.");
+                        else
+                            logger.Info("Exiting without theme change.");
+
                         Shutdown();
                         return;
                     }
                 }
             }
 
-            // Resolve current profile if reapply was requested locally
-            if ((isProfile) && string.IsNullOrEmpty(profile))
+            if ((isProfile || isHeadless) && string.IsNullOrEmpty(profile))
             {
                 await _settingsManager.LoadSettingsAsync();
+                if (_settingsManager.Debug.AnySet)
+                    logger.Warn($"Debug flags are set: {_settingsManager.Debug}. Behavior is deliberately altered.");
                 profile = _settingsManager.GetCurrentProfileId();
             }
 
             if (!string.IsNullOrEmpty(profile))
             {
-                bool result = await ApplyProfileAsync(profile);
-                if (result)
+                bool result = await ApplyProfileFromCommandLineAsync(profile);
+                if (isHeadless)
                 {
-                    logger.Info("Headless apply complete. Exiting.");
+                    logger.Info(result
+                        ? "Headless apply complete. Exiting."
+                        : $"Headless apply failed for profile '{profile}'. Exiting.");
                     Shutdown(result ? 0 : 1);
                     return;
                 }
+                else if (!result)
+                    logger.Warn($"CLI apply failed for profile '{profile}'. Continuing to main window.");
             }
 
-            if (devMode) _cancellationTokenSource = new CancellationTokenSource();
-            else if (!CheckSingleInstance()) { Shutdown(); return; }
+            if (devMode)
+                _cancellationTokenSource = new CancellationTokenSource();
+            else if (!CheckSingleInstance())
+            {
+                Shutdown();
+                return;
+            }
 
             try
             {
                 await InitializeApplicationAsync();
 
-                if (string.IsNullOrEmpty(profile))
-                    await HandleStartupProfileAsync();
-
-                EventManager.RegisterClassHandler(typeof(ScrollViewer), UIElement.PreviewMouseWheelEvent,
-                    new MouseWheelEventHandler(OnScrollViewerPreviewMouseWheel));
+                EventManager.RegisterClassHandler(typeof(ScrollViewer), UIElement.PreviewMouseWheelEvent, new MouseWheelEventHandler(OnScrollViewerPreviewMouseWheel));
 
                 SetupTrayIcon();
+
+                if (string.IsNullOrEmpty(profile))
+                    await HandleStartupProfileAsync();
+                _ = CheckForUpdatesAndNotifyAsync();
                 if (!startInTray)
                     ShowMainWindow();
                 if (_settingsManager.IsFirstRun())
@@ -207,17 +251,19 @@ namespace DisplayProfileManager
         private bool CheckSingleInstance()
         {
             bool isNewInstance;
-            _instanceMutex = new Mutex(true, MUTEX_NAME, out isNewInstance);
+            _instanceMutex = new Mutex(true, MutexName, out isNewInstance);
 
             if (!isNewInstance)
             {
-                BringExistingInstanceToFront();
+                WindowActivationHelper.BringExistingInstanceToFront("Display Profile Manager", ShowWindowEventName);
                 return false;
             }
 
+            _ownsInstanceMutex = true;
+
             try
             {
-                _showWindowEvent = new EventWaitHandle(false, EventResetMode.ManualReset, SHOW_WINDOW_EVENT_NAME);
+                _showWindowEvent = new EventWaitHandle(false, EventResetMode.ManualReset, ShowWindowEventName);
                 _cancellationTokenSource = new CancellationTokenSource();
                 StartShowWindowListener();
             }
@@ -227,74 +273,6 @@ namespace DisplayProfileManager
             }
 
             return true;
-        }
-
-        private void BringExistingInstanceToFront()
-        {
-            try
-            {
-                IntPtr hWnd = FindWindow(null, "Display Profile Manager");
-
-                if (hWnd != IntPtr.Zero)
-                {
-                    ActivateWindow(hWnd);
-                }
-
-                try
-                {
-                    Thread.Sleep(100);
-
-                    using (var showEvent = EventWaitHandle.OpenExisting(SHOW_WINDOW_EVENT_NAME))
-                    {
-                        showEvent.Set();
-                    }
-                }
-                catch (Exception eventEx)
-                {
-                    logger.Error(eventEx, "Error signaling show window event");
-                }
-            }
-            catch (Exception ex)
-            {
-                logger.Error(ex, "Error bringing existing instance to front");
-            }
-        }
-
-        private void ActivateWindow(IntPtr hWnd)
-        {
-            try
-            {
-                uint currentThreadId = GetCurrentThreadId();
-                uint windowThreadId = GetWindowThreadProcessId(hWnd, out _);
-
-                bool attached = false;
-                if (currentThreadId != windowThreadId)
-                {
-                    attached = AttachThreadInput(currentThreadId, windowThreadId, true); // Attach thread input to bypass focus stealing prevention
-                }
-
-                try
-                {
-                    if (IsIconic(hWnd))
-                    {
-                        ShowWindow(hWnd, SW_RESTORE);
-                    }
-
-                    SetWindowPos(hWnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
-                    SetForegroundWindow(hWnd);
-                }
-                finally
-                {
-                    if (attached)
-                    {
-                        AttachThreadInput(currentThreadId, windowThreadId, false);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                logger.Error(ex, "Error activating window");
-            }
         }
 
         private async Task InitializeApplicationAsync()
@@ -313,6 +291,7 @@ namespace DisplayProfileManager
             _profileManager.ProfileAdded += OnProfileChanged;
             _profileManager.ProfileUpdated += OnProfileChanged;
             _profileManager.ProfileDeleted += OnProfileDeleted;
+            _profileManager.ProfileApplied += OnProfileApplied;
         }
 
         private void SetupTrayIcon()
@@ -334,21 +313,14 @@ namespace DisplayProfileManager
 
                     if (startupProfile != null)
                     {
-                        var applyResult = await _profileManager.ApplyProfileAsync(startupProfile);
+                        var applyResult = await _profileManager.ApplyProfileAsync(startupProfile, ProfileManager.ApplySource.Startup);
 
-                        if (applyResult.Success)
-                        {
-                            string message = $"Startup profile '{startupProfile.Name}' applied";
-                            logger.Info(message);
-                            _trayIcon?.ShowNotification("Display Profile Manager", message, System.Windows.Forms.ToolTipIcon.Info);
-                        }
-                        else
+                        if (!applyResult.Success)
                         {
                             string errorDetails = _profileManager.GetApplyResultErrorMessage(startupProfile.Name, applyResult);
                             logger.Warn(errorDetails);
-                            _trayIcon?.ShowNotification("Display Profile Manager", $"Startup profile: {errorDetails}", System.Windows.Forms.ToolTipIcon.Info);
+                            _trayIcon?.ShowNotification("Startup profile", errorDetails, TrayNotificationIcon.Error);
                         }
-
                     }
                 }
             }
@@ -360,116 +332,80 @@ namespace DisplayProfileManager
 
         private void StartIPCPipeListener()
         {
-            Task.Run(async () =>
+            IpcServer.StartListening(_cancellationTokenSource.Token, async received =>
             {
-                System.IO.Pipes.NamedPipeServerStream server = null;
-                try
-                {
-                    server = new System.IO.Pipes.NamedPipeServerStream("DPM_ProfilePipe", System.IO.Pipes.PipeDirection.In, 1, System.IO.Pipes.PipeTransmissionMode.Byte, System.IO.Pipes.PipeOptions.Asynchronous);
-
-                    while (!_cancellationTokenSource.Token.IsCancellationRequested)
-                    {
-                        try
-                        {
-                            await server.WaitForConnectionAsync(_cancellationTokenSource.Token);
-
-                            using (var reader = new System.IO.StreamReader(server,
-                                System.Text.Encoding.UTF8, false, 1024, leaveOpen: true))
-                            {
-                                string receivedValue = await reader.ReadToEndAsync();
-                                if (!string.IsNullOrEmpty(receivedValue))
-                                {
-                                    await Dispatcher.InvokeAsync(async () =>
-                                    {
-                                        if (receivedValue == "CMD:REFRESH")
-                                        {
-                                            await _profileManager.LoadProfilesAsync();
-                                            ThemeHelper.RefreshThemes();
-                                            ThemeHelper.ApplyTheme(_settingsManager.Settings.Theme);
-                                        }
-                                        else if (receivedValue.StartsWith("THEME:"))
-                                        {
-                                            string targetTheme = receivedValue.Substring(6);
-                                            if (string.IsNullOrEmpty(targetTheme))
-                                                targetTheme = _settingsManager.Settings.Theme;
-                                            else
-                                                await _settingsManager.UpdateSettingAsync("Theme", targetTheme);
-                                            ThemeHelper.RefreshThemes();
-                                            ThemeHelper.ApplyTheme(targetTheme);
-                                        }
-                                        else if (receivedValue.StartsWith("PROFILE:"))
-                                        {
-                                            string targetProfile = receivedValue.Substring(8);
-                                            if (string.IsNullOrEmpty(targetProfile))
-                                                targetProfile = _settingsManager.GetCurrentProfileId();
-                                            var profile = _profileManager.GetProfileByName(targetProfile) ?? _profileManager.GetProfile(targetProfile);
-                                            if (profile != null)
-                                                await _profileManager.ApplyProfileAsync(profile);
-                                            else
-                                                logger.Warn($"IPC: Profile '{targetProfile}' not found.");
-                                        }
-                                    });
-                                }
-                            }
-
-                            server.Disconnect();
-                        }
-                        catch (OperationCanceledException)
-                        {
-                            break;
-                        }
-                        catch (Exception ex)
-                        {
-                            logger.Error(ex, "IPC pipe listener error");
-                            server.Dispose();
-                            server = new System.IO.Pipes.NamedPipeServerStream(
-                                "DPM_ProfilePipe", System.IO.Pipes.PipeDirection.In,
-                                1, System.IO.Pipes.PipeTransmissionMode.Byte,
-                                System.IO.Pipes.PipeOptions.Asynchronous);
-                        }
-                    }
-                }
-                catch (OperationCanceledException) { }
-                finally { server?.Dispose(); }
-            }, _cancellationTokenSource.Token);
+                await Dispatcher.InvokeAsync(async () => await HandleIpcMessageAsync(received)).Task.Unwrap();
+            });
         }
 
-        private async Task<bool> SendIPCMessageAsync(string message)
+        private async Task HandleIpcMessageAsync(string receivedValue)
         {
-            System.IO.Pipes.NamedPipeClientStream client = null;
-            try
+            if (receivedValue == "CMD:EXIT")
             {
-                client = new System.IO.Pipes.NamedPipeClientStream(".", "DPM_ProfilePipe", System.IO.Pipes.PipeDirection.Out);
+                logger.Info("--exit received. Shutting down.");
+                Shutdown();
+            }
+            else if (receivedValue == "CMD:REFRESH")
+            {
+                await _profileManager.LoadProfilesAsync();
+                ThemeHelper.RefreshThemes();
+                ThemeHelper.ApplyTheme(_settingsManager.Settings.Theme);
+            }
+            else if (receivedValue.StartsWith("THEME:"))
+            {
+                string targetTheme = receivedValue.Substring(6);
 
-                await client.ConnectAsync(100);
-                using (System.IO.StreamWriter writer = new System.IO.StreamWriter(client))
+                if (!string.IsNullOrEmpty(targetTheme))
                 {
-                    await writer.WriteAsync(message);
-                    await writer.FlushAsync();
+                    // Rescan so theme files added since startup is recognized
+                    ThemeHelper.RefreshThemes();
+
+                    if (!ThemeHelper.ThemeExists(targetTheme))
+                    {
+                        logger.Error($"IPC: '{targetTheme}' is not available theme. Ignored.");
+                        return;
+                    }
+
+                    // RefreshThemes reapplies stored theme after setting changes
+                    await _settingsManager.UpdateSettingAsync("Theme", targetTheme);
                 }
 
-                return true;
+                ThemeHelper.RefreshThemes();
             }
-            catch
+            else if (receivedValue.StartsWith("PROFILE:"))
             {
-                client?.Dispose();
-                return false;
+                string targetProfile = receivedValue.Substring(8);
+                if (string.IsNullOrEmpty(targetProfile))
+                    targetProfile = _settingsManager.GetCurrentProfileId();
+
+                var profile = _profileManager.GetProfileByName(targetProfile) ?? _profileManager.GetProfile(targetProfile);
+                if (profile == null)
+                {
+                    logger.Warn($"IPC: Profile '{targetProfile}' not found.");
+                    return;
+                }
+
+                var ipcResult = await _profileManager.ApplyProfileAsync(profile, ProfileManager.ApplySource.CommandLine);
+                if (!ipcResult.Success)
+                    _trayIcon?.ShowNotification("Apply failed", _profileManager.GetApplyResultErrorMessage(profile.Name, ipcResult), TrayNotificationIcon.Error);
             }
         }
 
         private void StartShowWindowListener()
         {
+            CancellationToken cancellationToken = _cancellationTokenSource.Token;
+            EventWaitHandle showWindowEvent = _showWindowEvent;
             Task.Run(async () =>
             {
                 try
                 {
-                    while (!_cancellationTokenSource.Token.IsCancellationRequested)
+                    while (!cancellationToken.IsCancellationRequested)
                     {
-                        if (_showWindowEvent == null)
-                            await Task.Delay(1000);
-                        else if (_showWindowEvent.WaitOne(1000))
+                        if (showWindowEvent == null)
+                            await Task.Delay(1000, cancellationToken);
+                        else if (showWindowEvent.WaitOne(1000))
                         {
-                            _showWindowEvent.Reset();
+                            showWindowEvent.Reset();
 
                             await Dispatcher.InvokeAsync(() =>
                             {
@@ -485,11 +421,13 @@ namespace DisplayProfileManager
                         }
                     }
                 }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+                catch (ObjectDisposedException) when (cancellationToken.IsCancellationRequested) { }
                 catch (Exception ex)
                 {
                     logger.Error(ex, "Error in show window listener");
                 }
-            }, _cancellationTokenSource.Token);
+            }, cancellationToken);
         }
 
         private void ShowMainWindow()
@@ -503,14 +441,43 @@ namespace DisplayProfileManager
             _mainWindow.Show();
 
             if (_mainWindow.WindowState == WindowState.Minimized)
-            {
                 _mainWindow.WindowState = WindowState.Normal;
-            }
+
+            if (_latestUpdateCheckResult != null)
+                _mainWindow.ShowUpdateAvailableNotice(_latestUpdateCheckResult);
 
             _mainWindow.Topmost = true;
             _mainWindow.Activate();
             _mainWindow.Topmost = false;
             _mainWindow.Focus();
+        }
+
+        public async Task<UpdateCheckResult> CheckForUpdatesAndNotifyAsync(bool notify = true, bool force = false)
+        {
+            if (!_settingsManager.ShouldCheckForUpdates()) return null;
+
+            if (force || _updateCheckTask == null)
+                _updateCheckTask = UpdateHelper.CheckAsync();
+
+            var result = await _updateCheckTask;
+            _latestUpdateCheckResult = result;
+
+            if (result == null || !result.UpdateAvailable)
+            {
+                return result;
+            }
+
+            _mainWindow?.ShowUpdateAvailableNotice(result);
+
+            if (notify)
+            {
+                _trayIcon?.ShowUpdateNotification(
+                    "Update available",
+                    $"Display Profile Manager {result.LatestVersion} is available.",
+                    result.ReleaseUrl);
+            }
+
+            return result;
         }
 
         private void OnShowMainWindow(object sender, EventArgs e) => ShowMainWindow();
@@ -614,20 +581,13 @@ namespace DisplayProfileManager
                 {
                     logger.Info($"Applying profile '{profile.Name}' via hotkey");
 
-                    var applyResult = await _profileManager.ApplyProfileAsync(profile);
-                    if (applyResult.Success)
-                    {
-                        string message = $"Profile '{profile.Name}' applied";
-                        logger.Info(message);
-
-                        _trayIcon?.ShowNotification("Display Profile Manager", message, System.Windows.Forms.ToolTipIcon.Info);
-                    }
-                    else
+                    var applyResult = await _profileManager.ApplyProfileAsync(profile, ProfileManager.ApplySource.Hotkey);
+                    if (!applyResult.Success)
                     {
                         string errorDetails = _profileManager.GetApplyResultErrorMessage(profile.Name, applyResult);
                         logger.Warn(errorDetails);
 
-                        _trayIcon?.ShowNotification("Display Profile Manager", errorDetails, System.Windows.Forms.ToolTipIcon.Error);
+                        _trayIcon?.ShowNotification("Apply failed", errorDetails, TrayNotificationIcon.Error);
                     }
                 }
             }
@@ -636,19 +596,17 @@ namespace DisplayProfileManager
                 logger.Error(ex, $"Error applying profile {profileId} via hotkey");
                 try
                 {
-                    _trayIcon?.ShowNotification("Display Profile Manager",
-                        "Error applying profile via hotkey",
-                        System.Windows.Forms.ToolTipIcon.Error);
+                    _trayIcon?.ShowNotification("Apply failed", "Error applying profile via hotkey", TrayNotificationIcon.Error);
                 }
                 catch { }
             }
         }
 
-        private async Task<bool> ApplyProfileAsync(string profileNameOrId)
+        private async Task<bool> ApplyProfileFromCommandLineAsync(string profileNameOrId)
         {
             try
             {
-                logger.Info($"CLI/Startup: Attempting to apply profile '{profileNameOrId}'");
+                logger.Info($"Applying profile '{profileNameOrId}' via CLI");
 
                 _profileManager = ProfileManager.Instance;
                 await SettingsManager.Instance.LoadSettingsAsync();
@@ -662,15 +620,19 @@ namespace DisplayProfileManager
                     return false;
                 }
 
-                var result = await _profileManager.ApplyProfileAsync(profile);
+                var result = await _profileManager.ApplyProfileAsync(profile, ProfileManager.ApplySource.CommandLine);
                 if (!result.Success)
-                    logger.Warn(_profileManager.GetApplyResultErrorMessage(profile.Name, result));
+                {
+                    var errorDetails = _profileManager.GetApplyResultErrorMessage(profile.Name, result);
+                    logger.Warn(errorDetails);
+                    _trayIcon?.ShowNotification("Apply failed", errorDetails, TrayNotificationIcon.Error);
+                }
 
                 return result.Success;
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error during ApplyProfileAsync execution");
+                logger.Error(ex, "Error applying profile from CLI");
                 return false;
             }
         }
@@ -690,6 +652,26 @@ namespace DisplayProfileManager
             }
         }
 
+        private void OnProfileApplied(object sender, ProfileManager.ProfileAppliedEventArgs e)
+        {
+            if (!_settingsManager.ShouldShowNotifications()) return;
+
+            string source = e.Source switch
+            {
+                ProfileManager.ApplySource.Window => "Applied",
+                ProfileManager.ApplySource.Tray => "Applied from tray",
+                ProfileManager.ApplySource.Hotkey => "Applied by hotkey",
+                ProfileManager.ApplySource.CommandLine => "Applied via CLI",
+                ProfileManager.ApplySource.Startup => "Applied at startup",
+                _ => "Applied"
+            };
+
+            double seconds = Math.Ceiling(e.DurationMilliseconds / 100.0) / 10.0;
+            string elapsed = $"{seconds:0.#} {(seconds == 1 ? "second" : "seconds")}";
+
+            _trayIcon?.ShowNotification(e.Profile.Name, $"{source} in {elapsed}", TrayNotificationIcon.None);
+        }
+
         private static void OnScrollViewerPreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
             if (Keyboard.Modifiers != ModifierKeys.Shift) return;
@@ -707,18 +689,18 @@ namespace DisplayProfileManager
             _mainWindow = null;
         }
 
-        private void OnExitApplication(object sender, EventArgs e) =>  Shutdown();
+        private void OnExitApplication(object sender, EventArgs e) => Shutdown();
 
         protected override void OnExit(ExitEventArgs e)
         {
             try
             {
                 _cancellationTokenSource?.Cancel();
-                _cancellationTokenSource?.Dispose();
-
                 _showWindowEvent?.Dispose();
 
-                _instanceMutex?.ReleaseMutex();
+                if (_ownsInstanceMutex)
+                    _instanceMutex?.ReleaseMutex();
+
                 _instanceMutex?.Dispose();
 
                 _trayIcon?.Dispose();
@@ -728,6 +710,7 @@ namespace DisplayProfileManager
                     _profileManager.ProfileAdded -= OnProfileChanged;
                     _profileManager.ProfileUpdated -= OnProfileChanged;
                     _profileManager.ProfileDeleted -= OnProfileDeleted;
+                    _profileManager.ProfileApplied -= OnProfileApplied;
                 }
 
                 if (_globalHotkeyHelper != null)
@@ -738,17 +721,6 @@ namespace DisplayProfileManager
 
                 ThemeHelper.Cleanup();
 
-                if (_settingsManager != null)
-                {
-                    try
-                    {
-                        Task.Run(() => _settingsManager.SaveSettingsAsync()).GetAwaiter().GetResult();
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.Error(ex, "Error saving settings on exit");
-                    }
-                }
             }
             catch (Exception ex)
             {

@@ -136,9 +136,7 @@ namespace DisplayProfileManager.UI.Controls
             if (Helpers.KeyConverter.IsModifierKey(key))
             {
                 if (!IsRecording)
-                {
                     StartRecording();
-                }
                 UpdateRecordingDisplay();
                 return;
             }

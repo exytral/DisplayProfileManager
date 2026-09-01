@@ -62,22 +62,7 @@ namespace DisplayProfileManager.Helpers
 
         #endregion
 
-        #region Structs and Enums
-
-        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
-        private struct DISPLAY_DEVICE
-        {
-            public uint cb;
-            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
-            public string DeviceName;
-            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)]
-            public string DeviceString;
-            public uint StateFlags;
-            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)]
-            public string DeviceID;
-            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)]
-            public string DeviceKey;
-        }
+        #region Enums
 
         private enum WcsProfileManagementScope : uint
         {
@@ -113,6 +98,25 @@ namespace DisplayProfileManager.Helpers
 
         #endregion
 
+        #region Structures
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+        private struct DISPLAY_DEVICE
+        {
+            public uint cb;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
+            public string DeviceName;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)]
+            public string DeviceString;
+            public uint StateFlags;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)]
+            public string DeviceID;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)]
+            public string DeviceKey;
+        }
+
+        #endregion
+
         #region Private Methods
 
         private static uint ReadBigEndianUInt32(BinaryReader br)
@@ -128,7 +132,10 @@ namespace DisplayProfileManager.Helpers
         {
             var dd = new DISPLAY_DEVICE();
             dd.cb = (uint)Marshal.SizeOf(dd);
-            if (EnumDisplayDevices(gdiDeviceName, 0, ref dd, 0)) return dd.DeviceKey;
+            if (EnumDisplayDevices(gdiDeviceName, 0, ref dd, 0))
+            {
+                return dd.DeviceKey;
+            }
 
             return null;
         }
@@ -193,7 +200,10 @@ namespace DisplayProfileManager.Helpers
             GetColorDirectory(null, null, ref size);
 
             var sb = new System.Text.StringBuilder((int)size + 2);
-            if (GetColorDirectory(null, sb, ref size)) return sb.ToString();
+            if (GetColorDirectory(null, sb, ref size))
+            {
+                return sb.ToString();
+            }
 
             return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), @"spool\drivers\color");
         }
@@ -203,10 +213,12 @@ namespace DisplayProfileManager.Helpers
             try
             {
                 string dir = GetSystemColorDirectory();
-                if (!Directory.Exists(dir)) return Array.Empty<string>();
+                if (!Directory.Exists(dir))
+                {
+                    return Array.Empty<string>();
+                }
 
                 var files = Directory.GetFiles(dir, "*.icc").Concat(Directory.GetFiles(dir, "*.icm")).OrderBy(f => f, StringComparer.OrdinalIgnoreCase);
-
                 return files.Where(f => !hdrOnly || IccProfileIsHdr(f)).Select(Path.GetFileName).ToList();
             }
             catch (Exception ex)
@@ -223,12 +235,21 @@ namespace DisplayProfileManager.Helpers
                 using (var fs = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, bufferSize: 512, useAsync: false))
                 using (var br = new BinaryReader(fs))
                 {
-                    if (fs.Length < 132) return false;
+                    if (fs.Length < 132)
+                    {
+                        return false;
+                    }
 
                     br.ReadBytes(128);
                     uint tagCount = ReadBigEndianUInt32(br);
-                    if (tagCount > 1000) return false;
-                    if (fs.Length < 132 + (tagCount * 12L)) return false;
+                    if (tagCount > 1000)
+                    {
+                        return false;
+                    }
+                    if (fs.Length < 132 + (tagCount * 12L))
+                    {
+                        return false;
+                    }
 
                     const uint SIG_CICP = 0x63696370;
                     const uint SIG_MHC2 = 0x4D484332;
@@ -244,9 +265,7 @@ namespace DisplayProfileManager.Helpers
                             return true;
                         }
                         if (sig == SIG_CICP)
-                        {
                             cicpOffset = offset; cicpSize = size;
-                        }
                     }
 
                     if (cicpOffset.HasValue && cicpSize >= 12)
@@ -311,7 +330,11 @@ namespace DisplayProfileManager.Helpers
 
         public static bool ApplyColorProfile(DisplaySetting setting, List<DisplayConfigHelper.DisplayConfigInfo> liveConfigs)
         {
-            if (string.IsNullOrEmpty(setting.ColorProfile) || !setting.IsEnabled) return true;
+            if (string.IsNullOrEmpty(setting.ColorProfile) || !setting.IsEnabled)
+            {
+                return true;
+
+            }
 
             return ApplyColorFile(setting.DeviceName, setting.AdapterLuid, setting.SourceId, setting.ColorProfile);
         }

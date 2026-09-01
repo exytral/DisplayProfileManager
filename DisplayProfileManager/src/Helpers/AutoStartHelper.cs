@@ -2,13 +2,22 @@ using DisplayProfileManager.Core;
 using Microsoft.Win32;
 using NLog;
 using System;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Security.Principal;
 using System.Text;
 
 namespace DisplayProfileManager.Helpers
 {
+    public enum AutoStartOperationResult
+    {
+        Success,
+        Canceled,
+        Failed
+    }
+
     public class AutoStartHelper
     {
         private static readonly Logger logger = LoggerHelper.GetLogger();
@@ -19,42 +28,77 @@ namespace DisplayProfileManager.Helpers
         private const string TaskName = "DisplayProfileManager_Startup";
         private const string TaskFolder = "\\DisplayProfileManager";
         private const string FullTaskPath = TaskFolder + "\\" + TaskName;
+        private const int ErrorCanceled = 1223;
 
-        public bool EnableAutoStart(AutoStartMode mode, bool startInTray = false)
+        public bool IsAutoStartEnabled()
         {
             try
             {
-                return mode == AutoStartMode.Registry ? EnableAutoStartRegistry(startInTray) : EnableAutoStartTaskScheduler(startInTray);
+                return IsAutoStartEnabledRegistry() || IsAutoStartEnabledTaskScheduler();
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error enabling auto start");
+                logger.Error(ex, "Error reading auto-start state");
                 return false;
             }
         }
 
-        public bool DisableAutoStart()
+        public AutoStartOperationResult EnableAutoStart(
+            AutoStartMode mode,
+            bool startInTray = false)
         {
             try
             {
-                bool registryResult = true;
-                if (IsAutoStartEnabledRegistry())
-                    registryResult = DisableAutoStartRegistry();
+                if (mode == AutoStartMode.Registry)
+                {
+                    return EnableAutoStartRegistry(startInTray)
+                        ? AutoStartOperationResult.Success
+                        : AutoStartOperationResult.Failed;
+                }
 
-                bool taskSchedulerResult = true;
+                return EnableAutoStartTaskScheduler(startInTray);
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex, "Error enabling auto-start");
+                return AutoStartOperationResult.Failed;
+            }
+        }
+
+        public AutoStartOperationResult DisableAutoStart()
+        {
+            try
+            {
+                AutoStartOperationResult registryResult = AutoStartOperationResult.Success;
+                if (IsAutoStartEnabledRegistry())
+                {
+                    registryResult = DisableAutoStartRegistry()
+                        ? AutoStartOperationResult.Success
+                        : AutoStartOperationResult.Failed;
+                }
+
+                AutoStartOperationResult taskSchedulerResult = AutoStartOperationResult.Success;
                 if (IsAutoStartEnabledTaskScheduler())
                     taskSchedulerResult = DisableAutoStartTaskScheduler();
 
-                return registryResult || taskSchedulerResult;
+                if (registryResult == AutoStartOperationResult.Canceled || taskSchedulerResult == AutoStartOperationResult.Canceled)
+                {
+                    return AutoStartOperationResult.Canceled;
+                }
+
+                return registryResult == AutoStartOperationResult.Success
+                    && taskSchedulerResult == AutoStartOperationResult.Success
+                    ? AutoStartOperationResult.Success
+                    : AutoStartOperationResult.Failed;
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error disabling auto start");
-                return false;
+                logger.Error(ex, "Error disabling auto-start");
+                return AutoStartOperationResult.Failed;
             }
         }
 
-        #region Registry Implementation
+        #region Registry
 
         private bool IsAutoStartEnabledRegistry()
         {
@@ -77,7 +121,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error checking registry auto start");
+                logger.Error(ex, "Error checking registry auto-start");
                 return false;
             }
         }
@@ -118,7 +162,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error enabling registry auto start");
+                logger.Error(ex, "Error enabling registry auto-start");
                 return false;
             }
         }
@@ -146,14 +190,38 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error disabling registry auto start");
+                logger.Error(ex, "Error disabling registry auto-start");
                 return false;
             }
         }
 
         #endregion
 
-        #region Task Scheduler Implementation
+        #region Task Scheduler
+
+        private static string Esc(string value) => System.Security.SecurityElement.Escape(value) ?? string.Empty;
+
+        private static bool IsTaskXmlEnabled(string taskXml)
+        {
+            if (string.IsNullOrWhiteSpace(taskXml))
+            {
+                return false;
+            }
+
+            try
+            {
+                var doc = System.Xml.Linq.XDocument.Parse(taskXml);
+                var settings = doc.Root?.Elements().FirstOrDefault(e => e.Name.LocalName == "Settings");
+                var enabled = settings?.Elements().FirstOrDefault(e => e.Name.LocalName == "Enabled");
+
+                return enabled == null || string.Equals(enabled.Value.Trim(), "true", StringComparison.OrdinalIgnoreCase);
+            }
+            catch (Exception ex)
+            {
+                logger.Debug(ex, "Could not parse task XML -> treating auto-start as not enabled");
+                return false;
+            }
+        }
 
         private bool IsAutoStartEnabledTaskScheduler()
         {
@@ -164,7 +232,7 @@ namespace DisplayProfileManager.Helpers
                     StartInfo = new ProcessStartInfo
                     {
                         FileName = "schtasks.exe",
-                        Arguments = $"/Query /TN \"{FullTaskPath}\" /FO LIST /V",
+                        Arguments = $"/Query /TN \"{FullTaskPath}\" /XML",
                         UseShellExecute = false,
                         RedirectStandardOutput = true,
                         RedirectStandardError = true,
@@ -172,24 +240,24 @@ namespace DisplayProfileManager.Helpers
                     }
                 })
                 {
+                    logger.Debug($"Querying: schtasks {process.StartInfo.Arguments}");
                     process.Start();
                     var output = process.StandardOutput.ReadToEnd();
                     process.WaitForExit();
 
-                    bool isEnabled = process.ExitCode == 0 && output.Contains(TaskName) && output.Contains("Enabled") && !output.Contains("Disabled");
-
+                    bool isEnabled = process.ExitCode == 0 && IsTaskXmlEnabled(output);
                     logger.Debug($"Task Scheduler auto-start {(isEnabled ? "found" : "not found")}");
                     return isEnabled;
                 }
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error checking Task Scheduler auto start");
+                logger.Error(ex, "Error checking Task Scheduler auto-start");
                 return false;
             }
         }
 
-        private bool EnableAutoStartTaskScheduler(bool startInTray = false)
+        private AutoStartOperationResult EnableAutoStartTaskScheduler(bool startInTray = false)
         {
             try
             {
@@ -197,13 +265,13 @@ namespace DisplayProfileManager.Helpers
                 if (string.IsNullOrEmpty(executablePath))
                 {
                     logger.Error("Could not determine executable path");
-                    return false;
+                    return AutoStartOperationResult.Failed;
                 }
 
                 if (!File.Exists(executablePath))
                 {
                     logger.Error($"Executable path does not exist: {executablePath}");
-                    return false;
+                    return AutoStartOperationResult.Failed;
                 }
 
                 var xmlContent = GenerateTaskXml(executablePath, startInTray);
@@ -220,22 +288,33 @@ namespace DisplayProfileManager.Helpers
                             Arguments = $"/Create /TN \"{FullTaskPath}\" /XML \"{tempXmlPath}\" /F",
                             UseShellExecute = true,
                             Verb = "runas",
-                            CreateNoWindow = false
+                            CreateNoWindow = true,
+                            WindowStyle = ProcessWindowStyle.Hidden
                         }
                     })
                     {
-                        process.Start();
+                        logger.Debug($"Elevating: schtasks {process.StartInfo.Arguments}");
+                        try
+                        {
+                            process.Start();
+                        }
+                        catch (Win32Exception ex) when (ex.NativeErrorCode == ErrorCanceled)
+                        {
+                            logger.Info("Task Scheduler auto-start setup canceled");
+                            return AutoStartOperationResult.Canceled;
+                        }
+
                         process.WaitForExit();
 
                         if (process.ExitCode == 0)
                         {
                             logger.Info("Successfully created Task Scheduler auto-start (elevated)");
-                            return true;
+                            return AutoStartOperationResult.Success;
                         }
                         else
                         {
                             logger.Error($"Failed to create Task Scheduler auto-start (elevated). Exit code: {process.ExitCode}");
-                            return false;
+                            return AutoStartOperationResult.Failed;
                         }
                     }
                 }
@@ -249,12 +328,12 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error enabling Task Scheduler auto start");
-                return false;
+                logger.Error(ex, "Error enabling Task Scheduler auto-start");
+                return AutoStartOperationResult.Failed;
             }
         }
 
-        private bool DisableAutoStartTaskScheduler()
+        private AutoStartOperationResult DisableAutoStartTaskScheduler()
         {
             try
             {
@@ -266,38 +345,52 @@ namespace DisplayProfileManager.Helpers
                         Arguments = $"/Delete /TN \"{FullTaskPath}\" /F",
                         UseShellExecute = true,
                         Verb = "runas",
-                        CreateNoWindow = false
+                        CreateNoWindow = true,
+                        WindowStyle = ProcessWindowStyle.Hidden
                     }
                 })
                 {
-                    process.Start();
+                    logger.Debug($"Elevating: schtasks {process.StartInfo.Arguments}");
+                    try
+                    {
+                        process.Start();
+                    }
+                    catch (Win32Exception ex) when (ex.NativeErrorCode == ErrorCanceled)
+                    {
+                        logger.Info("Task Scheduler auto-start removal canceled");
+                        return AutoStartOperationResult.Canceled;
+                    }
+
                     process.WaitForExit();
 
                     if (process.ExitCode == 0)
                     {
                         logger.Info("Successfully deleted Task Scheduler auto-start (elevated)");
-                        return true;
+                        return AutoStartOperationResult.Success;
                     }
                     else
                     {
                         logger.Error($"Failed to delete Task Scheduler auto-start (elevated). Exit code: {process.ExitCode}");
-                        return false;
+                        return AutoStartOperationResult.Failed;
                     }
                 }
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error disabling Task Scheduler auto start");
-                return false;
+                logger.Error(ex, "Error disabling Task Scheduler auto-start");
+                return AutoStartOperationResult.Failed;
             }
         }
 
         private string GenerateTaskXml(string executablePath, bool startInTray = false)
         {
-            var currentUser = Environment.UserDomainName + "\\" + Environment.UserName;
+            var currentUser = Esc(Environment.UserDomainName + "\\" + Environment.UserName);
             var timestamp = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss");
-            var description = startInTray ? "Starts Display Profile Manager minimized to system tray when user logs on" : "Starts Display Profile Manager when user logs on";
+            var description = Esc(startInTray ? "Starts Display Profile Manager minimized to system tray when user logs on" : "Starts Display Profile Manager when user logs on");
             var argumentsElement = startInTray ? $"\n      <Arguments>--tray</Arguments>" : "";
+            var commandPath = Esc(executablePath);
+            var workingDirectory = Esc(Path.GetDirectoryName(executablePath) ?? string.Empty);
+            var taskUri = Esc(FullTaskPath);
 
             string xmlText =
                 $@"<?xml version=""1.0"" encoding=""UTF-16""?>
@@ -306,7 +399,7 @@ namespace DisplayProfileManager.Helpers
                     <Date>{timestamp}</Date>
                     <Author>{currentUser}</Author>
                     <Description>{description}</Description>
-                    <URI>{FullTaskPath}</URI>
+                    <URI>{taskUri}</URI>
                     </RegistrationInfo>
                     <Triggers>
                     <LogonTrigger>
@@ -344,8 +437,8 @@ namespace DisplayProfileManager.Helpers
                     </Settings>
                     <Actions Context=""Author"">
                     <Exec>
-                        <Command>{executablePath}</Command>{argumentsElement}
-                        <WorkingDirectory>{Path.GetDirectoryName(executablePath)}</WorkingDirectory>
+                        <Command>{commandPath}</Command>{argumentsElement}
+                        <WorkingDirectory>{workingDirectory}</WorkingDirectory>
                     </Exec>
                     </Actions>
                 </Task>";
@@ -411,10 +504,6 @@ namespace DisplayProfileManager.Helpers
         public bool IsValid { get; set; }
         public string TaskStatus { get; set; } = string.Empty;
         public DateTime? LastRunTime { get; set; }
-
-        public override string ToString()
-        {
-            return $"Enabled: {IsEnabled}, Valid: {IsValid}, Status: {TaskStatus}, Command: {Command}, LastRun: {LastRunTime}";
-        }
+        public override string ToString() => $"Enabled: {IsEnabled}, Valid: {IsValid}, Status: {TaskStatus}, Command: {Command}, LastRun: {LastRunTime}";
     }
 }

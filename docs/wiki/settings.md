@@ -1,6 +1,6 @@
 # Settings
 
-Open Settings from the **Settings** button in the main window, or via **Settings...** in the system tray menu.
+Open Settings from the **"Settings"** button in the main window or in the system tray menu.
 
 ![Settings](../img/settings.png)
 
@@ -8,54 +8,70 @@ Open Settings from the **Settings** button in the main window, or via **Settings
 
 ## Theme
 
-Select a theme from the dropdown. The change applies immediately. Built-in options are Light, Dark, Black, and System (follows Windows light/dark mode). Any custom themes you have installed appear below the built-ins.
+Select a theme from the dropdown. The change applies immediately.
 
-> See [Themes](./themes.md) for importing custom themes and using DPM Theme Builder.
+The built-in theme options are **Light**, **Dark**, **Black**, and **System**. System follows the Windows light/dark setting, and the packaged visual themes use the Windows accent color.
+
+> See [Themes](./themes.md) for custom theme files and DPM Theme Builder.
 
 ---
 
 ## Start with Windows
 
-Enables DPM to launch automatically at login. When enabled, **Start in system tray when Windows starts** becomes available — check it to skip the main window and go straight to the tray on startup.
+Enable **"Start with Windows"** to launch Display Profile Manager automatically when you sign in. When enabled, **"Start in system tray when Windows starts"** becomes available.
 
-Unchecking **Start with Windows** also unchecks the tray sub-option automatically.
+**Auto-Start Method** offers two modes:
 
-**Auto-Start Method** — two modes are available:
+- **Standard (No admin required)** — uses the per-user Registry startup entry.
+- **Quick Launch (Requires admin for setup)** — uses Task Scheduler and requires administrator approval during setup.
 
-- **Standard (No admin required)** — registers DPM in the Windows Registry (`HKCU\...\Run`). Normal startup speed. No admin rights needed.
-- **Quick Launch (Requires admin for setup)** — registers a Task Scheduler task. Faster and higher priority startup. Admin is required once during setup; normal launches afterward do not need it.
+When an elevated Task Scheduler operation is canceled, Settings restores the previous auto-start state and shows a warning. Other failures show an error and restore the previous state.
 
 ---
 
-## Startup Profile
+## App Startup
 
-Choose a profile to apply when DPM starts, and check **Apply startup profile on launch** to enable it. This is independent of the **Default** badge shown on profile cards — you can set freely any profile as the startup profile.
+Configure actions that occur when Display Profile Manager launches.
+
+- **Check for updates on startup** — off by default. When enabled, Display Profile Manager checks GitHub for a newer release immediately and at startup. Newer releases are shown in the status bar, About section, and Windows notifications after the seven-day age threshold.
+- **Startup Profile** — apply a selected profile when Display Profile Manager starts.
+
+Update checking is not continuously polled. Display Profile Manager checks release metadata only; it does not download, install, or execute updates.
 
 ---
 
 ## Window Behavior
 
-Controls what happens when you close the main window:
+Choose what happens when the main window closes:
 
-- **Minimize to system tray** — DPM stays running in the background (default)
-- **Exit application** — DPM shuts down completely
+- **Minimize to system tray** — keep Display Profile Manager running in the background.
+- **Exit application** — shut Display Profile Manager down immediately.
 
-Check **Remember my choice** to suppress the prompt and always use the selected behavior.
+**"Remember my choice"** suppresses the close prompt and always uses the selected behavior.
+
+**"Show notifications when profiles are applied"** controls Windows toast notifications for supported profile-apply entry points.
+
+**"Add profile switcher to desktop right-click menu"** registers the native shell extension as a per-user integration. The extension applies profiles through the `--headless` command path.
 
 ---
 
-## Notifications
+## Display Recovery
 
-**Show notifications when profiles are applied** — toggles Windows toast notifications that appear each time a profile is applied through the tray or hotkeys. On by default.
+Display recovery settings control what happens when a display-configuration stage fails. All three recovery settings are enabled by default.
+
+- **Abort the profile application if display configuration fails** — stop the profile pipeline when a display stage fails instead of continuing through DPI, wallpaper, audio, and scripts.
+- **Rollback after an aborted display application** — perform recovery after an aborted display apply.
+- **Reapply the previous profile** — use the previously active profile when one exists; otherwise fall back to the pre-apply display snapshot.
+- **Restore the pre-apply snapshot** — use the pre-apply snapshot directly. Snapshot rollback restores display state only and does not leave a profile marked active.
 
 ---
 
 ## Global Hotkeys
 
-A read-only list of all hotkeys configured across your profiles, showing which profile each is assigned to and whether it is currently enabled. To add or change a hotkey, open the profile editor for the relevant profile.
+A read-only list shows configured profile hotkeys and their current enabled state. Edit a profile to add or change its hotkey.
 
 ---
 
 ## About
 
-Shows the current version number, the path to your settings file, third-party library licenses, and contributor acknowledgements.
+Shows the current application version, settings-file path, dependency metadata, and contributors.

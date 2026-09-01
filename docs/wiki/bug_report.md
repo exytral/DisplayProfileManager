@@ -1,12 +1,13 @@
 # Reporting a Bug
 
-Before filing, check the [existing issues](/issues) to see if it's already been reported.
+Before filing, check the [existing issues](/issues) to see if the problem has already been reported.
 
 ---
 
 ## What to include
 
-A good bug report has three things: what you were doing, what went wrong, and enough files to reproduce or diagnose it.
+A useful bug report has three things: what you were doing, what went wrong, and enough information to reproduce or diagnose it.
+
 ### 1. Describe the failure
 
 - What did you expect to happen?
@@ -15,29 +16,29 @@ A good bug report has three things: what you were doing, what went wrong, and en
 
 ### 2. Profile transition
 
-Almost all display switching issues are transition-specific. Include:
+Most display-switching problems depend on the transition between two states. Include:
 
-- **Source profile** — the profile you were switching *from* (or the state you were in)
-- **Destination profile** — the profile you were switching *to*
+- **Source profile** — the profile you were switching _from_, or the display state you were in
+- **Destination profile** — the profile you were switching _to_
 
-Attach both `.dpm` files. Profile files are stored at:
+Attach both `.dpm` files when applicable. Profile files are stored at:
 
-```
+```text
 %AppData%\Roaming\DisplayProfileManager\Profiles\
 ```
 
 ### 3. Log file
 
-DPM logs everything it does during a profile apply. The log file for the day the issue occurred is at:
+The application logs profile-apply activity to a daily log file. The logs are stored at:
 
-```
+```text
 %AppData%\Roaming\DisplayProfileManager\Logs\
 ```
 
-Attach the relevant daily log file. If the issue is reproducible, reproduce it, then grab the log immediately.
+Attach the relevant log file from the day the problem occurred. For a reproducible problem, reproduce it first and then collect the log immediately afterward.
 
 ---
 
 ## How to file
 
-Use the [bug report form](/issues/new/choose) on GitHub. The form will prompt you for all of the above.
+Use the [bug report form](/issues/new/choose) on GitHub. The form prompts you for the information needed to investigate the problem.

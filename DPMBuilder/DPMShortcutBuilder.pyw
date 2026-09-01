@@ -400,7 +400,7 @@ function Find-DpmExe {
             $regExe = (Get-ItemProperty $regPath -ErrorAction Stop).InstallPath
             if ($regExe) { $candidates = @($regExe) + $candidates }
         }
-    } catch {}
+    } catch { }
     foreach ($c in $candidates) {
         if (Test-Path $c) { return $c }
     }
@@ -414,7 +414,7 @@ function Get-ActiveProfileId {
             $state = Get-Content $statePath -Raw | ConvertFrom-Json
             if ($state.currentProfileId) { return $state.currentProfileId }
         }
-    } catch {}
+    } catch { }
     return $null
 }
 
@@ -437,10 +437,26 @@ if ($restoreMode -eq 'dynamic') {
 
 $applyOk = Invoke-DpmApply $profileId
 if (-not $applyOk) {
-    Add-Type -AssemblyName System.Windows.Forms
-    [System.Windows.Forms.MessageBox]::Show(
+    Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+
+public static class DpmMessageBox {
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    public static extern int MessageBox(
+        IntPtr hWnd,
+        string lpText,
+        string lpCaption,
+        uint uType
+    );
+}
+'@
+    [DpmMessageBox]::MessageBox(
+        [IntPtr]::Zero,
         "Failed to apply display profile '$profileName'.`nThe application will not be launched.",
-        'DPM Shortcut', 'OK', 'Error') | Out-Null
+        "DPM Shortcut",
+        0x10
+    ) | Out-Null
     exit 1
 }
 
@@ -1258,7 +1274,7 @@ class ConfigPanel(tk.Frame):
                 "Overwrite?",
                 f"A shortcut named \u2018{name}\u2019 already exists. Overwrite?",
             ):
-                raise ValueError("Cancelled.")
+                raise ValueError("Canceled.")
             entry = _entry_for(name, folder)
 
         try:
@@ -1299,7 +1315,7 @@ class ConfigPanel(tk.Frame):
         try:
             entry = self._write_shortcut(*fields)
         except ValueError as exc:
-            if str(exc) != "Cancelled.":
+            if str(exc) != "Canceled.":
                 messagebox.showerror("Save error", str(exc))
             return
 
@@ -1320,7 +1336,7 @@ class ConfigPanel(tk.Frame):
             try:
                 self._current_entry = self._write_shortcut(*fields)
             except ValueError as exc:
-                if str(exc) != "Cancelled.":
+                if str(exc) != "Canceled.":
                     messagebox.showerror("Save error", str(exc))
                 return
             self._dirty = False
@@ -1490,11 +1506,26 @@ class App(tk.Tk):
         list_frame = tk.Frame(left)
         list_frame.pack(fill=tk.BOTH, expand=True, padx=8)
 
-        self._listbox = tk.Listbox(list_frame, selectmode=tk.SINGLE,
-                                   activestyle="dotbox", font=("Segoe UI", 9))
-        lsb = ttk.Scrollbar(list_frame, orient=tk.VERTICAL,
-                             command=self._listbox.yview)
+        list_surface = tk.Frame(list_frame, bd=1, relief=tk.SUNKEN)
+        list_surface.pack(fill=tk.BOTH, expand=True)
+
+        self._listbox = tk.Listbox(
+            list_surface,
+            selectmode=tk.SINGLE,
+            activestyle="dotbox",
+            font=("Segoe UI", 9),
+            bd=0,
+            highlightthickness=0,
+        )
+
+        lsb = ttk.Scrollbar(
+            list_surface,
+            orient=tk.VERTICAL,
+            command=self._listbox.yview,
+        )
+
         self._listbox.configure(yscrollcommand=lsb.set)
+
         self._listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         lsb.pack(side=tk.RIGHT, fill=tk.Y)
 
@@ -1538,7 +1569,11 @@ class App(tk.Tk):
 
     def _refresh_title(self, dirty: bool = False):
         marker = "*" if dirty else ""
-        self.title(f"DPM Shortcut Builder{marker}")
+        name = self._config._current_entry.name if self._config._current_entry else None
+        if name:
+            self.title(f"DPM Shortcut Builder - {name}{marker}")
+        else:
+            self.title(f"DPM Shortcut Builder{marker}")
 
     # ── Unsaved-changes guard ─────────────────────────────────────────────
 

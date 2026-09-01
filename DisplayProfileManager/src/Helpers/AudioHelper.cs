@@ -12,7 +12,7 @@ namespace DisplayProfileManager.Helpers
         private static readonly object _lock = new object();
         private static readonly Dictionary<string, (string Name, DateTime Discovered)> _deviceCache = new Dictionary<string, (string Name, DateTime Discovered)>();
 
-        #region P/Invoke
+        #region Interop — Audio COM
 
         [ComImport, Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
         private interface IMMDeviceEnumerator
@@ -73,6 +73,10 @@ namespace DisplayProfileManager.Helpers
         [ComImport, Guid("870af99c-171d-4f9e-af0d-e63df40c2bc9")]
         private class PolicyConfigClientComObject { }
 
+        #endregion
+
+        #region Interop — Audio Types
+
         [StructLayout(LayoutKind.Sequential)]
         private struct PROPERTYKEY
         {
@@ -88,8 +92,19 @@ namespace DisplayProfileManager.Helpers
             [FieldOffset(8)] public IntPtr pwszVal;
         }
 
-        private enum EDataFlow { Render, Capture, All }
-        private enum ERole { Console, Multimedia, Communications }
+        private enum EDataFlow
+        {
+            Render,
+            Capture,
+            All
+        }
+
+        private enum ERole
+        {
+            Console,
+            Multimedia,
+            Communications
+        }
 
         private const uint DeviceStateActive = 0x00000001;
         private const uint StgmRead = 0x00000000;
@@ -100,10 +115,20 @@ namespace DisplayProfileManager.Helpers
             pid = 14
         };
 
+        #endregion
+
+        #region P/Invoke
+
         [DllImport("ole32.dll")]
         private static extern int PropVariantClear(ref PROPVARIANT pvar);
 
         #endregion
+
+        public enum DeviceType
+        {
+            Playback,
+            Capture
+        }
 
         public class AudioDeviceInfo
         {
@@ -111,12 +136,15 @@ namespace DisplayProfileManager.Helpers
             public string Name { get; set; }
             public string SystemName { get; set; }
             public bool IsActive { get; set; }
+            public bool IsAvailable { get; set; } = true;
             public DeviceType Type { get; set; }
 
-            public override string ToString() => SystemName ?? Name ?? "Unknown Device";
+            public override string ToString()
+            {
+                var name = SystemName ?? Name ?? "Unknown Device";
+                return IsAvailable ? name : $"{name} (Unavailable)";
+            }
         }
-
-        public enum DeviceType { Playback, Capture }
 
         #region Device Enumeration
 
@@ -126,6 +154,7 @@ namespace DisplayProfileManager.Helpers
         {
             IPropertyStore store = null;
             PROPVARIANT pv = new PROPVARIANT();
+
             try
             {
                 if (device.OpenPropertyStore(StgmRead, out store) != 0) return null;
@@ -145,6 +174,7 @@ namespace DisplayProfileManager.Helpers
             finally
             {
                 PropVariantClear(ref pv);
+
                 if (store != null)
                     Marshal.ReleaseComObject(store);
             }
@@ -177,15 +207,19 @@ namespace DisplayProfileManager.Helpers
             var devices = new List<AudioDeviceInfo>();
             IMMDeviceEnumerator enumerator = null;
             IMMDeviceCollection collection = null;
+
             try
             {
                 enumerator = CreateEnumerator();
+
                 if (enumerator.EnumAudioEndpoints(EDataFlow.Render, DeviceStateActive, out collection) == 0)
                 {
                     collection.GetCount(out var count);
+
                     for (uint i = 0; i < count; i++)
                     {
                         IMMDevice device = null;
+
                         try
                         {
                             if (collection.Item(i, out device) == 0)
@@ -211,6 +245,7 @@ namespace DisplayProfileManager.Helpers
             {
                 if (collection != null)
                     Marshal.ReleaseComObject(collection);
+
                 if (enumerator != null)
                     Marshal.ReleaseComObject(enumerator);
             }
@@ -223,26 +258,31 @@ namespace DisplayProfileManager.Helpers
             var devices = new List<AudioDeviceInfo>();
             IMMDeviceEnumerator enumerator = null;
             IMMDeviceCollection collection = null;
+
             try
             {
                 enumerator = CreateEnumerator();
                 if (enumerator.EnumAudioEndpoints(EDataFlow.Capture, DeviceStateActive, out collection) == 0)
                 {
                     collection.GetCount(out var count);
+
                     for (uint i = 0; i < count; i++)
                     {
                         IMMDevice device = null;
+
                         try
                         {
                             if (collection.Item(i, out device) == 0)
                                 devices.Add(DeviceToInfo(device, DeviceType.Capture));
                         }
-                        catch (Exception ex) {
+                        catch (Exception ex)
+                        {
                             logger.Error(ex, "Error processing capture device");
                         }
                         finally
                         {
-                            if (device != null) Marshal.ReleaseComObject(device);
+                            if (device != null)
+                                Marshal.ReleaseComObject(device);
                         }
                     }
                 }
@@ -255,6 +295,7 @@ namespace DisplayProfileManager.Helpers
             {
                 if (collection != null)
                     Marshal.ReleaseComObject(collection);
+
                 if (enumerator != null)
                     Marshal.ReleaseComObject(enumerator);
             }
@@ -266,9 +307,11 @@ namespace DisplayProfileManager.Helpers
         {
             IMMDeviceEnumerator enumerator = null;
             IMMDevice device = null;
+
             try
             {
                 enumerator = CreateEnumerator();
+
                 if (enumerator.GetDefaultAudioEndpoint(EDataFlow.Render, ERole.Console, out device) != 0) return null;
 
                 return DeviceToInfo(device, DeviceType.Playback);
@@ -282,6 +325,7 @@ namespace DisplayProfileManager.Helpers
             {
                 if (device != null)
                     Marshal.ReleaseComObject(device);
+
                 if (enumerator != null)
                     Marshal.ReleaseComObject(enumerator);
             }
@@ -291,9 +335,11 @@ namespace DisplayProfileManager.Helpers
         {
             IMMDeviceEnumerator enumerator = null;
             IMMDevice device = null;
+
             try
             {
                 enumerator = CreateEnumerator();
+
                 if (enumerator.GetDefaultAudioEndpoint(EDataFlow.Capture, ERole.Console, out device) != 0) return null;
 
                 return DeviceToInfo(device, DeviceType.Capture);
@@ -307,6 +353,7 @@ namespace DisplayProfileManager.Helpers
             {
                 if (device != null)
                     Marshal.ReleaseComObject(device);
+
                 if (enumerator != null)
                     Marshal.ReleaseComObject(enumerator);
             }
@@ -319,15 +366,19 @@ namespace DisplayProfileManager.Helpers
         private static bool SetDefaultEndpoint(string deviceId)
         {
             IPolicyConfig policyConfig = null;
+
             try
             {
                 policyConfig = (IPolicyConfig)new PolicyConfigClientComObject();
+
                 var hr1 = policyConfig.SetDefaultEndpoint(deviceId, ERole.Console);
                 var hr2 = policyConfig.SetDefaultEndpoint(deviceId, ERole.Multimedia);
                 var hr3 = policyConfig.SetDefaultEndpoint(deviceId, ERole.Communications);
+
                 if (hr1 != 0 || hr2 != 0 || hr3 != 0)
                 {
                     logger.Warn($"SetDefaultEndpoint partial failure — HRESULT console={hr1:X} multimedia={hr2:X} comms={hr3:X}");
+
                     return false;
                 }
 
@@ -352,17 +403,22 @@ namespace DisplayProfileManager.Helpers
                 logger.Warn("SetDefaultPlaybackDevice called with null/empty ID");
                 return false;
             }
+
             IMMDeviceEnumerator enumerator = null;
             IMMDevice device = null;
+
             try
             {
                 enumerator = CreateEnumerator();
+
                 if (enumerator.GetDevice(deviceId, out device) != 0 || device == null)
                 {
                     logger.Warn($"Playback device not found: {deviceId}");
                     return false;
                 }
+
                 var result = SetDefaultEndpoint(deviceId);
+
                 if (result)
                 {
                     device.GetId(out var id);
@@ -380,6 +436,7 @@ namespace DisplayProfileManager.Helpers
             {
                 if (device != null)
                     Marshal.ReleaseComObject(device);
+
                 if (enumerator != null)
                     Marshal.ReleaseComObject(enumerator);
             }
@@ -392,17 +449,22 @@ namespace DisplayProfileManager.Helpers
                 logger.Warn("SetDefaultCaptureDevice called with null/empty ID");
                 return false;
             }
+
             IMMDeviceEnumerator enumerator = null;
             IMMDevice device = null;
+
             try
             {
                 enumerator = CreateEnumerator();
+
                 if (enumerator.GetDevice(deviceId, out device) != 0 || device == null)
                 {
                     logger.Warn($"Capture device not found: {deviceId}");
                     return false;
                 }
+
                 var result = SetDefaultEndpoint(deviceId);
+
                 if (result)
                 {
                     device.GetId(out var id);
@@ -420,6 +482,7 @@ namespace DisplayProfileManager.Helpers
             {
                 if (device != null)
                     Marshal.ReleaseComObject(device);
+
                 if (enumerator != null)
                     Marshal.ReleaseComObject(enumerator);
             }
@@ -434,6 +497,7 @@ namespace DisplayProfileManager.Helpers
             }
 
             bool allSucceeded = true;
+
             try
             {
                 if (audioSettings.ApplyPlaybackDevice)
@@ -463,12 +527,13 @@ namespace DisplayProfileManager.Helpers
                         }
                     }
                     else
-                        logger.Debug("Capture apply enabled but no device configured");
+                        logger.Debug("Capture device apply enabled but no device configured");
                 }
                 else
                     logger.Debug("Capture device apply disabled");
 
-                if (!allSucceeded) logger.Warn("Some audio settings failed to apply");
+                if (!allSucceeded)
+                    logger.Warn("Some audio settings failed to apply");
 
                 return allSucceeded;
             }
@@ -481,13 +546,17 @@ namespace DisplayProfileManager.Helpers
 
         #endregion
 
-        #region Bluetooth name resolution
+        #region Bluetooth Name Resolution
 
         private static string TryGetBluetoothName(string deviceId)
         {
             lock (_lock)
+            {
                 if (_deviceCache.TryGetValue(deviceId, out var entry))
+                {
                     return entry.Name;
+                }
+            }
 
             return GetDeviceNameViaWmi(deviceId);
         }
@@ -497,14 +566,20 @@ namespace DisplayProfileManager.Helpers
             try
             {
                 var targetMac = ExtractMacAddress(deviceId);
+
                 using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_PnPEntity WHERE ConfigManagerErrorCode = 0"))
                 {
                     searcher.Options.Timeout = TimeSpan.FromSeconds(5);
+
                     foreach (var wmiDevice in searcher.Get())
                     {
                         var name = wmiDevice["Name"]?.ToString();
                         var wmiId = wmiDevice["DeviceID"]?.ToString();
-                        if (IsBluetoothDevice(name) && IsDeviceRelated(deviceId, wmiId)) return name;
+
+                        if (IsBluetoothDevice(name) && IsDeviceRelated(deviceId, wmiId))
+                        {
+                            return name;
+                        }
                     }
                 }
             }
@@ -518,21 +593,56 @@ namespace DisplayProfileManager.Helpers
 
         private static bool IsDeviceRelated(string deviceId, string wmiDeviceId)
         {
-            if (string.IsNullOrEmpty(wmiDeviceId)) return false;
+            if (string.IsNullOrEmpty(wmiDeviceId))
+            {
+                return false;
+            }
+
             foreach (var wmiGuid in ExtractGuids(wmiDeviceId))
+            {
                 foreach (var targetGuid in ExtractGuids(deviceId))
-                    if (wmiGuid.Equals(targetGuid, StringComparison.OrdinalIgnoreCase)) return true;
+                {
+                    if (wmiGuid.Equals(targetGuid, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+            }
 
             return false;
         }
 
         private static bool IsBluetoothDevice(string deviceName)
         {
-            if (string.IsNullOrEmpty(deviceName)) return false;
+            if (string.IsNullOrEmpty(deviceName))
+            {
+                return false;
+            }
 
             var lower = deviceName.ToLower();
-            foreach (var indicator in new[] { "bluetooth", "bt", "wireless", "airpods", "headset", "earbuds", "buds", "headphones", "stereo", "hands-free", "hfp", "a2dp", "sco" })
-                if (lower.Contains(indicator)) return true;
+
+            foreach (var indicator in new[]
+            {
+                "bluetooth",
+                "bt",
+                "wireless",
+                "airpods",
+                "headset",
+                "earbuds",
+                "buds",
+                "headphones",
+                "stereo",
+                "hands-free",
+                "hfp",
+                "a2dp",
+                "sco"
+            })
+            {
+                if (lower.Contains(indicator))
+                {
+                    return true;
+                }
+            }
 
             return false;
         }
@@ -556,13 +666,21 @@ namespace DisplayProfileManager.Helpers
         private static List<string> ExtractGuids(string input)
         {
             var guids = new List<string>();
-            if (string.IsNullOrEmpty(input)) return guids;
+
+            if (string.IsNullOrEmpty(input))
+            {
+                return guids;
+            }
 
             var fullGuids = System.Text.RegularExpressions.Regex.Matches(input, @"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b");
-            foreach (System.Text.RegularExpressions.Match m in fullGuids) guids.Add(m.Value);
+
+            foreach (System.Text.RegularExpressions.Match m in fullGuids)
+                guids.Add(m.Value);
 
             var hexParts = System.Text.RegularExpressions.Regex.Matches(input, @"\b[0-9a-fA-F]{8}\b");
-            foreach (System.Text.RegularExpressions.Match m in hexParts) guids.Add(m.Value);
+
+            foreach (System.Text.RegularExpressions.Match m in hexParts)
+                guids.Add(m.Value);
 
             return guids;
         }
@@ -578,6 +696,7 @@ namespace DisplayProfileManager.Helpers
             lock (_lock)
             {
                 _deviceCache[deviceId] = (name, DateTime.Now);
+
                 if (_deviceCache.Count > 100)
                     TrimCache();
             }
@@ -594,7 +713,10 @@ namespace DisplayProfileManager.Helpers
         private static void TrimCache()
         {
             var sorted = new List<KeyValuePair<string, (string Name, DateTime Discovered)>>(_deviceCache);
-            sorted.Sort((a, b) => a.Value.Discovered.CompareTo(b.Value.Discovered));
+
+            sorted.Sort((a, b) =>
+                a.Value.Discovered.CompareTo(b.Value.Discovered));
+
             for (int i = 0; i < sorted.Count - 100; i++)
                 _deviceCache.Remove(sorted[i].Key);
         }

@@ -71,10 +71,10 @@ namespace DisplayProfileManager.Helpers
                 });
             }
             else
-            {
                 CreateMessageWindow();
-            }
         }
+
+        #region Private Methods
 
         private void CreateMessageWindow()
         {
@@ -107,7 +107,6 @@ namespace DisplayProfileManager.Helpers
                     try
                     {
                         logger.Debug($"Executing callback for hotkey {hotkeyId}");
-                        // Execute callback on dispatcher thread to avoid threading issues
                         if (System.Windows.Application.Current?.Dispatcher != null)
                             System.Windows.Application.Current.Dispatcher.BeginInvoke(callback);
                         else
@@ -121,21 +120,22 @@ namespace DisplayProfileManager.Helpers
                     }
                 }
                 else
-                {
                     logger.Warn($"No callback found for hotkey ID: {hotkeyId}");
-                }
             }
 
             return IntPtr.Zero;
         }
 
+        #endregion
+
+        #region Public Methods
+
         public int RegisterHotkey(uint virtualKey, uint modifiers, Action callback)
         {
-            if (_disposed)
-                throw new ObjectDisposedException(nameof(GlobalHotkeyHelper));
+            if (_disposed) throw new ObjectDisposedException(nameof(GlobalHotkeyHelper));
 
             int hotkeyId = _currentHotkeyId++;
-            uint finalModifiers = modifiers | ModNorepeat; // Add ModNorepeat to prevent repeated hotkey events
+            uint finalModifiers = modifiers | ModNorepeat;
             if (RegisterHotKey(_windowHandle, hotkeyId, finalModifiers, virtualKey))
             {
                 _hotkeyActions[hotkeyId] = callback;
@@ -156,7 +156,10 @@ namespace DisplayProfileManager.Helpers
 
         public bool UnregisterHotkey(int hotkeyId)
         {
-            if (_disposed || hotkeyId < 0) return false;
+            if (_disposed || hotkeyId < 0)
+            {
+                return false;
+            }
 
             bool result = UnregisterHotKey(_windowHandle, hotkeyId);
             _hotkeyActions.Remove(hotkeyId);
@@ -167,11 +170,12 @@ namespace DisplayProfileManager.Helpers
 
         public int RegisterProfileHotkey(string profileId, HotkeyConfig hotkey, Action callback)
         {
-            if (_disposed)
-                throw new ObjectDisposedException(nameof(GlobalHotkeyHelper));
+            if (_disposed) throw new ObjectDisposedException(nameof(GlobalHotkeyHelper));
 
             if (hotkey?.Key == Key.None || string.IsNullOrEmpty(profileId))
+            {
                 return -1;
+            }
 
             UnregisterProfileHotkey(profileId);
 
@@ -193,16 +197,17 @@ namespace DisplayProfileManager.Helpers
                 logger.Info($"Registered profile hotkey for '{profileId}': {hotkey} (ID: {hotkeyId})");
             }
             else
-            {
                 logger.Error($"Failed to register profile hotkey for '{profileId}': {hotkey}");
-            }
 
             return hotkeyId;
         }
 
         public bool UnregisterProfileHotkey(string profileId)
         {
-            if (_disposed || string.IsNullOrEmpty(profileId)) return false;
+            if (_disposed || string.IsNullOrEmpty(profileId))
+            {
+                return false;
+            }
 
             if (_profileHotkeyIds.TryGetValue(profileId, out int hotkeyId))
             {
@@ -232,9 +237,7 @@ namespace DisplayProfileManager.Helpers
                 {
                     var callback = callbackFactory(profileId);
                     if (callback != null)
-                    {
                         RegisterProfileHotkey(profileId, hotkeyConfig, callback);
-                    }
                 }
             }
         }
@@ -245,12 +248,12 @@ namespace DisplayProfileManager.Helpers
 
             var profileIds = new List<string>(_profileHotkeyIds.Keys);
             foreach (var profileId in profileIds)
-            {
                 UnregisterProfileHotkey(profileId);
-            }
 
             logger.Info("Unregistered all profile hotkeys");
         }
+
+        #endregion
 
         protected virtual void Dispose(bool disposing)
         {

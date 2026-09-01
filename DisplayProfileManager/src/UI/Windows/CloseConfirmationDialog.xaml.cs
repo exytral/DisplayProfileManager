@@ -1,5 +1,4 @@
 using DisplayProfileManager.Core;
-using NLog;
 using System;
 using System.Windows;
 
@@ -7,7 +6,7 @@ namespace DisplayProfileManager.UI.Windows
 {
     public partial class CloseConfirmationDialog : Window
     {
-        private SettingsManager _settingsManager;
+        private readonly SettingsManager _settingsManager;
 
         public bool ShouldCloseToTray { get; private set; }
         public bool RememberChoice { get; private set; }
@@ -50,7 +49,5 @@ namespace DisplayProfileManager.UI.Windows
             DialogResult = false;
             Close();
         }
-
-        protected override void OnClosed(EventArgs e) => base.OnClosed(e);
     }
 }

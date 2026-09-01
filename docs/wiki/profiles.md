@@ -1,16 +1,16 @@
 # Creating and Managing Profiles
 
-Profiles store a complete snapshot of your display setup — monitor layout, resolution, refresh rate, rotation, HDR state, and DPI scaling — as well as audio devices and scripts. Switch between them from the GUI, system tray, a global hotkey, or the command line.
+Profiles store display settings such as monitor layout, resolution, refresh rate, rotation, HDR/ACM state, and DPI scaling. A profile can also store wallpaper, audio, scripts, and a global hotkey.
 
 ---
 
 ## Creating a profile
 
-On first launch, DPM saves your current display configuration as the **Default** profile. To create additional profiles, click **Create** in the main window. The profile editor opens immediately — give the profile a name, configure its settings, then click **Save**.
+New profiles open with the current live display configuration already loaded. Click **"Create"** in the main window, adjust the settings, give the profile a name, and click **"Save"**.
 
-To snapshot your current display configuration automatically, click **Load** inside the editor. To capture your current audio devices, click **Detect Current Audio** in the Audio Settings section.
+**"Load"** recaptures the current display configuration into an existing editor session.
 
-**Duplicating a profile** — select a profile in the main window, then click **Duplicate** in the toolbar. The editor opens immediately with a copy. Rename and adjust before saving.
+**Duplicating a profile** — select a profile in the main window, click **"Duplicate"**, then adjust the copy before saving.
 
 ![Main Window Details](../img/main-window-details.png)
 
@@ -18,21 +18,21 @@ To snapshot your current display configuration automatically, click **Load** ins
 
 ## Per-monitor settings
 
-The profile editor shows one panel per detected monitor under **Display Settings**. Each panel exposes:
+The profile editor shows one panel per detected monitor under **Display Settings**. Each panel can expose:
 
-- **Enable** — include or exclude this monitor from the desktop layout
-- **Primary** — designate this monitor as the primary display
-- **HDR** — enable HDR for this monitor (only shown on HDR-capable displays)
-- **ACM** — enable Auto Color Management (only shown on supported displays, automatically forced on when HDR is active)
-- **Resolution** — width × height (native panel resolution is marked with ★)
-- **Refresh Rate** — in Hz (the peak refresh rate is marked with ★)
-- **Rotation** — Not Applied, 0°, 90°, 180°, 270°
-- **DPI Scaling** — percentage scale applied for this display
-- **SDR/HDR Color** — ICC/ICM color profile for this display (shows only HDR-capable profiles when HDR is active)
+- **Enable** — include or exclude the monitor from the profile
+- **Primary** — designate the primary display
+- **HDR** — desired HDR state on HDR-capable displays
+- **ACM** — desired Auto Color Management state where supported
+- **Resolution** — width × height
+- **Refresh Rate** — desired refresh rate in Hz
+- **Rotation** — Not Applied, 0°, 90°, 180°, or 270°
+- **DPI** — desired Windows scaling percentage
+- **SDR/HDR Color** — ICC/ICM color profile association
 
-Click **Identify** to briefly overlay each physical screen with its number.
+Click **"Identify"** to briefly overlay each physical monitor with its number.
 
-Click **Load** at any time to overwrite all stored display settings with your current desktop configuration.
+Click **"Load"** to replace the current editor display settings with the live display configuration.
 
 ![Profile Editor](../img/profile-editor.png)
 
@@ -40,79 +40,92 @@ Click **Load** at any time to overwrite all stored display settings with your cu
 
 ## Mirror/clone display configuration
 
-To mirror (show identical content on two), click the **Clone** dropdown on any monitor panel and select which monitor to clone with. The initiating monitor is the **source** — its resolution, refresh rate, and position are used as the shared configuration for the group. The primary flag transfers to the source automatically.
+To mirror two displays, use the **"Clone"** control on a display and select another display. The initiating monitor becomes the clone source and supplies the shared clone configuration.
 
-The two monitors merge into a single group panel. The source is labeled **(Source)** and the attached monitor is labeled **(Clone)**. The **Break Clone** button replaces the Clone dropdown on grouped panels.
+The grouped displays share the relevant display controls. The source is labeled **(Source)** and the attached display **(Clone)**. **"Break Clone"** splits the group again.
 
-To undo a mirror group, click **Break Clone**. The source display retains its settings and primary status. The attached display restores to its native resolution and recovers the position it had before the clone was created.
+When a clone is broken, attached members restore their saved pre-clone display state. If saved pre-clone state is unavailable, the attached member uses the fallback restoration behavior.
 
-Clone groups can coexist with extended displays in the same profile. For example, two monitors can be mirrored while a third extends independently.
+Clone groups can coexist with independent extended displays in the same profile.
 
 ---
 
-## Audio device switching
+## Wallpaper
 
-Expand **Audio Settings** in the profile editor. Each row has an **Apply** toggle — enable it to switch to that device when the profile is applied, or leave it off to make no change.
+When **Enable Wallpaper** is active, the profile applies its saved Windows wallpaper state.
 
-- **Output** — default playback device
-- **Input** — default recording device
+| Mode           | Stored state                                         |
+| -------------- | -----------------------------------------------------|
+| **Solid Color**| Background color                                     |
+| **Picture**    | Per-monitor image path and fitment                   |
+| **Slideshow**  | Fitment, interval, shuffle state, and source folder  |
+| **Spotlight**  | Spotlight-enabled state                              |
 
-If a configured device is absent when the profile is applied, that audio step is skipped and the rest of the profile applies normally.
+The profile editor shows a wallpaper preview and provides mode-specific controls. **Solid Color** and **Picture** include a color picker, while **Picture** also provides fitment options. **Slideshow** provides fitment, interval, shuffle/order, and source-folder controls. **Spotlight** provides a preview only.
+
+## Audio
+
+## Audio
+
+When **Enable Audio** is active, the profile applies its configured playback and recording devices. Each playback or recording row has an **Apply** setting that controls whether that endpoint changes when the profile runs.
+
+The device dropdown menus enumerate currently available devices when opened. A saved device that is no longer available remains selected until another device is chosen, and is shown as **Unavailable** in the editor and Details panel. Closing the dropdown without selecting another device preserves the saved endpoint, which can still be saved with the profile.
 
 ---
 
 ## Scripts
 
-Each profile can run one or more scripts automatically after the display, DPI, and audio settings have been applied. Common uses: launching an app, switching a smart device, killing a background process.
+When **Enable Scripts** is active, the profile runs its enabled scripts after the display, wallpaper, and audio stages. Imported scripts are copied into the application's sandboxed scripts folder.
 
-In the profile editor, scroll to **Scripts** and click **Import** to add a script. Scripts are sandboxed — they are copied into DPM's scripts folder on import. Arguments can be typed into the field next to each script entry.
+Each script has its own enable checkbox. Disabling a row keeps the script, its file, and its arguments in the profile but skips that script during apply.
 
-The **Clear** button marks all scripts for deletion. To remove a single script, click its delete button — the script is greyed out and the icon changes to a revert symbol. The deletion is committed when you save the profile. The file itself remains in the scripts folder and can be re-added later.
+The **"Enable"** toggle in the Scripts section header controls whether the script section runs at all. Disabling the section does not remove its stored scripts.
 
-The **Enable** toggle in the Scripts section header controls whether any scripts run at all for this profile. Disabling the section does not remove the scripts — they remain stored and will run again when re-enabled.
-
-> See [Scripts](./scripts.md) for supported file types, argument handling, and full examples.
+> See [Scripts](./scripts.md) for supported file types, arguments, and examples.
 
 ---
 
 ## Global hotkeys
 
-Assign a keyboard shortcut to any profile so you can switch without UI interactions.
-
-1. Click the hotkey field and press your desired key combination (**Enable** toggle syncs automatically). Press **Clear** or the escape key to clear.
-2. Save the profile.
-
-Hotkeys are system-wide and active as long as DPM is running. They are temporarily disabled while any profile editor window is open. All configured hotkeys are visible under **Settings → Global Hotkeys**.
+Assign or clear a system-wide hotkey from a profile from the profile editor. Hotkeys are temporarily disabled while a profile editor window is open. Configured hotkeys are listed under **Settings → Global Hotkeys**.
 
 ---
 
 ## Profile icons
 
-Each profile can have a custom icon — a `.ico` file that appears in the profile list, the details panel, and the system tray/notification when that profile is active.
+Each profile can have a custom `.ico` icon. Imported icons are copied into the application's icon sandbox and can be selected from the profile editor.
 
-To assign an icon, open the profile editor. Click **Import** to select a `.ico` file — it's copied into DPM's icons folder and selected automatically. Saved icons appear in a scrollable grid below. Click one to select it; click it again to deselect. Click **Clear** to remove the icon assignment without deleting the file.
+Click **"Clear"** to remove the icon assignment without deleting the underlying imported icon file.
 
 ---
 
 ## Applying a profile
 
-There are several ways to apply a profile:
+A profile can be applied from several places:
 
-- **Hover a profile card** and click the `←` button — applies immediately without selecting the profile first
-- **Double-click an unselected card** — selects and applies
-  - (**Double-clicking a selected card** opens the profile editor instead)
-- **System tray** — click any profile name in the tray menu to apply directly
-- **Global hotkey** — applies from anywhere without opening DPM
-- **Command line** — see [CLI Reference](./cli.md)
+- the **Apply** button on a profile card;
+- double-clicking an unselected profile card;
+- the system tray menu;
+- the desktop context menu when the shell extension is enabled;
+- a configured global hotkey;
+- the command line.
 
-Applying a profile clears the current selection in the main window.
+Double-clicking an already selected profile opens the profile editor.
+
+> See [CLI Reference](./cli.md) for command-line application.
 
 ---
 
 ## Importing a profile
 
-DPM profiles are stored as `.dpm` files. To import one, click **Import** in the main window and select the file. Imported profiles appear in the list immediately.
+Profiles are stored as `.dpm` files. Use **"Import"** in the main window to select a profile file.
 
-Profile files are hardware-specific — they store each display's EDID information alongside its settings. A profile shared from another machine will still load but most likely fail to properly apply.
+Profiles contain display identity information and are therefore hardware-specific. A profile from another machine can load, but it may not map cleanly to the current displays.
 
-Profile files are stored at `%AppData%\Roaming\DisplayProfileManager\Profiles\`.
+The application uses stored target and EDID identity information when resolving displays. A display that has moved to another output can still be matched through its panel identity when available. During profile application, display availability is evaluated separately from the active-path state so that a temporarily missing active path does not automatically mean the display is physically disconnected.
+
+Profile files are stored at:
+
+```text
+%AppData%\Roaming\DisplayProfileManager\Profiles\
+```

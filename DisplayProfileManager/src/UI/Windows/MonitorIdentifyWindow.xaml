@@ -13,13 +13,13 @@
         WindowStartupLocation="Manual"
         IsHitTestVisible="False">
 
-    <Border Background="#FF1F1F1F" CornerRadius="0" BorderThickness="1">
+    <Border Background="{DynamicResource WindowBackgroundBrush}" CornerRadius="0" BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}">
         <Grid>
             <TextBlock x:Name="IndexTextBlock"
                        Text="1"
                        FontSize="150"
                        FontWeight="Bold"
-                       Foreground="White"
+                       Foreground="{DynamicResource PrimaryTextBrush}"
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center"/>
         </Grid>

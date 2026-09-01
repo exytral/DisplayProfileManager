@@ -9,10 +9,7 @@ namespace DisplayProfileManager.UI.Converters
     [ValueConversion(typeof(string), typeof(ImageSource))]
     public class ProfileIconConverter : IValueConverter
     {
-        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            return IconHelper.LoadImageSource(value as string);
-        }
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture) => IconHelper.LoadImageSource(value as string);
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         {

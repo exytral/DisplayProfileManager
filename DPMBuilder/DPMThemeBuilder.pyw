@@ -19,8 +19,10 @@ import re
 import os
 import colorsys
 import ctypes
+from ctypes import wintypes
 import base64
 import datetime
+import winreg
 
 # ---------------------------------------------------------------------------
 # Embedded icons (base64 PNG — generated from bundled .ico files)
@@ -760,6 +762,7 @@ class App(tk.Tk):
         self._load_icons()
         self._build_ui()
         self._load_scheme_list()
+        self._init_monitor()
 
     def _set_taskbar_icon(self):
         try:
@@ -833,14 +836,32 @@ class App(tk.Tk):
         list_frame.columnconfigure(0, weight=1)
         list_frame.rowconfigure(0, weight=1)
 
+        list_surface = tk.Frame(list_frame, bd=1, relief=tk.SUNKEN)
+        list_surface.grid(row=0, column=0, sticky="nsew")
+        list_surface.columnconfigure(0, weight=1)
+        list_surface.rowconfigure(0, weight=1)
+
         self._listbox = tk.Listbox(
-            list_frame, height=15, activestyle="dotbox",
-            selectmode=tk.SINGLE, font=("Consolas", 9))
-        lsb = ttk.Scrollbar(list_frame, orient=tk.VERTICAL,
-                             command=self._listbox.yview)
+            list_surface,
+            height=15,
+            activestyle="dotbox",
+            selectmode=tk.SINGLE,
+            font=("Consolas", 9),
+            bd=0,
+            highlightthickness=0,
+        )
+
+        lsb = ttk.Scrollbar(
+            list_surface,
+            orient=tk.VERTICAL,
+            command=self._listbox.yview,
+        )
+
         self._listbox.configure(yscrollcommand=lsb.set)
+
         self._listbox.grid(row=0, column=0, sticky="nsew")
         lsb.grid(row=0, column=1, sticky="ns")
+
         self._listbox.bind("<<ListboxSelect>>", self._on_select)
 
         # ── Row 3: Notebook (Preview / Generated XAML) ────────────────
@@ -1027,39 +1048,85 @@ class App(tk.Tk):
         self._monitor_thread.start()
 
     def _folder_monitor_loop(self):
-        import time
-        
-        if not os.path.exists(DEFAULT_SAVE_DIR):
-            try:
-                os.makedirs(DEFAULT_SAVE_DIR, exist_ok=True)
-            except Exception:
-                return
+        FILE_LIST_DIRECTORY = 0x0001
+        FILE_SHARE_READ = 0x00000001
+        FILE_SHARE_WRITE = 0x00000002
+        FILE_SHARE_DELETE = 0x00000004
+        OPEN_EXISTING = 3
+        FILE_FLAG_BACKUP_SEMANTICS = 0x02000000
+        FILE_NOTIFY_CHANGE_FILE_NAME = 0x00000001
+        FILE_NOTIFY_CHANGE_LAST_WRITE = 0x00000010
+        FILE_ACTION_ADDED = 0x00000001
+        FILE_ACTION_REMOVED = 0x00000002
+        FILE_ACTION_MODIFIED = 0x00000003
+        FILE_ACTION_RENAMED_OLD_NAME = 0x00000004
+        FILE_ACTION_RENAMED_NEW_NAME = 0x00000005
+
+        kernel32 = ctypes.windll.kernel32
+        kernel32.CreateFileW.restype = wintypes.HANDLE
+        kernel32.ReadDirectoryChangesW.restype = wintypes.BOOL
+        kernel32.CloseHandle.restype = wintypes.BOOL
+
+        os.makedirs(DEFAULT_SAVE_DIR, exist_ok=True)
+
+        handle = kernel32.CreateFileW(
+            DEFAULT_SAVE_DIR,
+            FILE_LIST_DIRECTORY,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            None,
+            OPEN_EXISTING,
+            FILE_FLAG_BACKUP_SEMANTICS,
+            None,
+        )
+
+        if handle == wintypes.HANDLE(-1).value:
+            return
 
         try:
-            last_mtime = os.stat(DEFAULT_SAVE_DIR).st_mtime
-        except Exception:
-            last_mtime = 0
+            buffer = ctypes.create_string_buffer(64 * 1024)
+            watch_filter = (
+                FILE_NOTIFY_CHANGE_FILE_NAME
+                | FILE_NOTIFY_CHANGE_LAST_WRITE
+            )
+            interesting_actions = {
+                FILE_ACTION_ADDED,
+                FILE_ACTION_MODIFIED,
+                FILE_ACTION_RENAMED_NEW_NAME,
+            }
 
-        while True:
-            time.sleep(0.5)
-            try:
-                current_mtime = os.stat(DEFAULT_SAVE_DIR).st_mtime
-                
-                if current_mtime > last_mtime:
-                    last_mtime = current_mtime
-                    
-                    files = [
-                        os.path.join(DEFAULT_SAVE_DIR, f) 
-                        for f in os.listdir(DEFAULT_SAVE_DIR)
-                        if f.lower().endswith(".xaml")
-                    ]
-                    
-                    if files:
-                        newest_file = max(files, key=os.path.getmtime)
-                        self.after(0, self._apply_to_dpm, newest_file)
-            
-            except Exception:
-                continue
+            while True:
+                bytes_returned = wintypes.DWORD()
+                if not kernel32.ReadDirectoryChangesW(
+                    handle,
+                    buffer,
+                    len(buffer),
+                    False,
+                    watch_filter,
+                    ctypes.byref(bytes_returned),
+                    None,
+                    None,
+                ):
+                    break
+
+                offset = 0
+                total = bytes_returned.value
+                while offset < total:
+                    next_offset = int.from_bytes(buffer[offset:offset + 4], "little")
+                    action = int.from_bytes(buffer[offset + 4:offset + 8], "little")
+                    name_length = int.from_bytes(buffer[offset + 8:offset + 12], "little")
+                    name = ctypes.wstring_at(
+                        ctypes.addressof(buffer) + offset + 12,
+                        name_length // 2,
+                    )
+
+                    if action in interesting_actions and name.lower().endswith(".xaml"):
+                        self.after(0, self._apply_to_dpm, os.path.join(DEFAULT_SAVE_DIR, name))
+
+                    if next_offset == 0:
+                        break
+                    offset += next_offset
+        finally:
+            kernel32.CloseHandle(handle)
 
     def _apply_to_dpm(self, saved_path: str):
         """Signals DPM to apply the theme or refresh the list."""
@@ -1081,7 +1148,7 @@ class App(tk.Tk):
         try:
             subprocess.Popen(
                 cmd,
-                creationflags=0x08000000 | 0x00000008,  # CREATE_NO_WINDOW | DETACHED_PROCESS
+                creationflags=0x08000000 | 0x00000008,   # CREATE_NO_WINDOW | DETACHED_PROCESS
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
@@ -1092,7 +1159,7 @@ class App(tk.Tk):
         except Exception:
             self._status.set(f"Synced \u2192 {os.path.basename(saved_path)}")
 
-    def find_dpm_exe() -> "str | None":
+    def _find_dpm_exe(self) -> "str | None":
         exe_name   = "DisplayProfileManager.exe"
         prog_files = os.environ.get("PROGRAMFILES", "C:\\Program Files")
         local_app  = os.environ.get("LOCALAPPDATA", "")

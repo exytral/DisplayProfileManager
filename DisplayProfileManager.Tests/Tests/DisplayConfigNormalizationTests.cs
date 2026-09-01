@@ -58,8 +58,7 @@ namespace DisplayProfileManager.Tests.Tests
         {
             var map = Map((4, true));
 
-            Assert.AreEqual(0u, map[4],
-                "A lone enabled display must normalize to SourceId 0 regardless of its saved value.");
+            Assert.AreEqual(0u, map[4], "A lone enabled display must normalize to SourceId 0 regardless of its saved value.");
         }
 
         [TestMethod]
@@ -88,8 +87,7 @@ namespace DisplayProfileManager.Tests.Tests
         {
             var map = Map((0, true), (1, false), (2, true));
 
-            Assert.IsFalse(map.ContainsKey(1),
-                "Disabled displays must not appear in the source ID map.");
+            Assert.IsFalse(map.ContainsKey(1), "Disabled displays must not appear in the source ID map.");
             Assert.AreEqual(2, map.Count);
         }
 
@@ -124,8 +122,7 @@ namespace DisplayProfileManager.Tests.Tests
 
             var map = DisplayConfigHelper.BuildSourceIdMap(configs);
 
-            Assert.AreEqual(2, map.Count,
-                "Two unique SourceIds must produce two map entries, not one per display.");
+            Assert.AreEqual(2, map.Count, "Two unique SourceIds must produce two map entries, not one per display.");
             Assert.AreEqual(0u, map[0], "Clone group SourceId=0 must normalize to 0.");
             Assert.AreEqual(1u, map[1], "Extended SourceId=1 must normalize to 1.");
         }
@@ -181,8 +178,7 @@ namespace DisplayProfileManager.Tests.Tests
                 .OrderBy(x => x)
                 .ToList();
 
-            CollectionAssert.AreEqual(new List<uint> { 0, 1 }, submitted,
-                "Normalized SourceIds submitted to SetDisplayConfig must be contiguous starting from 0.");
+            CollectionAssert.AreEqual(new List<uint> { 0, 1 }, submitted, "Normalized SourceIds submitted to SetDisplayConfig must be contiguous starting from 0.");
         }
 
         [TestMethod]
@@ -202,8 +198,7 @@ namespace DisplayProfileManager.Tests.Tests
                 .Select(c => map[c.SourceId])
                 .ToList();
 
-            Assert.AreEqual(normalized.Count, normalized.Distinct().Count(),
-                "All normalized SourceIds submitted to SetDisplayConfig must be unique.");
+            Assert.AreEqual(normalized.Count, normalized.Distinct().Count(), "All normalized SourceIds submitted to SetDisplayConfig must be unique.");
         }
     }
 
@@ -224,8 +219,7 @@ namespace DisplayProfileManager.Tests.Tests
 
             Assert.AreEqual(0u, ids[0]);
             Assert.AreEqual(2u, ids[1]);
-            Assert.AreNotEqual((uint)(ids.Count - 1), ids.Last(),
-                "Non-contiguous SourceIds must be normalized before passing to SetDisplayConfig.");
+            Assert.AreNotEqual((uint)(ids.Count - 1), ids.Last(), "Non-contiguous SourceIds must be normalized before passing to SetDisplayConfig.");
         }
 
         [TestMethod]
@@ -278,8 +272,7 @@ namespace DisplayProfileManager.Tests.Tests
 
             var cloneGroups = configs.GroupBy(dc => dc.SourceId).Where(g => g.Count() > 1).ToList();
 
-            Assert.AreEqual(0, cloneGroups.Count,
-                "Fully extended configuration must produce no clone groups.");
+            Assert.AreEqual(0, cloneGroups.Count, "Fully extended configuration must produce no clone groups.");
         }
 
         [TestMethod]
@@ -299,8 +292,7 @@ namespace DisplayProfileManager.Tests.Tests
                 .Select(g => g.First())
                 .ToList();
 
-            Assert.AreEqual(2, deduped.Count,
-                "Two unique DeviceNames must produce 2 DPI entries, not one per clone member.");
+            Assert.AreEqual(2, deduped.Count, "Two unique DeviceNames must produce 2 DPI entries, not one per clone member.");
         }
 
         [TestMethod]

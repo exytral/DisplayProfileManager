@@ -2,32 +2,277 @@ using DisplayProfileManager.Core;
 using DisplayProfileManager.Helpers;
 using NLog;
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
-using System.Windows.Forms;
+using System.Runtime.InteropServices;
+using System.Windows.Input;
+using System.Windows.Interop;
 
 namespace DisplayProfileManager.UI
 {
-    public class TrayIcon : IDisposable
+    public enum TrayNotificationIcon
     {
+        None,
+        Info,
+        Error
+    }
+
+    public sealed class TrayIcon : IDisposable
+    {
+        #region Core
         private static readonly Logger logger = LoggerHelper.GetLogger();
 
-        private ProfileManager _profileManager;
-        private ContextMenuStrip _contextMenu;
-        private NotifyIcon _notifyIcon;
+        private readonly ProfileManager _profileManager;
+        private readonly HwndSource _hwndSource;
+        private readonly uint _taskbarCreatedMessage;
+        private readonly Guid _iconGuid = new Guid("5F0F5E65-47B6-4C28-9A4B-9F2A52E4D2E2");
+
         private Icon _defaultIcon;
+        private Icon _currentIcon;
+        private bool _iconAdded;
+        private bool _visible = true;
+        private bool _disposed;
+        private string _notificationLink;
 
         public event EventHandler ShowMainWindow;
         public event EventHandler ShowSettingsWindow;
         public event EventHandler ExitApplication;
-        private bool _disposed = false;
 
         public TrayIcon()
         {
             _profileManager = ProfileManager.Instance;
-            InitializeTrayIcon();
+            _taskbarCreatedMessage = RegisterWindowMessage("TaskbarCreated");
+
+            var sourceParameters = new HwndSourceParameters("DisplayProfileManager.TrayIcon")
+            {
+                Width = 0,
+                Height = 0,
+                WindowStyle = unchecked((int)0x80000000),
+                ExtendedWindowStyle = 0x00000080
+            };
+
+            _hwndSource = new HwndSource(sourceParameters);
+            _hwndSource.AddHook(WndProc);
+            ShowWindow(_hwndSource.Handle, SwHide);
+
+            _defaultIcon = ApplicationIconHelper.LoadIcon();
+            _currentIcon = _defaultIcon;
+
             SetupEventHandlers();
+            UpdateTrayIcon(_profileManager.GetCurrentProfile());
+            UpdateTrayIconTooltip();
+            AddNotifyIcon();
         }
+
+        #endregion
+
+        #region P/Invoke
+
+        [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern bool Shell_NotifyIcon(uint dwMessage, ref NOTIFYICONDATA lpData);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern uint RegisterWindowMessage(string lpString);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool GetCursorPos(out POINT lpPoint);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern IntPtr CreatePopupMenu();
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern bool AppendMenu(IntPtr hMenu, uint uFlags, uint uIDNewItem, string lpNewItem);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool CheckMenuItem(IntPtr hMenu, uint uIDCheckItem, uint uCheck);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern bool SetMenuItemInfo(
+            IntPtr hMenu,
+            uint uItem,
+            bool fByPosition,
+            ref MENUITEMINFO lpmii);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern uint TrackPopupMenuEx(
+            IntPtr hMenu,
+            uint uFlags,
+            int x,
+            int y,
+            IntPtr hWnd,
+            IntPtr lptpm);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool DestroyMenu(IntPtr hMenu);
+
+        [DllImport("gdi32.dll", SetLastError = true)]
+        private static extern bool DeleteObject(IntPtr hObject);
+
+        [DllImport("user32.dll")]
+        private static extern int GetSystemMetrics(int nIndex);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern IntPtr GetDC(IntPtr hWnd);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern int ReleaseDC(IntPtr hWnd, IntPtr hDC);
+
+        [DllImport("gdi32.dll", SetLastError = true)]
+        private static extern IntPtr CreateCompatibleDC(IntPtr hdc);
+
+        [DllImport("gdi32.dll", SetLastError = true)]
+        private static extern bool DeleteDC(IntPtr hdc);
+
+        [DllImport("gdi32.dll", SetLastError = true)]
+        private static extern IntPtr CreateDIBSection(
+            IntPtr hdc,
+            ref BITMAPINFOHEADER pbmi,
+            uint usage,
+            out IntPtr ppvBits,
+            IntPtr hSection,
+            uint offset);
+
+        [DllImport("gdi32.dll", SetLastError = true)]
+        private static extern IntPtr SelectObject(IntPtr hdc, IntPtr hgdiobj);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool DrawIconEx(
+            IntPtr hdc,
+            int xLeft,
+            int yTop,
+            IntPtr hIcon,
+            int cxWidth,
+            int cyWidth,
+            uint istepIfAniCur,
+            IntPtr hbrFlickerFreeDraw,
+            uint diFlags);
+
+        #endregion
+
+        #region Structures
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct NOTIFYICONDATA
+        {
+            public uint cbSize;
+            public IntPtr hWnd;
+            public uint uID;
+            public uint uFlags;
+            public uint uCallbackMessage;
+            public IntPtr hIcon;
+
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)]
+            public string szTip;
+
+            public uint dwState;
+            public uint dwStateMask;
+
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)]
+            public string szInfo;
+
+            public uint uVersion;
+
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 64)]
+            public string szInfoTitle;
+
+            public uint dwInfoFlags;
+            public Guid guidItem;
+            public IntPtr hBalloonIcon;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MENUITEMINFO
+        {
+            public uint cbSize;
+            public uint fMask;
+            public uint fType;
+            public uint fState;
+            public uint wID;
+            public IntPtr hSubMenu;
+            public IntPtr hbmpChecked;
+            public IntPtr hbmpUnchecked;
+            public IntPtr dwItemData;
+            public IntPtr dwTypeData;
+            public uint cch;
+            public IntPtr hbmpItem;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct POINT
+        {
+            public int X;
+            public int Y;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct BITMAPINFOHEADER
+        {
+            public uint biSize;
+            public int biWidth;
+            public int biHeight;
+            public ushort biPlanes;
+            public ushort biBitCount;
+            public uint biCompression;
+            public uint biSizeImage;
+            public int biXPelsPerMeter;
+            public int biYPelsPerMeter;
+            public uint biClrUsed;
+            public uint biClrImportant;
+        }
+
+        #endregion
+
+        #region Constants
+
+        private const int WmLButtonUp = 0x0202;
+        private const int WmLButtonDblClk = 0x0203;
+        private const int WmRButtonUp = 0x0205;
+        private const int WmAppTray = 0x0400 + 0x41;
+        private const int SwHide = 0;
+        private const int SmCxSmIcon = 49;
+
+        private const uint NifMessage = 0x00000001;
+        private const uint NifIcon = 0x00000002;
+        private const uint NifTip = 0x00000004;
+        private const uint NifInfo = 0x00000010;
+        private const uint NifGuid = 0x00000020;
+
+        private const uint NimAdd = 0x00000000;
+        private const uint NimModify = 0x00000001;
+        private const uint NimDelete = 0x00000002;
+        private const uint NimSetFocus = 0x00000003;
+        private const uint NimSetVersion = 0x00000004;
+        private const uint NotifyIconVersion4 = 4;
+
+        private const uint NiifNone = 0x00000000;
+        private const uint NiifInfo = 0x00000001;
+        private const uint NiifError = 0x00000003;
+
+        private const uint MfString = 0x00000000;
+        private const uint MfSeparator = 0x00000800;
+        private const uint MfByCommand = 0x00000000;
+        private const uint MfChecked = 0x00000008;
+        private const uint MiimBitmap = 0x00000080;
+
+        private const uint TpmRightButton = 0x0002;
+        private const uint TpmReturnCmd = 0x0100;
+
+        private const uint MenuProfileBase = 0x1000;
+        private const uint MenuOpen = 0x2001;
+        private const uint MenuSettings = 0x2002;
+        private const uint MenuExit = 0x2003;
+
+        private const uint DiNormal = 0x0003;
+
+        #endregion
 
         #region Private Methods
 
@@ -40,238 +285,474 @@ namespace DisplayProfileManager.UI
             _profileManager.ProfileApplied += OnProfileApplied;
         }
 
-        private void InitializeTrayIcon()
+        private void UpdateTrayIcon(Profile profile)
         {
-            _notifyIcon = new NotifyIcon();
-            _notifyIcon.Icon = CreateTrayIcon();
-            _defaultIcon = _notifyIcon.Icon;
-            _notifyIcon.Text = "Display Profile Manager";
-            _notifyIcon.Visible = true;
+            Icon icon = null;
 
-            _contextMenu = new ContextMenuStrip();
-            _notifyIcon.ContextMenuStrip = _contextMenu;
-
-            _notifyIcon.DoubleClick += OnTrayIconDoubleClick;
-
-            var currentProfile = _profileManager.GetCurrentProfile();
-            UpdateTrayIcon(currentProfile);
-
-            BuildContextMenu();
-            UpdateTrayIconTooltip();
-        }
-
-        private Icon CreateTrayIcon()
-        {
             try
             {
-                var icon = Properties.Resources.AppIcon;
-                if (icon != null)
-                    return icon;
-                else
-                    return SystemIcons.Application;
+                icon = IconHelper.LoadIcon(profile?.Icon) ?? _defaultIcon;
+
+                if (ReferenceEquals(icon, _currentIcon)) return;
+
+                var oldIcon = _currentIcon;
+                _currentIcon = icon;
+                UpdateNativeIcon();
+
+                if (oldIcon != null && !ReferenceEquals(oldIcon, _defaultIcon))
+                    oldIcon.Dispose();
             }
             catch (Exception ex)
             {
-                logger.Warn(ex, "Failed to load icon from resources");
-                return SystemIcons.Application;
+                logger.Warn(ex, "Failed to update tray icon");
+
+                if (icon != null &&!ReferenceEquals(icon, _defaultIcon) && !ReferenceEquals(icon, _currentIcon))
+                    icon.Dispose();
+
+                if (!ReferenceEquals(_currentIcon, _defaultIcon))
+                {
+                    var oldIcon = _currentIcon;
+                    _currentIcon = _defaultIcon;
+                    UpdateNativeIcon();
+                    oldIcon?.Dispose();
+                }
             }
+        }
+
+        private void UpdateNativeIcon()
+        {
+            if (!_iconAdded || _currentIcon == null) return;
+
+            var data = CreateNotifyIconData(NifIcon);
+            data.hIcon = _currentIcon.Handle;
+            if (!Shell_NotifyIcon(NimModify, ref data))
+                logger.Warn("Failed to update tray icon");
         }
 
         private void UpdateTrayIconTooltip()
         {
+            string tooltip = "Display Profile Manager";
             var currentProfile = _profileManager.GetCurrentProfile();
+
             if (currentProfile != null)
+                tooltip = BuildTooltip(currentProfile.Name);
+
+            var data = CreateNotifyIconData(NifTip);
+            data.szTip = tooltip;
+
+            if (_iconAdded && !Shell_NotifyIcon(NimModify, ref data))
+                logger.Warn("Failed to update tray tooltip");
+        }
+
+        private static string BuildTooltip(string profileName)
+        {
+            const string prefix = "Display Profile Manager - ";
+            string fullTooltip = string.IsNullOrEmpty(profileName)
+                ? "Display Profile Manager"
+                : $"{prefix}{profileName}";
+
+            if (fullTooltip.Length < 64)
             {
-                string prefix = "Display Profile Manager - ";
-                string currentProfileName = currentProfile.Name;
-                string fullTooltip = $"{prefix}{currentProfileName}";
-
-                if (fullTooltip.Length >= 64)
-                {
-                    int availableSpace = 63 - prefix.Length - 3;
-                    if (availableSpace > 0)
-                        fullTooltip = $"{prefix}{currentProfileName.Substring(0, availableSpace)}...";
-                    else
-                        fullTooltip = fullTooltip.Substring(0, 60) + "...";
-                }
-
-                _notifyIcon.Text = fullTooltip;
+                return fullTooltip;
             }
+
+            int availableSpace = 63 - prefix.Length - 3;
+            return availableSpace > 0
+                ? $"{prefix}{profileName.Substring(0, availableSpace)}..."
+                : fullTooltip.Substring(0, 60) + "...";
         }
 
-        private void UpdateTrayIcon(Profile profile = null)
+        private void AddNotifyIcon()
         {
-            var icon = IconHelper.LoadIcon(profile?.Icon);
-            _notifyIcon.Icon = icon ?? _defaultIcon;
-        }
+            if (_disposed || !_visible || _iconAdded || _currentIcon == null) return;
 
-        private void BuildContextMenu()
-        {
-            _contextMenu.Items.Clear();
+            var data = CreateNotifyIconData(NifMessage | NifIcon | NifTip | NifGuid);
+            data.hIcon = _currentIcon.Handle;
+            data.szTip = BuildTooltip(_profileManager.GetCurrentProfile()?.Name);
+            data.uVersion = NotifyIconVersion4;
 
-            var profiles = _profileManager.GetAllProfiles();
-
-            if (profiles.Count > 0)
+            if (!Shell_NotifyIcon(NimAdd, ref data))
             {
-                var profilesMenuItem = new ToolStripMenuItem("Profiles");
+                logger.Warn("Failed to add tray icon");
+                return;
+            }
 
-                foreach (var profile in profiles.OrderBy(p => p.Name))
+            if (!Shell_NotifyIcon(NimSetVersion, ref data))
+                logger.Warn("Failed to set tray icon notification version");
+
+            _iconAdded = true;
+        }
+
+        private void RemoveNotifyIcon()
+        {
+            if (!_iconAdded) return;
+
+            var data = CreateNotifyIconData(0);
+
+            if (!Shell_NotifyIcon(NimDelete, ref data))
+                logger.Warn("Failed to remove tray icon");
+
+            _iconAdded = false;
+        }
+
+        private IntPtr CreateContextMenu(out List<IntPtr> bitmapHandles)
+        {
+            bitmapHandles = new List<IntPtr>();
+            IntPtr menu = CreatePopupMenu();
+
+            if (menu == IntPtr.Zero)
+            {
+                return IntPtr.Zero;
+            }
+                
+            int iconSize = GetSystemMetrics(SmCxSmIcon);
+            var profiles = _profileManager.GetAllProfiles().OrderBy(p => p.Name, NaturalStringComparer.Instance).ToList();
+
+            uint command = MenuProfileBase;
+            foreach (var profile in profiles)
+            {
+                string displayName = profile.Name;
+
+                if (profile.HotkeyConfig?.IsEnabled == true && profile.HotkeyConfig.Key != Key.None)
+                    displayName += $" ({profile.HotkeyConfig})";
+
+                AppendMenu(menu, MfString, command, displayName);
+
+                if (profile.Id == _profileManager.CurrentProfileId)
+                    CheckMenuItem(menu, command, MfByCommand | MfChecked);
+                else if (!string.IsNullOrEmpty(profile.Icon))
                 {
-                    var profileDisplayName = profile.Name;
-
-                    if (profile.HotkeyConfig?.IsEnabled == true && profile.HotkeyConfig.Key != System.Windows.Input.Key.None)
-                        profileDisplayName += $" ({profile.HotkeyConfig})";
-
-                    var profileItem = new ToolStripMenuItem(profileDisplayName);
-                    profileItem.Tag = profile;
-                    profileItem.Click += OnProfileMenuItemClick;
-
-                    bool isActive = profile.Id == _profileManager.CurrentProfileId;
-
-                    if (isActive)
-                        profileItem.Checked = true;
-                    else if (!string.IsNullOrEmpty(profile.Icon))
+                    using (var icon = IconHelper.LoadIcon(profile.Icon))
                     {
-                        var icon = IconHelper.LoadIcon(profile.Icon);
                         if (icon != null)
                         {
-                            var bmp = new Bitmap(icon.ToBitmap(), new Size(16, 16));
-                            profileItem.Image = bmp;
+                            IntPtr hBitmap = CreateMenuIconBitmap(icon.Handle, iconSize);
+                            if (hBitmap != IntPtr.Zero)
+                            {
+                                bitmapHandles.Add(hBitmap);
+
+                                var itemInfo = new MENUITEMINFO
+                                {
+                                    cbSize = (uint)Marshal.SizeOf<MENUITEMINFO>(),
+                                    fMask = MiimBitmap,
+                                    hbmpItem = hBitmap
+                                };
+
+                                SetMenuItemInfo(menu, command, false, ref itemInfo);
+                            }
                         }
                     }
-
-                    profilesMenuItem.DropDownItems.Add(profileItem);
                 }
 
-                _contextMenu.Items.Add(profilesMenuItem);
-                _contextMenu.Items.Add(new ToolStripSeparator());
+                command++;
             }
 
-            var manageProfilesItem = new ToolStripMenuItem("Open");
-            manageProfilesItem.Click += OnManageProfilesClick;
-            _contextMenu.Items.Add(manageProfilesItem);
+            if (profiles.Count > 0)
+                AppendMenu(menu, MfSeparator, 0, null);
+            AppendMenu(menu, MfString, MenuOpen, "Open");
+            AppendMenu(menu, MfString, MenuSettings, "Settings");
+            AppendMenu(menu, MfSeparator, 0, null);
+            AppendMenu(menu, MfString, MenuExit, "Exit");
 
-            var settingsItem = new ToolStripMenuItem("Settings");
-            settingsItem.Click += OnSettingsClick;
-            _contextMenu.Items.Add(settingsItem);
-
-            _contextMenu.Items.Add(new ToolStripSeparator());
-
-            var exitItem = new ToolStripMenuItem("Exit");
-            exitItem.Click += OnExitClick;
-            _contextMenu.Items.Add(exitItem);
+            return menu;
         }
 
-        private async void OnProfileMenuItemClick(object sender, EventArgs e)
+        private static IntPtr CreateMenuIconBitmap(IntPtr hIcon, int size)
         {
-            if (sender is ToolStripMenuItem menuItem && menuItem.Tag is Profile profile)
+            IntPtr hdcScreen = GetDC(IntPtr.Zero);
+            IntPtr hdcMem = CreateCompatibleDC(hdcScreen);
+
+            var bmi = new BITMAPINFOHEADER
             {
+                biSize = (uint)Marshal.SizeOf<BITMAPINFOHEADER>(),
+                biWidth = size,
+                biHeight = -size,
+                biPlanes = 1,
+                biBitCount = 32,
+                biCompression = 0
+            };
+
+            IntPtr hBitmap = CreateDIBSection(
+                hdcScreen,
+                ref bmi,
+                0,
+                out IntPtr pvBits,
+                IntPtr.Zero,
+                0);
+
+            if (hBitmap != IntPtr.Zero)
+            {
+                IntPtr hOld = SelectObject(hdcMem, hBitmap);
+                DrawIconEx(
+                    hdcMem,
+                    0,
+                    0,
+                    hIcon,
+                    size,
+                    size,
+                    0,
+                    IntPtr.Zero,
+                    DiNormal);
+
+                int count = size * size;
+                int[] pixels = new int[count];
+                Marshal.Copy(pvBits, pixels, 0, count);
+
+                for (int i = 0; i < count; i++)
+                {
+                    uint px = unchecked((uint)pixels[i]);
+                    byte a = (byte)(px >> 24);
+                    byte r = (byte)(((px >> 16) & 0xFF) * a / 255);
+                    byte g = (byte)(((px >> 8) & 0xFF) * a / 255);
+                    byte b = (byte)((px & 0xFF) * a / 255);
+
+                    pixels[i] = unchecked(
+                        (int)(((uint)a << 24) |
+                              ((uint)r << 16) |
+                              ((uint)g << 8) |
+                              b));
+                }
+
+                Marshal.Copy(pixels, 0, pvBits, count);
+                SelectObject(hdcMem, hOld);
+            }
+
+            DeleteDC(hdcMem);
+            ReleaseDC(IntPtr.Zero, hdcScreen);
+
+            return hBitmap;
+        }
+
+        private void ShowContextMenu()
+        {
+            if (_disposed) return;
+
+            IntPtr menu = CreateContextMenu(out var bitmapHandles);
+
+            if (menu == IntPtr.Zero) return;
+
+            try
+            {
+                SetForegroundWindow(_hwndSource.Handle);
+                GetCursorPos(out var point);
+
+                uint command = TrackPopupMenuEx(menu, TpmRightButton | TpmReturnCmd, point.X, point.Y, _hwndSource.Handle, IntPtr.Zero);
+                if (command >= MenuProfileBase && command < MenuOpen)
+                {
+                    int index = checked((int)(command - MenuProfileBase));
+                    var profile = _profileManager.GetAllProfiles().OrderBy(p => p.Name, NaturalStringComparer.Instance).ElementAtOrDefault(index);
+                    if (profile != null)
+                        _ = ApplyProfileFromTrayAsync(profile);
+                }
+                else if (command == MenuOpen)
+                    ShowMainWindow?.Invoke(this, EventArgs.Empty);
+                else if (command == MenuSettings)
+                    ShowSettingsWindow?.Invoke(this, EventArgs.Empty);
+                else if (command == MenuExit)
+                    ExitApplication?.Invoke(this, EventArgs.Empty);
+
+                var focusData = CreateNotifyIconData(0);
+                Shell_NotifyIcon(NimSetFocus, ref focusData);
+            }
+            finally
+            {
+                foreach (var handle in bitmapHandles)
+                    DeleteObject(handle);
+
+                DestroyMenu(menu);
+            }
+        }
+
+        private async System.Threading.Tasks.Task ApplyProfileFromTrayAsync(Profile profile)
+        {
+            try
+            {
+                logger.Info($"Applying profile '{profile.Name}' from TrayIcon");
+
+                var applyResult = await _profileManager.ApplyProfileAsync(profile, ProfileManager.ApplySource.Tray);
+                if (!applyResult.Success)
+                {
+                    string errorDetails = _profileManager.GetApplyResultErrorMessage(profile.Name, applyResult);
+
+                    logger.Warn(errorDetails);
+                    ShowNotification("Apply failed", errorDetails, TrayNotificationIcon.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex, "Error applying profile from tray");
                 try
                 {
-                    logger.Info($"Applying profile '{profile.Name}' via TrayIcon");
-
-                    var applyResult = await _profileManager.ApplyProfileAsync(profile);
-
-                    if (applyResult.Success)
-                    {
-                        string message = $"Profile '{profile.Name}' applied";
-                        logger.Info(message);
-                        _notifyIcon.ShowBalloonTip(3000, "Display Profile Manager", message, ToolTipIcon.Info);
-                    }
-                    else
-                    {
-                        string errorDetails = _profileManager.GetApplyResultErrorMessage(profile.Name, applyResult);
-                        logger.Warn(errorDetails);
-                        _notifyIcon.ShowBalloonTip(5000, "Display Profile Manager", errorDetails, ToolTipIcon.Error);
-                    }
+                    ShowNotification("Apply failed","Error applying profile", TrayNotificationIcon.Error);
                 }
-                catch (Exception ex)
-                {
-                    logger.Error(ex, $"Error applying profile via tray");
-                    try
-                    {
-                        _notifyIcon?.ShowBalloonTip(5000, "Display Profile Manager",
-                            $"Error applying profile: {ex.Message}", ToolTipIcon.Error);
-                    }
-                    catch { }
-                }
+                catch { }
             }
         }
 
-        private void OnTrayIconDoubleClick(object sender, EventArgs e) =>
-            ShowMainWindow?.Invoke(this, EventArgs.Empty);
-
-        private void OnManageProfilesClick(object sender, EventArgs e) =>
-            ShowMainWindow?.Invoke(this, EventArgs.Empty);
-
-        private void OnSettingsClick(object sender, EventArgs e) =>
-            ShowSettingsWindow?.Invoke(this, EventArgs.Empty);
-
-        private void OnExitClick(object sender, EventArgs e) =>
-            ExitApplication?.Invoke(this, EventArgs.Empty);
-
-        private void OnProfilesLoaded(object sender, EventArgs e) => BuildContextMenu();
-
-        private void OnProfileApplied(object sender, Profile profile)
+        private void ShowBalloonTip(string title, string message, TrayNotificationIcon icon)
         {
-            BuildContextMenu();
+            if (!_iconAdded) return;
+
+            var data = CreateNotifyIconData(NifInfo);
+            data.szInfoTitle = title;
+            data.szInfo = message;
+            data.dwInfoFlags = icon switch
+            {
+                TrayNotificationIcon.Info => NiifInfo,
+                TrayNotificationIcon.Error => NiifError,
+                _ => NiifNone
+            };
+
+            if (!Shell_NotifyIcon(NimModify, ref data))
+                logger.Warn("Failed to display tray notification");
+        }
+
+        private void OnProfilesLoaded(object sender, EventArgs e) => UpdateTrayIconTooltip();
+
+        private void OnProfileApplied(object sender, ProfileManager.ProfileAppliedEventArgs e)
+        {
             UpdateTrayIconTooltip();
-            UpdateTrayIcon(profile);
+            UpdateTrayIcon(e.Profile);
         }
 
         private void OnProfileChanged(object sender, Profile profile)
         {
-            BuildContextMenu();
-            UpdateTrayIcon(profile);
+            UpdateTrayIcon(_profileManager.GetCurrentProfile());
+            UpdateTrayIconTooltip();
         }
+
         private void OnProfileDeleted(object sender, string profileId)
         {
-            BuildContextMenu();
-            UpdateTrayIcon();
+            UpdateTrayIcon(_profileManager.GetCurrentProfile());
+            UpdateTrayIconTooltip();
+        }
+
+        private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+        {
+            if (unchecked((uint)msg) == _taskbarCreatedMessage)
+            {
+                if (_visible)
+                    AddNotifyIcon();
+
+                handled = true;
+
+                return IntPtr.Zero;
+            }
+
+            if (msg == unchecked((int)WmAppTray))
+            {
+                int mouseMessage = unchecked((int)(lParam.ToInt64() & 0xFFFF));
+
+                if (mouseMessage == WmLButtonUp)
+                    ShowMainWindow?.Invoke(this, EventArgs.Empty);
+                else if (mouseMessage == WmLButtonDblClk)
+                    ShowMainWindow?.Invoke(this, EventArgs.Empty);
+                else if (mouseMessage == WmRButtonUp)
+                    ShowContextMenu();
+                else if (mouseMessage == 0x0405)
+                    OpenNotificationLink();
+
+                handled = true;
+            }
+
+            return IntPtr.Zero;
+        }
+
+        private void OpenNotificationLink()
+        {
+            if (string.IsNullOrEmpty(_notificationLink)) return;
+
+            try
+            {
+                Process.Start(new ProcessStartInfo(_notificationLink)
+                {
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex, "Error opening notification link");
+            }
+            finally
+            {
+                _notificationLink = null;
+            }
+        }
+
+        private NOTIFYICONDATA CreateNotifyIconData(uint flags)
+        {
+            return new NOTIFYICONDATA
+            {
+                cbSize = (uint)Marshal.SizeOf<NOTIFYICONDATA>(),
+                hWnd = _hwndSource.Handle,
+                uID = 1,
+                uFlags = flags,
+                uCallbackMessage = WmAppTray,
+                guidItem = _iconGuid
+            };
         }
 
         #endregion
 
-        public void ShowNotification(string title, string message, ToolTipIcon icon = ToolTipIcon.None, int timeout = 3000)
+        #region Public Methods
+
+        public void ShowNotification(string title, string message, TrayNotificationIcon icon = TrayNotificationIcon.None)
         {
-            _notifyIcon.ShowBalloonTip(timeout, title, message, icon);
+            _notificationLink = null;
+            ShowBalloonTip(title, message, icon);
         }
 
-        public void UpdateTooltip(string text) => _notifyIcon.Text = text;
+        public void ShowUpdateNotification(string title, string message, string url)
+        {
+            _notificationLink = url;
+            ShowBalloonTip(title, message, TrayNotificationIcon.Info);
+        }
 
-        public void Hide() => _notifyIcon.Visible = false;
+        public void UpdateTooltip(string text)
+        {
+            var data = CreateNotifyIconData(NifTip);
+            data.szTip = text;
 
-        public void Show() => _notifyIcon.Visible = true;
+            if (_iconAdded)
+                Shell_NotifyIcon(NimModify, ref data);
+        }
+
+        public void Show()
+        {
+            _visible = true;
+            AddNotifyIcon();
+        }
+
+        public void Hide()
+        {
+            _visible = false;
+            RemoveNotifyIcon();
+        }
 
         public void Dispose()
         {
-            Dispose(true);
-            GC.SuppressFinalize(this);
+            if (_disposed) return;
+
+            _disposed = true;
+
+            _profileManager.ProfileAdded -= OnProfileChanged;
+            _profileManager.ProfileUpdated -= OnProfileChanged;
+            _profileManager.ProfileDeleted -= OnProfileDeleted;
+            _profileManager.ProfilesLoaded -= OnProfilesLoaded;
+            _profileManager.ProfileApplied -= OnProfileApplied;
+
+            RemoveNotifyIcon();
+            _hwndSource.RemoveHook(WndProc);
+            _hwndSource.Dispose();
+
+            if (_currentIcon != null && !ReferenceEquals(_currentIcon, _defaultIcon))
+                _currentIcon.Dispose();
+
+            _defaultIcon?.Dispose();
+            _defaultIcon = null;
+            _currentIcon = null;
         }
 
-        protected virtual void Dispose(bool disposing)
-        {
-            if (!_disposed)
-            {
-                if (disposing)
-                {
-                    if (_profileManager != null)
-                    {
-                        _profileManager.ProfileAdded -= OnProfileChanged;
-                        _profileManager.ProfileUpdated -= OnProfileChanged;
-                        _profileManager.ProfileDeleted -= OnProfileDeleted;
-                        _profileManager.ProfilesLoaded -= OnProfilesLoaded;
-                        _profileManager.ProfileApplied -= OnProfileApplied;
-                    }
-
-                    _contextMenu?.Dispose();
-                    _notifyIcon?.Dispose();
-                }
-
-                _disposed = true;
-            }
-        }
-
-        ~TrayIcon() => Dispose(false);
+        #endregion
     }
 }

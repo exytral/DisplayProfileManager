@@ -52,8 +52,8 @@ namespace DisplayProfileManager.Helpers
                     FileName = fileName,
                     Arguments = finalArguments.Trim(),
                     UseShellExecute = useShell,
-                    CreateNoWindow = !useShell, // CreateNoWindow must be false if UseShellExecute is true
-                    RedirectStandardError = !useShell // Cannot redirect error stream if using shell execute
+                    CreateNoWindow = !useShell,
+                    RedirectStandardError = !useShell
                 };
 
                 await Task.Run(() =>
@@ -65,31 +65,6 @@ namespace DisplayProfileManager.Helpers
             {
                 logger.Error(ex, $"Script execution error: {filePath}");
             }
-        }
-
-        public static (string Path, string Args) ParseScriptString(string scriptString)
-        {
-            if (string.IsNullOrWhiteSpace(scriptString)) return (string.Empty, string.Empty);
-
-            string input = scriptString.Trim();
-
-            if (input.StartsWith("\""))
-            {
-                int closingQuote = input.IndexOf("\"", 1);
-                if (closingQuote > 0)
-                {
-                    return (
-                        input.Substring(1, closingQuote - 1), // Path
-                        input.Substring(closingQuote + 1).Trim() // Args
-                    );
-                }
-            }
-
-            int firstSpace = input.IndexOf(' ');
-            if (firstSpace == -1) return (input.Replace("\"", ""), string.Empty);
-
-            return (input.Substring(0, firstSpace).Replace("\"", ""), input.Substring(firstSpace).Trim()
-            );
         }
     }
 }

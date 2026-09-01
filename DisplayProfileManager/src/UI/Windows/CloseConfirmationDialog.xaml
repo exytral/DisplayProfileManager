@@ -3,13 +3,11 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:DisplayProfileManager.UI.Windows"
-        xmlns:converters="clr-namespace:DisplayProfileManager.UI.Converters"
         mc:Ignorable="d"
         Title="Close Application" Width="330" Height="180"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
         WindowStyle="SingleBorderWindow">
-    
+
     <WindowChrome.WindowChrome>
         <WindowChrome 
             CaptionHeight="32"
@@ -18,7 +16,7 @@
             GlassFrameThickness="0,32,0,0"
             UseAeroCaptionButtons="True" />
     </WindowChrome.WindowChrome>
-    
+
     <Window.Resources>
         <Style x:Key="PrimaryButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="{DynamicResource ButtonBackgroundBrush}"/>
@@ -70,26 +68,6 @@
             <Setter Property="FontFamily" Value="Segoe UI"/>
         </Style>
 
-        <Style x:Key="HeaderTextBlockStyle" TargetType="TextBlock" BasedOn="{StaticResource PrimaryTextBlockStyle}">
-            <Setter Property="FontSize" Value="18"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
-        </Style>
-
-        <Style x:Key="PrimaryRadioButtonStyle" TargetType="RadioButton">
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="FontFamily" Value="Segoe UI"/>
-            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
-            <Setter Property="Padding" Value="8,4"/>
-        </Style>
-
-        <Style x:Key="PrimaryCheckBoxStyle" TargetType="CheckBox">
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="FontFamily" Value="Segoe UI"/>
-            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
-            <Setter Property="Margin" Value="0,0,10,0"/>
-        </Style>
-
         <Style x:Key="WindowCloseButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
@@ -136,7 +114,7 @@
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            
+
             <!-- Dialog title -->
             <TextBlock Grid.Column="0"
                        Text="Close Application"
@@ -145,7 +123,7 @@
                        FontFamily="Segoe UI"
                        FontSize="12"
                        Foreground="{DynamicResource TitleBarTextBrush}"/>
-            
+
             <!-- Close Button -->
             <Button Grid.Column="1"
                     Name="TitleBarCloseButton"
@@ -190,8 +168,7 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <StackPanel Grid.Column="1"
-                        Orientation="Horizontal">
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
                     <Button Name="CancelButton"
                         Content="Cancel"
                         Style="{StaticResource SecondaryButtonStyle}"

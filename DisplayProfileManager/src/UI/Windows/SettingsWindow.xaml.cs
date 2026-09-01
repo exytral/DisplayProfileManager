@@ -1,15 +1,16 @@
-using DisplayProfileManager.Core;
+﻿using DisplayProfileManager.Core;
 using DisplayProfileManager.Helpers;
 using NLog;
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Navigation;
-using System.Windows.Shell;
 
 namespace DisplayProfileManager.UI.Windows
 {
@@ -29,6 +30,57 @@ namespace DisplayProfileManager.UI.Windows
             _autoStartHelper = new AutoStartHelper();
             ThemeHelper.ThemeChanged += OnThemeChanged;
             Closed += (s, e) => ThemeHelper.ThemeChanged -= OnThemeChanged;
+
+            InitializeStates();
+        }
+
+        private void InitializeStates()
+        {
+            var settings = _settingsManager.Settings;
+            if (settings == null) return;
+
+            var wasLoading = _isLoadingSettings;
+            _isLoadingSettings = true;
+            try
+            {
+                CheckForUpdatesCheckBox.IsChecked = settings.CheckForUpdates;
+                AbortOnApplyFailureCheckBox.IsChecked = settings.AbortOnApplyFailure;
+                RollbackAfterApplyFailureCheckBox.IsChecked = settings.RollbackAfterApplyFailure;
+                RollbackToPreviousProfileRadio.IsChecked = settings.RollbackToPreviousProfile;
+                RollbackToSnapshotRadio.IsChecked = !settings.RollbackToPreviousProfile;
+                StartInSystemTrayCheckBox.IsChecked = settings.StartInSystemTray;
+                DesktopContextMenuCheckBox.IsChecked = settings.DesktopContextMenuEnabled;
+                ShowNotificationsCheckBox.IsChecked = settings.ShowNotifications;
+                RememberCloseChoiceCheckBox.IsChecked = settings.RememberCloseChoice;
+                ApplyStartupProfileCheckBox.IsChecked = settings.ApplyStartupProfile;
+
+                if (settings.CloseToTray) CloseToTrayRadio.IsChecked = true;
+                else ExitApplicationRadio.IsChecked = true;
+
+                if (settings.AutoStartMode == AutoStartMode.Registry) RegistryModeRadio.IsChecked = true;
+                else TaskSchedulerModeRadio.IsChecked = true;
+
+                StartInSystemTrayCheckBox.IsEnabled = settings.StartWithWindows;
+                StartInSystemTrayCheckBox.Opacity = settings.StartWithWindows ? 1.0 : UiOpacity.Inactive;
+                AutoStartModePanel.IsEnabled = settings.StartWithWindows;
+                AutoStartModePanel.Opacity = settings.StartWithWindows ? 1.0 : UiOpacity.Inactive;
+
+                PopulateStartupProfiles();
+                SelectComboBoxItemByTag(StartupProfileComboBox, settings.StartupProfileId);
+                ApplyStartupProfileCheckBox.IsEnabled = !string.IsNullOrEmpty(settings.StartupProfileId);
+                RefreshHotkeyList();
+                BuildVersionLink();
+                SettingsPathTextBlock.Text = AboutHelper.GetSettingsPath();
+                LoadLibraries();
+                LoadContributors();
+                UpdateComboBoxOpacity();
+
+                UpdateDisplayRecoveryUiState();
+            }
+            finally
+            {
+                _isLoadingSettings = wasLoading;
+            }
         }
 
         private async void Window_Loaded(object sender, RoutedEventArgs e)
@@ -37,79 +89,55 @@ namespace DisplayProfileManager.UI.Windows
 
             try
             {
-                // Initialize title bar margin state
-                UpdateTitleBarMargin();
+                TitleBarHelper.UpdateMargin(this, TitleBarGrid, TitleBarRowDefinition);
 
-                // Match owner height and position at open time
+                // Match owner window size and position at open time
                 if (Owner != null)
                 {
+                    var origin = Owner.PointToScreen(new Point(0, 0));
+                    var source = PresentationSource.FromVisual(Owner);
+                    var scale = source?.CompositionTarget?.TransformToDevice.M11 ?? 1.0;
+
+                    Width = Owner.ActualWidth;
                     Height = Owner.ActualHeight;
-                    Left = Owner.Left + (Owner.ActualWidth - Width) / 2;
-                    Top = Owner.Top + (Owner.ActualHeight - Height) / 2;
+                    Left = (origin.X / scale) + (Owner.ActualWidth - Width) / 2;
+                    Top = (origin.Y / scale) + (Owner.ActualHeight - Height) / 2;
                 }
 
-                // Load current settings
                 var settings = _settingsManager.Settings;
 
-                // General settings
-                ThemeComboBox.ItemsSource = new[] { "System" }.Concat(ThemeHelper.AvailableThemes);
+                ThemeHelper.RefreshThemes();
+                PopulateThemeComboBox();
                 string savedTheme = settings.Theme;
                 ThemeComboBox.SelectedItem = ThemeHelper.AvailableThemes.Contains(savedTheme) || savedTheme == "System"
                     ? savedTheme
                     : "System";
                 SelectComboBoxItemByTag(LanguageComboBox, settings.Language);
 
-                // Startup settings
-                StartWithWindowsCheckBox.IsChecked = settings.StartWithWindows;
-                StartInSystemTrayCheckBox.IsChecked = settings.StartInSystemTray;
-                StartInSystemTrayCheckBox.IsEnabled = settings.StartWithWindows;
-
-                // Auto-start mode settings
-                if (settings.AutoStartMode == Core.AutoStartMode.Registry)
-                    RegistryModeRadio.IsChecked = true;
-                else
-                    TaskSchedulerModeRadio.IsChecked = true;
-                AutoStartModePanel.IsEnabled = settings.StartWithWindows;
-
-                await LoadStartupProfiles();
-                SelectComboBoxItemByTag(StartupProfileComboBox, settings.StartupProfileId);
-                ApplyStartupProfileCheckBox.IsChecked = settings.ApplyStartupProfile;
-                UpdateComboBoxOpacity();
-
-                // Window behavior settings
-                if (settings.CloseToTray)
+                var liveAutoStart = _autoStartHelper.IsAutoStartEnabled();
+                StartWithWindowsCheckBox.IsChecked = liveAutoStart;
+                if (liveAutoStart != settings.StartWithWindows)
                 {
-                    CloseToTrayRadio.IsChecked = true;
+                    logger.Info($"Auto-start setting was {settings.StartWithWindows} but system reports {liveAutoStart} -> trusting system");
+                    _ = _settingsManager.SetStartWithWindowsStateOnlyAsync(liveAutoStart);
                 }
-                else
-                {
-                    ExitApplicationRadio.IsChecked = true;
-                }
-                RememberCloseChoiceCheckBox.IsChecked = settings.RememberCloseChoice;
+                StartInSystemTrayCheckBox.IsEnabled = liveAutoStart;
+                StartInSystemTrayCheckBox.Opacity = liveAutoStart ? 1.0 : UiOpacity.Inactive;
+                AutoStartModePanel.IsEnabled = liveAutoStart;
+                AutoStartModePanel.Opacity = liveAutoStart ? 1.0 : UiOpacity.Inactive;
 
-                // Notifications settings
-                ShowNotificationsCheckBox.IsChecked = settings.ShowNotifications;
+                await RefreshStartupProfilesAsync(settings.StartupProfileId);
+                UpdateDeleteThemeButtonState();
 
-                // Global hotkeys settings
-                RefreshHotkeyList();
+                DesktopContextMenuCheckBox.IsChecked = SettingsManager.Instance.IsDesktopContextMenuEnabled();
 
-                // About section
-                var versionLink = new System.Windows.Documents.Hyperlink(new System.Windows.Documents.Run(AboutHelper.GetInformationalVersion()))
-                {
-                    NavigateUri = new Uri("https://github.com/exytral/DisplayProfileManager/releases"),
-                    Foreground = (Brush)FindResource("LinkBrush")
-                };
-                versionLink.RequestNavigate += Hyperlink_RequestNavigate;
-                VersionTextBlock.Inlines.Clear();
-                VersionTextBlock.Inlines.Add(versionLink);
-                SettingsPathTextBlock.Text = AboutHelper.GetSettingsPath();
+                await AppendUpdateAvailableAsync();
                 LoadLibraries();
                 LoadContributors();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error loading settings: {ex.Message}", "Error",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Error loading settings: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
@@ -145,10 +173,51 @@ namespace DisplayProfileManager.UI.Windows
             }
         }
 
-        private void OnThemeChanged(object sender, EventArgs e) => ThemeComboBox.ItemsSource = new[] { "System" }.Concat(ThemeHelper.AvailableThemes);
+        private void OnThemeChanged(object sender, EventArgs e)
+        {
+            var wasLoading = _isLoadingSettings;
+            _isLoadingSettings = true;
+            try
+            {
+                PopulateThemeComboBox();
+                ThemeComboBox.SelectedItem = _settingsManager.Settings.Theme;
+
+                RefreshHotkeyList();
+                BuildVersionLink();
+                LoadLibraries();
+                LoadContributors();
+            }
+            finally
+            {
+                _isLoadingSettings = wasLoading;
+            }
+        }
+
+        private void PopulateThemeComboBox()
+        {
+            var selected = ThemeComboBox.SelectedItem as string;
+            ThemeComboBox.ItemsSource = new[] { "System" }.Concat(ThemeHelper.AvailableThemes);
+
+            if (selected != null && ThemeComboBox.Items.Contains(selected))
+                ThemeComboBox.SelectedItem = selected;
+
+            UpdateDeleteThemeButtonState();
+        }
+
+        private void ThemeComboBox_DropDownOpened(object sender, EventArgs e)
+        {
+            var selected = ThemeComboBox.SelectedItem as string;
+
+            ThemeHelper.RefreshThemes();
+            PopulateThemeComboBox();
+
+            if (selected != null && ThemeComboBox.Items.Contains(selected))
+                ThemeComboBox.SelectedItem = selected;
+        }
 
         private async void ThemeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            UpdateDeleteThemeButtonState();
             if (_isLoadingSettings) return;
 
             var theme = ThemeComboBox.SelectedItem as string;
@@ -157,6 +226,65 @@ namespace DisplayProfileManager.UI.Windows
                 await _settingsManager.SetThemeAsync(theme);
                 ThemeHelper.ApplyTheme(theme);
                 ThemeHelper.UpdateThemeSubscription(theme);
+            }
+        }
+
+        private async void ImportThemeButton_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Filter = "Theme files (*.xaml)|*.xaml",
+                Title = "Import theme"
+            };
+
+            if (dialog.ShowDialog() != true) return;
+
+            var imported = await ThemeHelper.ImportThemeAsync(dialog.FileName);
+            if (imported == null)
+            {
+                MessageBox.Show("That file could not be imported as a theme. It must be a ResourceDictionary containing the required brush keys.", "Import failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            PopulateThemeComboBox();
+            UpdateDeleteThemeButtonState();
+        }
+
+        private async void DeleteThemeButton_Click(object sender, RoutedEventArgs e)
+        {
+            var theme = ThemeComboBox.SelectedItem as string;
+            if (!ThemeHelper.IsUserTheme(theme)) return;
+
+            if (MessageBox.Show($"Delete the theme '{theme}'? The file is removed from the Themes folder.", "Delete theme", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+
+            if (await ThemeHelper.DeleteThemeAsync(theme))
+            {
+                PopulateThemeComboBox();
+
+                ThemeComboBox.SelectedItem = _settingsManager.Settings.Theme;
+                UpdateDeleteThemeButtonState();
+            }
+        }
+
+        private void UpdateDeleteThemeButtonState()
+        {
+            DeleteThemeButton.IsEnabled = ThemeHelper.IsUserTheme(ThemeComboBox.SelectedItem as string);
+        }
+
+        private async void CheckForUpdatesCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_isLoadingSettings) return;
+
+            var isChecked = CheckForUpdatesCheckBox.IsChecked ?? false;
+            await _settingsManager.SetCheckForUpdatesAsync(isChecked);
+
+            if (isChecked)
+                await AppendUpdateAvailableAsync(force: true, notify: true);
+            else
+            {
+                BuildVersionLink();
+                if (Owner is MainWindow main)
+                    main.ClearUpdateNotice();
             }
         }
 
@@ -176,19 +304,56 @@ namespace DisplayProfileManager.UI.Windows
             try
             {
                 var isChecked = StartWithWindowsCheckBox.IsChecked ?? false;
-                await _settingsManager.SetStartWithWindowsAsync(isChecked);
+                var result = await _settingsManager.SetStartWithWindowsAsync(isChecked);
+                bool effectiveState = _settingsManager.Settings.StartWithWindows;
+                if (result != AutoStartOperationResult.Success)
+                {
+                    var wasLoading = _isLoadingSettings;
+                    _isLoadingSettings = true;
+                    try
+                    {
+                        StartWithWindowsCheckBox.IsChecked = effectiveState;
+                    }
+                    finally
+                    {
+                        _isLoadingSettings = wasLoading;
+                    }
 
-                StartInSystemTrayCheckBox.IsEnabled = isChecked;
-                AutoStartModePanel.IsEnabled = isChecked;
+                    if (result == AutoStartOperationResult.Canceled)
+                        MessageBox.Show("Administrator approval was canceled. The requested auto-start change was not completed.", "Auto-start", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    else
+                    {
+                        MessageBox.Show(
+                            $"Failed to {(isChecked ? "enable" : "disable")} auto-start. " +
+                            (isChecked
+                                ? "Administrator privileges may be required for setup."
+                                : "Please check the logs for more details."),
+                            "Error",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Error);
+                    }
+                }
 
-                if (!isChecked)
-                    StartInSystemTrayCheckBox.IsChecked = false;
+                StartInSystemTrayCheckBox.IsEnabled = effectiveState;
+                StartInSystemTrayCheckBox.Opacity = effectiveState ? 1.0 : UiOpacity.Inactive;
+                AutoStartModePanel.IsEnabled = effectiveState;
+                AutoStartModePanel.Opacity = effectiveState ? 1.0 : UiOpacity.Inactive;
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error updating startup setting: {ex.Message}", "Error",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
-                StartWithWindowsCheckBox.IsChecked = !StartWithWindowsCheckBox.IsChecked;
+                MessageBox.Show($"Error updating startup setting: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+
+                var wasLoading = _isLoadingSettings;
+                _isLoadingSettings = true;
+                try
+                {
+                    StartWithWindowsCheckBox.IsChecked =
+                        _settingsManager.Settings.StartWithWindows;
+                }
+                finally
+                {
+                    _isLoadingSettings = wasLoading;
+                }
             }
         }
 
@@ -199,13 +364,42 @@ namespace DisplayProfileManager.UI.Windows
             try
             {
                 var isChecked = StartInSystemTrayCheckBox.IsChecked ?? false;
-                await _settingsManager.SetStartInSystemTrayAsync(isChecked);
+                var result = await _settingsManager.SetStartInSystemTrayAsync(isChecked);
+
+                if (result != AutoStartOperationResult.Success)
+                {
+                    var wasLoading = _isLoadingSettings;
+                    _isLoadingSettings = true;
+                    try
+                    {
+                        StartInSystemTrayCheckBox.IsChecked =
+                            _settingsManager.Settings.StartInSystemTray;
+                    }
+                    finally
+                    {
+                        _isLoadingSettings = wasLoading;
+                    }
+
+                    if (result == AutoStartOperationResult.Canceled)
+                        MessageBox.Show("Administrator approval was canceled. The requested tray-at-start change was not completed.", "Auto-start", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    else
+                        MessageBox.Show($"Failed to {(isChecked ? "enable" : "disable")} start in system tray. " + "Please check the logs for more details.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error updating system tray startup setting: {ex.Message}", "Error",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
-                StartInSystemTrayCheckBox.IsChecked = !StartInSystemTrayCheckBox.IsChecked;
+                MessageBox.Show($"Error updating system tray startup setting: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+
+                var wasLoading = _isLoadingSettings;
+                _isLoadingSettings = true;
+                try
+                {
+                    StartInSystemTrayCheckBox.IsChecked = _settingsManager.Settings.StartInSystemTray;
+                }
+                finally
+                {
+                    _isLoadingSettings = wasLoading;
+                }
             }
         }
 
@@ -213,55 +407,48 @@ namespace DisplayProfileManager.UI.Windows
         {
             if (_isLoadingSettings) return;
 
+            var previousMode = _settingsManager.Settings.AutoStartMode;
             try
             {
-                AutoStartMode selectedMode = RegistryModeRadio.IsChecked == true? AutoStartMode.Registry : AutoStartMode.TaskScheduler;
+                AutoStartMode selectedMode = RegistryModeRadio.IsChecked == true ? AutoStartMode.Registry : AutoStartMode.TaskScheduler;
 
-                // Check if switching to Task Scheduler mode
                 if (selectedMode == AutoStartMode.TaskScheduler)
                 {
-                    // Check if already running as admin
                     if (!AutoStartHelper.IsRunningAsAdmin())
                     {
-                        var result = MessageBox.Show(
-                            "Quick Launch mode requires administrator privileges for initial setup.\n\n" +
-                            "You are not currently running as administrator. The system will attempt to create the task, " +
-                            "which may prompt for elevation.\n\n" +
-                            "Do you want to continue?",
-                            "Administrator Privileges Required for Setup",
-                            MessageBoxButton.YesNo,
-                            MessageBoxImage.Warning);
+                        var result = MessageBox.Show("Windows will prompt for elevation to create the scheduled task.\n\nContinue?", "Quick Launch setup", MessageBoxButton.YesNo, MessageBoxImage.Warning);
 
                         if (result == MessageBoxResult.No)
                         {
-                            // Revert to Registry mode
                             _isLoadingSettings = true;
-                            RegistryModeRadio.IsChecked = true;
+                            RegistryModeRadio.IsChecked = previousMode == AutoStartMode.Registry;
+                            TaskSchedulerModeRadio.IsChecked = previousMode == AutoStartMode.TaskScheduler;
                             _isLoadingSettings = false;
                             return;
                         }
                     }
                 }
 
-                // Attempt to change the mode
-                bool success = await _settingsManager.SetAutoStartModeAsync(selectedMode);
-                if (!success)
+                var operationResult = await _settingsManager.SetAutoStartModeAsync(selectedMode);
+                if (operationResult != AutoStartOperationResult.Success)
                 {
-                    MessageBox.Show(
-                        $"Failed to switch to {selectedMode} mode. " +
-                        (selectedMode == AutoStartMode.TaskScheduler
-                            ? "Administrator privileges may be required for setup."
-                            : "Please check the logs for more details."),
-                        "Error",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Error);
-
-                    // Revert to previous mode
-                    _isLoadingSettings = true;
-                    if (selectedMode == AutoStartMode.Registry)
-                        TaskSchedulerModeRadio.IsChecked = true;
+                    if (operationResult == AutoStartOperationResult.Canceled)
+                        MessageBox.Show("Administrator approval was canceled. Auto-start mode was not changed.", "Auto-start", MessageBoxButton.OK, MessageBoxImage.Warning);
                     else
-                        RegistryModeRadio.IsChecked = true;
+                    {
+                        MessageBox.Show(
+                            $"Failed to switch to {selectedMode} mode. " +
+                            (selectedMode == AutoStartMode.TaskScheduler
+                                ? "Administrator privileges may be required for setup."
+                                : "Please check the logs for more details."),
+                            "Error",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Error);
+                    }
+
+                    _isLoadingSettings = true;
+                    RegistryModeRadio.IsChecked = previousMode == AutoStartMode.Registry;
+                    TaskSchedulerModeRadio.IsChecked = previousMode == AutoStartMode.TaskScheduler;
                     _isLoadingSettings = false;
                 }
             }
@@ -269,14 +456,14 @@ namespace DisplayProfileManager.UI.Windows
             {
                 MessageBox.Show($"Error changing auto-start mode: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
 
-                // Revert to Registry mode on error
                 _isLoadingSettings = true;
-                RegistryModeRadio.IsChecked = true;
+                RegistryModeRadio.IsChecked = previousMode == AutoStartMode.Registry;
+                TaskSchedulerModeRadio.IsChecked = previousMode == AutoStartMode.TaskScheduler;
                 _isLoadingSettings = false;
             }
         }
 
-        private void UpdateComboBoxOpacity() => StartupProfileComboBox.Opacity = (ApplyStartupProfileCheckBox.IsChecked == true) ? 1.0 : 0.5;
+        private void UpdateComboBoxOpacity() => StartupProfileComboBox.Opacity = (ApplyStartupProfileCheckBox.IsChecked == true) ? 1.0 : UiOpacity.Inactive;
 
         private async void StartupProfileComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
@@ -308,24 +495,42 @@ namespace DisplayProfileManager.UI.Windows
             UpdateComboBoxOpacity();
         }
 
-        private async System.Threading.Tasks.Task LoadStartupProfiles()
+        private void BuildVersionLink()
+        {
+            var versionLink = new System.Windows.Documents.Hyperlink(new System.Windows.Documents.Run(AboutHelper.GetInformationalVersion()))
+            {
+                NavigateUri = new Uri("https://github.com/exytral/DisplayProfileManager/releases"),
+                Foreground = (Brush)FindResource("LinkBrush")
+            };
+            versionLink.RequestNavigate += Hyperlink_RequestNavigate;
+
+            VersionTextBlock.Inlines.Clear();
+            VersionTextBlock.Inlines.Add(versionLink);
+        }
+
+        private void PopulateStartupProfiles()
+        {
+            StartupProfileComboBox.Items.Clear();
+            StartupProfileComboBox.Items.Add(new ComboBoxItem { Content = "None", Tag = "" });
+
+            foreach (var profile in _profileManager.GetAllProfiles())
+            {
+                StartupProfileComboBox.Items.Add(new ComboBoxItem
+                {
+                    Content = profile.Name,
+                    Tag = profile.Id
+                });
+            }
+        }
+
+        private async Task RefreshStartupProfilesAsync(string selectedProfileId = null)
         {
             try
             {
                 await _profileManager.LoadProfilesAsync();
-                var profiles = _profileManager.GetAllProfiles();
 
-                StartupProfileComboBox.Items.Clear();
-                StartupProfileComboBox.Items.Add(new ComboBoxItem { Content = "None", Tag = "" });
-
-                foreach (var profile in profiles)
-                {
-                    StartupProfileComboBox.Items.Add(new ComboBoxItem
-                    {
-                        Content = profile.Name,
-                        Tag = profile.Id
-                    });
-                }
+                PopulateStartupProfiles();
+                SelectComboBoxItemByTag(StartupProfileComboBox, selectedProfileId ?? string.Empty);
             }
             catch (Exception ex)
             {
@@ -355,6 +560,94 @@ namespace DisplayProfileManager.UI.Windows
 
             var isChecked = ShowNotificationsCheckBox.IsChecked ?? false;
             await _settingsManager.SetNotificationsAsync(isChecked);
+        }
+        private async void AbortOnApplyFailureCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_isLoadingSettings) return;
+
+            await _settingsManager.SetAbortOnApplyFailureAsync(AbortOnApplyFailureCheckBox.IsChecked ?? false);
+            UpdateDisplayRecoveryUiState();
+        }
+
+        private async void RollbackAfterApplyFailureCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_isLoadingSettings) return;
+
+            await _settingsManager.SetRollbackAfterApplyFailureAsync(RollbackAfterApplyFailureCheckBox.IsChecked ?? false);
+            UpdateDisplayRecoveryUiState();
+        }
+
+        private async void RollbackTargetRadio_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_isLoadingSettings) return;
+
+            await _settingsManager.SetRollbackToPreviousProfileAsync(RollbackToPreviousProfileRadio.IsChecked == true);
+        }
+
+        private void UpdateDisplayRecoveryUiState()
+        {
+            bool aborting = AbortOnApplyFailureCheckBox.IsChecked == true;
+            bool rollingBack = aborting && RollbackAfterApplyFailureCheckBox.IsChecked == true;
+
+            RollbackAfterApplyFailureCheckBox.IsEnabled = aborting;
+            RollbackAfterApplyFailureCheckBox.Opacity = aborting ? 1.0 : UiOpacity.Inactive;
+
+            RollbackToPreviousProfileRadio.IsEnabled = rollingBack;
+            RollbackToPreviousProfileRadio.Opacity = rollingBack ? 1.0 : UiOpacity.Inactive;
+
+            RollbackToSnapshotRadio.IsEnabled = rollingBack;
+            RollbackToSnapshotRadio.Opacity = rollingBack ? 1.0 : UiOpacity.Inactive;
+        }
+
+        private static bool ShellExtensionDllExists(out string path)
+        {
+            path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ShellExt.dll");
+            return File.Exists(path);
+        }
+
+        private async void DesktopContextMenuCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_isLoadingSettings) return;
+
+            bool enabled = DesktopContextMenuCheckBox.IsChecked == true;
+
+            if (enabled && !ShellExtensionDllExists(out string dllPath))
+            {
+                logger.Warn($"Desktop context menu not enabled — ShellExt.dll missing from {dllPath}");
+                MessageBox.Show($"ShellExt.dll was not found next to the application.\n\nExpected at:\n{dllPath}\n\nThe desktop context menu cannot be enabled without it. Reinstalling restores the file.", "Desktop context menu unavailable", MessageBoxButton.OK, MessageBoxImage.Warning);
+
+                _isLoadingSettings = true;
+                DesktopContextMenuCheckBox.IsChecked = false;
+                _isLoadingSettings = false;
+                return;
+            }
+
+            bool saved = await SettingsManager.Instance.SetDesktopContextMenuAsync(enabled);
+            if (!saved)
+            {
+                logger.Warn("Desktop context menu setting could not be saved -> leaving extension unregistered");
+                _isLoadingSettings = true;
+                DesktopContextMenuCheckBox.IsChecked = !enabled;
+                _isLoadingSettings = false;
+                return;
+            }
+
+            bool applied = enabled
+                ? ShellContextMenuHelper.Register()
+                : ShellContextMenuHelper.Unregister();
+
+            if (applied) return;
+
+            await SettingsManager.Instance.SetDesktopContextMenuAsync(!enabled);
+            _isLoadingSettings = true;
+            DesktopContextMenuCheckBox.IsChecked = !enabled;
+            _isLoadingSettings = false;
+
+            MessageBox.Show(
+                enabled
+                    ? "The desktop context menu could not be registered. Error recorded in logs."
+                    : "The desktop context menu could not be unregistered. Error recorded in logs.",
+                "Desktop context menu", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
 
         private void RefreshHotkeyList()
@@ -415,7 +708,7 @@ namespace DisplayProfileManager.UI.Windows
                             Style = (Style)FindResource("PrimaryTextBlockStyle"),
                             FontSize = 11,
                             FontStyle = profile.HotkeyConfig.IsEnabled ? FontStyles.Normal : FontStyles.Italic,
-                            Foreground = profile.HotkeyConfig.IsEnabled? (Brush)FindResource("SuccessButtonBackgroundBrush") : (Brush)FindResource("TertiaryTextBrush"),
+                            Foreground = profile.HotkeyConfig.IsEnabled ? (Brush)FindResource("SuccessButtonBackgroundBrush") : (Brush)FindResource("TertiaryTextBrush"),
                             Margin = new Thickness(8, 0, 0, 0)
                         };
 
@@ -438,35 +731,8 @@ namespace DisplayProfileManager.UI.Windows
 
         protected override void OnStateChanged(EventArgs e)
         {
-            UpdateTitleBarMargin();
+            TitleBarHelper.UpdateMargin(this, TitleBarGrid, TitleBarRowDefinition);
             base.OnStateChanged(e);
-        }
-
-        private void UpdateTitleBarMargin()
-        {
-            if (TitleBarGrid != null)
-            {
-                if (WindowState == WindowState.Maximized)
-                {
-                    TitleBarGrid.Margin = new Thickness(8, 8, 6, 0);
-                    UpdateTitleBarHeight(40);
-                }
-                else
-                {
-                    TitleBarGrid.Margin = new Thickness(0, 0, 0, 0);
-                    UpdateTitleBarHeight(32);
-                }
-            }
-        }
-
-        private void UpdateTitleBarHeight(double height)
-        {
-            if (TitleBarRowDefinition != null)
-                TitleBarRowDefinition.Height = new GridLength(height);
-
-            var windowChrome = WindowChrome.GetWindowChrome(this);
-            if (windowChrome != null)
-                windowChrome.CaptionHeight = height;
         }
 
         private void Hyperlink_RequestNavigate(object sender, RequestNavigateEventArgs e)
@@ -479,9 +745,32 @@ namespace DisplayProfileManager.UI.Windows
             catch (Exception ex)
             {
                 logger.Error(ex, "Error opening URL: {Url}", e.Uri.AbsoluteUri);
-                MessageBox.Show($"Could not open link: {e.Uri.AbsoluteUri}", "Error",
-                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show($"Could not open link: {e.Uri.AbsoluteUri}", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
+        }
+
+        private async Task AppendUpdateAvailableAsync(bool force = false, bool notify = false)
+        {
+            var app = Application.Current as App;
+            var result = app == null
+                ? null
+                : await app.CheckForUpdatesAndNotifyAsync(notify: notify, force: force);
+            if (result == null || !result.UpdateAvailable) return;
+
+            Dispatcher.Invoke(() =>
+            {
+                var link = new System.Windows.Documents.Hyperlink(
+                    new System.Windows.Documents.Run($"({result.LatestVersion} available)"))
+                {
+                    NavigateUri = new Uri("https://github.com/exytral/DisplayProfileManager/releases"),
+                    Foreground = (Brush)FindResource("LinkBrush")
+                };
+                link.RequestNavigate += Hyperlink_RequestNavigate;
+
+                VersionTextBlock.Inlines.Clear();
+                VersionTextBlock.Inlines.Add(new System.Windows.Documents.Run(AboutHelper.GetInformationalVersion() + " "));
+                VersionTextBlock.Inlines.Add(link);
+            });
         }
 
         private void LoadLibraries()
@@ -498,9 +787,8 @@ namespace DisplayProfileManager.UI.Windows
 
                 foreach (var library in libraries)
                 {
-                    var libraryPanel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 2) };
+                    var libraryPanel = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 2) };
 
-                    // Name hyperlink
                     var libraryLink = new System.Windows.Documents.Hyperlink(new System.Windows.Documents.Run(library.Name))
                     {
                         NavigateUri = new Uri(library.Url),
@@ -515,7 +803,6 @@ namespace DisplayProfileManager.UI.Windows
                         Foreground = (Brush)FindResource("TertiaryTextBrush")
                     });
 
-                    // Add version, license, and description
                     libraryPanel.Children.Add(new TextBlock
                     {
                         Text = $" v{library.Version} ({library.License}) - {library.Description}",
@@ -544,12 +831,30 @@ namespace DisplayProfileManager.UI.Windows
                 {
                     new
                     {
+                        Name        = AboutHelper.Contributors.ExytralName,
+                        Url         = AboutHelper.Contributors.ExytralUrl,
+                        LinkLabel   = AboutHelper.Contributors.ExytralLinkLabel,
+                        LinkUrl     = AboutHelper.Contributors.ExytralLinkUrl,
+                        Description = AboutHelper.Contributors.ExytralDesc,
+                        SubText     = "(community requests: custom profile icons by @ffgtthr)"
+                    },
+                    new
+                    {
+                        Name        = AboutHelper.Contributors.VivittelName,
+                        Url         = AboutHelper.Contributors.VivittelUrl,
+                        LinkLabel   = AboutHelper.Contributors.VivittelLinkLabel,
+                        LinkUrl     = AboutHelper.Contributors.VivittelLinkUrl,
+                        Description = AboutHelper.Contributors.VivittelDesc,
+                        SubText     = (string)null
+                    },
+                    new
+                    {
                         Name        = AboutHelper.Contributors.Zac15987Name,
                         Url         = AboutHelper.Contributors.Zac15987Url,
                         LinkLabel   = AboutHelper.Contributors.Zac15987LinkLabel,
                         LinkUrl     = AboutHelper.Contributors.Zac15987LinkUrl,
                         Description = AboutHelper.Contributors.Zac15987Desc,
-                        SubText     = "(community requests: audio switching by @Catriks & @Alienmario; hotkeys by @anodynos; monitor disable/enable by @xtrilla)"
+                        SubText     = "(community requests: audio switching by @Catriks; hotkeys by @anodynos; monitor disable/enable by @xtrilla)"
                     },
                     new
                     {
@@ -577,36 +882,17 @@ namespace DisplayProfileManager.UI.Windows
                         LinkUrl     = AboutHelper.Contributors.RvahilarioLinkUrl,
                         Description = AboutHelper.Contributors.RvahilarioDesc,
                         SubText     = (string)null
-                    },
-                    new
-                    {
-                        Name        = AboutHelper.Contributors.XtrillaName,
-                        Url         = AboutHelper.Contributors.XtrillaUrl,
-                        LinkLabel   = AboutHelper.Contributors.XtrillaLinkLabel,
-                        LinkUrl     = AboutHelper.Contributors.XtrillaLinkUrl,
-                        Description = AboutHelper.Contributors.XtrillaDesc,
-                        SubText     = (string)null
-                    },
-                    new
-                    {
-                        Name        = AboutHelper.Contributors.ExytralName,
-                        Url         = AboutHelper.Contributors.ExytralUrl,
-                        LinkLabel   = (string)null,
-                        LinkUrl     = (string)null,
-                        Description = AboutHelper.Contributors.ExytralDesc,
-                        SubText     = "(community requests: custom profile icons by @ffgtthr)"
-                    },
+                    }
                 };
 
                 foreach (var contributor in contributors)
                 {
                     bool isBaseAuthor = contributor.Name == AboutHelper.Contributors.Zac15987Name || contributor.Name == AboutHelper.Contributors.ExytralName;
 
-                    // Render bullets only for the child contributors
                     double leftIndent = isBaseAuthor ? 0 : 8;
                     var entryPanel = new StackPanel { Margin = new Thickness(leftIndent, 2, 0, 2) };
 
-                    var linePanel = new StackPanel { Orientation = Orientation.Horizontal };
+                    var linePanel = new WrapPanel { Orientation = Orientation.Horizontal };
 
                     if (!isBaseAuthor)
                     {
@@ -620,7 +906,6 @@ namespace DisplayProfileManager.UI.Windows
                         });
                     }
 
-                    // Name hyperlink
                     var nameLink = new System.Windows.Documents.Hyperlink(new System.Windows.Documents.Run(contributor.Name))
                     {
                         NavigateUri = new Uri(contributor.Url),
@@ -635,7 +920,6 @@ namespace DisplayProfileManager.UI.Windows
                         Foreground = (Brush)FindResource("TertiaryTextBrush")
                     });
 
-                    // Label hyperlink
                     if (!string.IsNullOrEmpty(contributor.LinkLabel))
                     {
                         var refLink = new System.Windows.Documents.Hyperlink(new System.Windows.Documents.Run(contributor.LinkLabel))
@@ -689,11 +973,6 @@ namespace DisplayProfileManager.UI.Windows
             {
                 logger.Error(ex, "Error loading contributors");
             }
-        }
-
-        protected override void OnClosed(EventArgs e)
-        {
-            base.OnClosed(e);
         }
     }
 }

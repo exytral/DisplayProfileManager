@@ -3,10 +3,13 @@
 
     <!-- Base Colors -->
     <Color x:Key="BackgroundColor">#000000</Color>
-    <Color x:Key="SurfaceColor">#1D1D1D</Color>
-    <Color x:Key="BorderColor">#2A2A2A</Color>
-    <Color x:Key="HoverColor">#2A2A2A</Color>
-    <Color x:Key="AccentColor">#8AB4F8</Color>
+    <Color x:Key="SurfaceColor">#141414</Color>
+    <Color x:Key="BorderColor">#242424</Color>
+    <Color x:Key="HoverColor">#282828</Color>
+    <Color x:Key="AccentColor">#0078D4</Color>
+
+    <!-- System Accent -->
+    <SolidColorBrush x:Key="SystemAccentBrush" Color="{DynamicResource {x:Static SystemColors.AccentColorKey}}"/>
 
     <!-- Window Backgrounds -->
     <SolidColorBrush x:Key="WindowBackgroundBrush" Color="{StaticResource BackgroundColor}"/>
@@ -25,39 +28,40 @@
     <!-- Borders & Separators -->
     <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource BorderColor}"/>
     <SolidColorBrush x:Key="SeparatorBrush" Color="{StaticResource BorderColor}"/>
-    <SolidColorBrush x:Key="ControlBorderBrush" Color="#333333"/>
+    <SolidColorBrush x:Key="ControlBorderBrush" Color="#3A3A3A"/>
     <SolidColorBrush x:Key="TextBoxBorderBrush" Color="#3A3A3A"/>
-    <SolidColorBrush x:Key="ComboBoxBorderBrush" Color="#333333"/>
+    <SolidColorBrush x:Key="ComboBoxBorderBrush" Color="#3A3A3A"/>
     <SolidColorBrush x:Key="CheckBoxBorderBrush" Color="#3A3A3A"/>
     <SolidColorBrush x:Key="WindowControlHoverBrush" Color="{StaticResource HoverColor}"/>
-    <SolidColorBrush x:Key="ListItemSelectedBackgroundBrush" Color="{StaticResource HoverColor}"/>
+    <SolidColorBrush x:Key="ListItemSelectedBackgroundBrush" Color="#1E1E1E"/>
+    <SolidColorBrush x:Key="ListItemSelectedHoverBackgroundBrush" Color="#333333"/>
 
     <!-- Interaction States -->
     <SolidColorBrush x:Key="ControlHoverBackgroundBrush" Color="{StaticResource HoverColor}"/>
-    <SolidColorBrush x:Key="ListItemHoverBackgroundBrush" Color="{StaticResource HoverColor}"/>
+    <SolidColorBrush x:Key="ListItemHoverBackgroundBrush" Color="#282828"/>
     <SolidColorBrush x:Key="ComboBoxHoverBackgroundBrush" Color="{StaticResource HoverColor}"/>
-    <SolidColorBrush x:Key="ControlPressedBackgroundBrush" Color="#121212"/>
+    <SolidColorBrush x:Key="ControlPressedBackgroundBrush" Color="#181818"/>
 
     <!-- Primary Button (Accent) -->
-    <SolidColorBrush x:Key="ButtonBackgroundBrush" Color="{StaticResource AccentColor}"/>
+    <SolidColorBrush x:Key="ButtonBackgroundBrush" Color="{DynamicResource {x:Static SystemColors.AccentColorKey}}"/>
     <SolidColorBrush x:Key="ButtonForegroundBrush" Color="#202124"/>
-    <SolidColorBrush x:Key="ButtonHoverBackgroundBrush" Color="#A8C7FA"/>
-    <SolidColorBrush x:Key="ButtonPressedBackgroundBrush" Color="#669DF6"/>
-    <SolidColorBrush x:Key="ButtonBorderBrush" Color="{StaticResource AccentColor}"/>
-    <SolidColorBrush x:Key="TextBoxFocusBorderBrush" Color="{StaticResource AccentColor}"/>
-    <SolidColorBrush x:Key="CheckBoxCheckmarkBrush" Color="{StaticResource AccentColor}"/>
-    <SolidColorBrush x:Key="LinkBrush" Color="{StaticResource AccentColor}"/>
+    <SolidColorBrush x:Key="ButtonHoverBackgroundBrush" Color="{DynamicResource {x:Static SystemColors.AccentColorLight1Key}}"/>
+    <SolidColorBrush x:Key="ButtonPressedBackgroundBrush" Color="{DynamicResource {x:Static SystemColors.AccentColorKey}}"/>
+    <SolidColorBrush x:Key="ButtonBorderBrush" Color="{DynamicResource {x:Static SystemColors.AccentColorKey}}"/>
+    <SolidColorBrush x:Key="TextBoxFocusBorderBrush" Color="{DynamicResource {x:Static SystemColors.AccentColorKey}}"/>
+    <SolidColorBrush x:Key="CheckBoxCheckmarkBrush" Color="{DynamicResource {x:Static SystemColors.AccentColorKey}}"/>
+    <SolidColorBrush x:Key="LinkBrush" Color="{DynamicResource {x:Static SystemColors.AccentColorLight2Key}}"/>
 
     <!-- Secondary Button -->
-    <SolidColorBrush x:Key="SecondaryButtonBackgroundBrush" Color="{StaticResource SurfaceColor}"/>
+    <SolidColorBrush x:Key="SecondaryButtonBackgroundBrush" Color="#1F1F1F"/>
     <SolidColorBrush x:Key="SecondaryButtonForegroundBrush" Color="#F1F1F1"/>
-    <SolidColorBrush x:Key="SecondaryButtonHoverBackgroundBrush" Color="{StaticResource HoverColor}"/>
-    <SolidColorBrush x:Key="SecondaryButtonPressedBackgroundBrush" Color="#121212"/>
+    <SolidColorBrush x:Key="SecondaryButtonHoverBackgroundBrush" Color="#292929"/>
+    <SolidColorBrush x:Key="SecondaryButtonPressedBackgroundBrush" Color="#181818"/>
     <SolidColorBrush x:Key="SecondaryButtonBorderBrush" Color="#3A3A3A"/>
 
     <!-- Status Buttons -->
     <SolidColorBrush x:Key="DangerButtonBackgroundBrush" Color="#F28B82"/>
-    <SolidColorBrush x:Key="DangerButtonHoverBackgroundBrush" Color="#EE675C"/>
+    <SolidColorBrush x:Key="DangerButtonHoverBackgroundBrush" Color="#D9736A"/>
     <SolidColorBrush x:Key="SuccessButtonBackgroundBrush" Color="#81C995"/>
     <SolidColorBrush x:Key="SuccessButtonHoverBackgroundBrush" Color="#A8DAB5"/>
 

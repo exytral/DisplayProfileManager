@@ -17,6 +17,8 @@ namespace DisplayProfileManager.Helpers
         private static readonly Logger logger = LoggerHelper.GetLogger();
         private static readonly ConcurrentDictionary<string, ImageSource> _cache = new ConcurrentDictionary<string, ImageSource>(StringComparer.OrdinalIgnoreCase);
 
+        #region Public Methods
+
         public static string GetIconsFolderPath()
         {
             string folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DisplayProfileManager", "Icons");
@@ -44,6 +46,7 @@ namespace DisplayProfileManager.Helpers
             if (string.IsNullOrWhiteSpace(filename)) return null;
 
             string path = ResolveIconPath(filename);
+
             if (path == null || !File.Exists(path)) return null;
 
             try
@@ -62,6 +65,7 @@ namespace DisplayProfileManager.Helpers
             if (string.IsNullOrWhiteSpace(filename)) return null;
 
             string path = ResolveIconPath(filename);
+
             if (path == null || !File.Exists(path)) return null;
 
             try
@@ -117,20 +121,9 @@ namespace DisplayProfileManager.Helpers
             }
         }
 
-        private static string ResolveNameConflict(string folder, string filename)
-        {
-            string candidate = filename;
-            int i = 1;
-            while (File.Exists(Path.Combine(folder, candidate)))
-            {
-                string nameNoExt = Path.GetFileNameWithoutExtension(filename);
-                string ext = Path.GetExtension(filename);
-                candidate = $"{nameNoExt} ({i}){ext}";
-                i++;
-            }
+        #endregion
 
-            return candidate;
-        }
+        #region Private Methods
 
         private static ImageSource BitmapToImageSource(Bitmap bmp)
         {
@@ -148,5 +141,22 @@ namespace DisplayProfileManager.Helpers
                 return bi;
             }
         }
+
+        private static string ResolveNameConflict(string folder, string filename)
+        {
+            string candidate = filename;
+            int i = 1;
+            while (File.Exists(Path.Combine(folder, candidate)))
+            {
+                string nameNoExt = Path.GetFileNameWithoutExtension(filename);
+                string ext = Path.GetExtension(filename);
+                candidate = $"{nameNoExt} ({i}){ext}";
+                i++;
+            }
+
+            return candidate;
+        }
+
+        #endregion
     }
 }

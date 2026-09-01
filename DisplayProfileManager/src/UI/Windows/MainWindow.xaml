@@ -9,6 +9,7 @@
         Title="Display Profile Manager" Width="900" Height="600" MinWidth="720" MinHeight="500"
         WindowStartupLocation="CenterScreen" ResizeMode="CanResize"
         WindowStyle="SingleBorderWindow"
+        UseLayoutRounding="True"
         Loaded="Window_Loaded">
 
     <WindowChrome.WindowChrome>
@@ -55,6 +56,8 @@
         <Style x:Key="SecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
             <Setter Property="Background" Value="{DynamicResource SecondaryButtonBackgroundBrush}"/>
             <Setter Property="Foreground" Value="{DynamicResource SecondaryButtonForegroundBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SecondaryButtonBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
                     <Setter Property="Background" Value="{DynamicResource SecondaryButtonHoverBackgroundBrush}"/>
@@ -74,6 +77,9 @@
                 </Trigger>
                 <Trigger Property="IsPressed" Value="True">
                     <Setter Property="Background" Value="{DynamicResource DangerButtonHoverBackgroundBrush}"/>
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="0.4"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -169,11 +175,11 @@
 
     <Grid Background="{DynamicResource WindowBackgroundBrush}">
         <Grid.RowDefinitions>
-            <!-- Title bar area (32px normal, 40px maximized) -->
+            <!-- Title Bar Area -->
             <RowDefinition Name="TitleBarRowDefinition" Height="32"/>
-            <!-- Main content area -->
+            <!-- Main Content Area -->
             <RowDefinition Height="*"/>
-            <!-- Status bar -->
+            <!-- Status Bar -->
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
@@ -235,7 +241,7 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="16"/>
-                    <ColumnDefinition Width="342"/>
+                    <ColumnDefinition Width="336"/>
                 </Grid.ColumnDefinitions>
 
                 <Border Grid.Column="0"
@@ -305,24 +311,31 @@
 
                             <ListBox.Resources>
                                 <Style TargetType="{x:Type ScrollViewer}">
+                                    <Setter Property="Focusable" Value="False"/>
                                     <Setter Property="Template">
                                         <Setter.Value>
                                             <ControlTemplate TargetType="{x:Type ScrollViewer}">
                                                 <Grid Background="{TemplateBinding Background}">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="0"/>
                                                     </Grid.ColumnDefinitions>
                                                     <Grid.RowDefinitions>
                                                         <RowDefinition Height="*"/>
                                                         <RowDefinition Height="Auto"/>
                                                     </Grid.RowDefinitions>
 
-                                                    <ScrollContentPresenter Grid.Column="0" Grid.Row="0" Margin="{TemplateBinding Padding}" />
+                                                    <ScrollContentPresenter Grid.Column="0"
+                                                     Grid.Row="0"
+                                                     Margin="{TemplateBinding Padding}"/>
 
+                                                    <!-- Overlay Scroll Bar -->
                                                     <ScrollBar x:Name="PART_VerticalScrollBar"
-                                                               Grid.Column="1"
+                                                               Grid.Column="0"
                                                                Grid.Row="0"
+                                                               HorizontalAlignment="Right"
+                                                               Margin="0,2,-4,2"
+                                                               Panel.ZIndex="1"
                                                                Value="{TemplateBinding VerticalOffset}"
                                                                Maximum="{TemplateBinding ScrollableHeight}"
                                                                ViewportSize="{TemplateBinding ViewportHeight}"
@@ -364,24 +377,36 @@
                                                         BorderBrush="{TemplateBinding BorderBrush}"
                                                         BorderThickness="{TemplateBinding BorderThickness}"
                                                         CornerRadius="4"
-                                                        Padding="12,8">
+                                                        Padding="12,8"
+                                                        SnapsToDevicePixels="True"
+                                                        UseLayoutRounding="True">
                                                     <ContentPresenter />
                                                 </Border>
                                                 <ControlTemplate.Triggers>
                                                     <Trigger Property="IsMouseOver" Value="True">
-                                                        <Setter TargetName="ItemBorder" Property="Background" Value="{DynamicResource SecondaryButtonHoverBackgroundBrush}"/>
+                                                        <Setter TargetName="ItemBorder"
+                                                                Property="Background"
+                                                                Value="{DynamicResource ListItemHoverBackgroundBrush}"/>
                                                     </Trigger>
                                                     <Trigger Property="IsSelected" Value="True">
-                                                        <Setter TargetName="ItemBorder" Property="Background" Value="{DynamicResource SecondaryButtonBackgroundBrush}"/>
-                                                        <Setter TargetName="ItemBorder" Property="BorderBrush" Value="{DynamicResource TertiaryTextBrush}"/>
+                                                        <Setter TargetName="ItemBorder"
+                                                                Property="Background"
+                                                                Value="{DynamicResource ListItemSelectedBackgroundBrush}"/>
+                                                        <Setter TargetName="ItemBorder"
+                                                                Property="BorderBrush"
+                                                                Value="{DynamicResource ButtonBackgroundBrush}"/>
                                                     </Trigger>
                                                     <MultiTrigger>
                                                         <MultiTrigger.Conditions>
                                                             <Condition Property="IsSelected" Value="True"/>
                                                             <Condition Property="IsMouseOver" Value="True"/>
                                                         </MultiTrigger.Conditions>
-                                                        <Setter TargetName="ItemBorder" Property="Background" Value="{DynamicResource SecondaryButtonHoverBackgroundBrush}"/>
-                                                        <Setter TargetName="ItemBorder" Property="BorderBrush" Value="{DynamicResource ButtonBackgroundBrush}"/>
+                                                        <Setter TargetName="ItemBorder"
+                                                                Property="Background"
+                                                                Value="{DynamicResource ListItemSelectedHoverBackgroundBrush}"/>
+                                                        <Setter TargetName="ItemBorder"
+                                                                Property="BorderBrush"
+                                                                Value="{DynamicResource ButtonBackgroundBrush}"/>
                                                     </MultiTrigger>
                                                 </ControlTemplate.Triggers>
                                             </ControlTemplate>
@@ -460,10 +485,25 @@
                                                        TextTrimming="CharacterEllipsis"
                                                        LineHeight="18"
                                                        MaxHeight="54"
-                                                       Margin="0,2,0,0"/>
+                                                       Margin="0,2,0,0">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Description}" Value="{x:Null}">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding Description}" Value="">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
 
                                             <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,4,0,0">
-                                                <TextBlock FontSize="11" Foreground="{DynamicResource TertiaryTextBrush}">
+                                                <TextBlock FontSize="11"
+                                                           Foreground="{DynamicResource TertiaryTextBrush}">
                                                     <TextBlock.Text>
                                                         <MultiBinding StringFormat="{}{0} displays">
                                                             <Binding Path="DisplaySettings.Count"/>
@@ -482,8 +522,12 @@
                                                             </Style.Triggers>
                                                         </Style>
                                                     </StackPanel.Style>
-                                                    <TextBlock Text=" • " FontSize="11" Foreground="{DynamicResource TertiaryTextBrush}"/>
-                                                    <TextBlock Text="{Binding HotkeyConfig}" FontSize="11" FontWeight="Medium">
+                                                    <TextBlock Text=" • "
+                                                               FontSize="11"
+                                                               Foreground="{DynamicResource TertiaryTextBrush}"/>
+                                                    <TextBlock Text="{Binding HotkeyConfig}"
+                                                               FontSize="11"
+                                                               FontWeight="Medium">
                                                         <TextBlock.Style>
                                                             <Style TargetType="TextBlock">
                                                                 <Setter Property="Foreground" Value="{DynamicResource TertiaryTextBrush}"/>
@@ -563,11 +607,7 @@
                                            FontSize="24"
                                            VerticalAlignment="Center"/>
 
-                                <StackPanel Name="ActionButtonsPanel"
-                                            Grid.Column="1"
-                                            Orientation="Horizontal"
-                                            VerticalAlignment="Center"
-                                            Visibility="Collapsed">
+                                <StackPanel Name="ActionButtonsPanel" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Visibility="Collapsed">
                                     <Button Name="EditProfileButton"
                                             Content="Edit"
                                             Style="{StaticResource SecondaryButtonStyle}"
@@ -585,7 +625,7 @@
                             </Grid>
                         </Border>
 
-                        <ScrollViewer Grid.Row="1" Padding="16,8,16,16" VerticalScrollBarVisibility="Auto">
+                        <ScrollViewer Grid.Row="1" Padding="16,8,16,16" VerticalScrollBarVisibility="Auto" Style="{StaticResource OverlayScrollViewerStyle}">
                             <StackPanel Name="ProfileDetailsPanel">
                                 <TextBlock Text="Select a profile to view details"
                                            Style="{StaticResource PrimaryTextBlockStyle}"

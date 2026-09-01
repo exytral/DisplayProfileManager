@@ -1,4 +1,6 @@
 using System;
+using DisplayProfileManager.Helpers;
+using NLog;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
@@ -8,6 +10,8 @@ namespace DisplayProfileManager.UI.Windows
 {
     public partial class MonitorIdentifyWindow : Window
     {
+        private static readonly Logger logger = LoggerHelper.GetLogger();
+
         private DispatcherTimer _closeTimer;
         private double _targetLeft;
         private double _targetTop;
@@ -53,7 +57,8 @@ namespace DisplayProfileManager.UI.Windows
             var helper = new WindowInteropHelper(this);
             IntPtr hwnd = helper.Handle;
 
-            SetWindowPos(hwnd, IntPtr.Zero, (int)_targetLeft, (int)_targetTop, 0, 0, SwpNosize | SwpNozorder | SwpNoactivate);
+            if (!SetWindowPos(hwnd, IntPtr.Zero, (int)_targetLeft, (int)_targetTop, 0, 0, SwpNosize | SwpNozorder | SwpNoactivate))
+                logger.Warn("Failed to position monitor identify window at Left:{Left}, Top:{Top}", _targetLeft, _targetTop);
 
             _closeTimer.Start();
         }

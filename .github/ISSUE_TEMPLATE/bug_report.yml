@@ -13,7 +13,7 @@ body:
     attributes:
       label: What happened?
       description: What did you expect, and what actually happened? Is this reproducible or intermittent?
-      placeholder: "Expected: profile applied cleanly. Actual: second monitor stayed black."
+      placeholder: "Expected: profile applied cleanly. Actual: second monitor stayed off."
     validations:
       required: true
 
@@ -21,29 +21,35 @@ body:
     id: source-profile
     attributes:
       label: Source profile (switching from)
-      description: The profile or state you were switching away from. Attach the .dpm file below.
-      placeholder: "e.g. Desktop, or 'no profile applied / fresh launch'"
+      description: The profile or specific display/application state you were switching away from, if applicable.
+      placeholder: "e.g. Desktop profile, 2 monitors connected with the TV powered off, etc"
     validations:
-      required: true
+      required: false
 
   - type: input
     id: dest-profile
     attributes:
       label: Destination profile (switching to)
-      description: The profile you were applying when the issue occurred. Attach the .dpm file below.
+      description: The profile you were applying when the issue occurred.
       placeholder: "e.g. TV Setup"
     validations:
       required: true
 
   - type: textarea
-    id: attachments
+    id: log
     attributes:
-      label: Attached files
-      description: |
-        Please attach the following files by dragging them into this text box or using the paperclip icon:
-        - **Both .dpm profile files** — found at `%AppData%\Roaming\DisplayProfileManager\Profiles\`
-        - **Log file for the day the issue occurred** — found at `%AppData%\Roaming\DisplayProfileManager\Logs\`
-      placeholder: "Drag files here or describe why they can't be attached."
+      label: Application log
+      description: Attach the log file for the day the issue occurred. Logs are stored at `%AppData%\Roaming\DisplayProfileManager\Logs\`.
+      placeholder: "Attach the relevant daily log file."
+    validations:
+      required: true
+
+  - type: textarea
+    id: profiles
+    attributes:
+      label: Profile files
+      description: Attach the destination `.dpm` profile. Also attach the source `.dpm` profile when a source profile applies. Profile files are stored at `%AppData%\Roaming\DisplayProfileManager\Profiles\`.
+      placeholder: "Attach the requested .dpm files."
     validations:
       required: true
 
@@ -51,6 +57,6 @@ body:
     id: additional
     attributes:
       label: Anything else?
-      description: Steps to reproduce, workarounds you've found, relevant monitor setup details, etc.
+      description: Steps to reproduce, relevant hardware or application setup, and any other observations that may help diagnose the problem.
     validations:
       required: false

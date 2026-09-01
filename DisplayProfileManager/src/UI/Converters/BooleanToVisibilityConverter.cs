@@ -25,6 +25,7 @@ namespace DisplayProfileManager.UI.Converters
             {
                 return visibility == Visibility.Visible;
             }
+
             return false;
         }
     }

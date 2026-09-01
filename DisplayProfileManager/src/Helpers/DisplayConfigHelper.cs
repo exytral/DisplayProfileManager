@@ -13,11 +13,9 @@ namespace DisplayProfileManager.Helpers
     {
         private static readonly Logger logger = LoggerHelper.GetLogger();
 
-        private static bool IsWindows1122H2OrGreater() =>
-            Environment.OSVersion.Version.Build >= 22621;
-
-        private static bool IsWindows24H2OrGreater() =>
-            Environment.OSVersion.Version.Build >= 26100;
+        private static bool IsWindows22H2OrGreater() => Environment.OSVersion.Version.Build >= 22621;
+        private static bool IsWindows24H2OrGreater() => Environment.OSVersion.Version.Build >= 26100;
+        public static bool IsAcmSupported(bool isHdrSupported) => IsWindows22H2OrGreater() && isHdrSupported;
 
         #region P/Invoke
 
@@ -26,6 +24,7 @@ namespace DisplayProfileManager.Helpers
             QueryDisplayConfigFlags flags,
             out uint numPathArrayElements,
             out uint numModeInfoArrayElements);
+
         [DllImport("user32.dll")]
         private static extern int QueryDisplayConfig(
             QueryDisplayConfigFlags flags,
@@ -34,6 +33,7 @@ namespace DisplayProfileManager.Helpers
             ref uint numModeInfoArrayElements,
             [Out] DisplayConfigModeInfo[] modeInfoArray,
             IntPtr currentTopologyId);
+
         [DllImport("user32.dll")]
         private static extern int SetDisplayConfig(
             uint numPathArrayElements,
@@ -49,23 +49,13 @@ namespace DisplayProfileManager.Helpers
         [DllImport("user32.dll")]
         private static extern int DisplayConfigGetDeviceInfo(ref DisplayConfigGetAdvancedColorInfo colorInfo);
         [DllImport("user32.dll")]
+        private static extern int DisplayConfigGetDeviceInfo(ref DisplayConfigGetAdvancedColorInfo2 colorInfo);
+        [DllImport("user32.dll")]
         private static extern int DisplayConfigSetDeviceInfo(ref DisplayConfigSetAdvancedColorState colorState);
         [DllImport("user32.dll")]
         private static extern int DisplayConfigSetDeviceInfo(ref DisplayConfigSetHdrState state);
         [DllImport("user32.dll")]
         private static extern int DisplayConfigSetDeviceInfo(ref DisplayConfigSetWcgState state);
-
-        #endregion
-
-        #region Constants
-
-        private const int ErrorSuccess = 0;
-        private const int ErrorInsufficientBuffer = 122;
-        private const int ErrorGenFailure = 31;
-        private const int ErrorInvalidParameter = 87;
-
-        private const uint DisplayconfigPathSourceModeIdxInvalid = 0xffff;
-        private const uint DisplayconfigPathModeIdxInvalid = 0xffffffff;
 
         #endregion
 
@@ -79,6 +69,7 @@ namespace DisplayProfileManager.Helpers
             DatabaseCurrent = 0x00000004,
             VirtualModeAware = 0x00000010,
             IncludeHmd = 0x00000020,
+            VirtualRefreshRateAware = 0x00000040,
         }
 
         [Flags]
@@ -99,6 +90,7 @@ namespace DisplayProfileManager.Helpers
             ForceModeEnumeration = 0x00001000,
             AllowPathOrderChanges = 0x00002000,
             VirtualModeAware = 0x00008000,
+            VirtualRefreshRateAware = 0x00020000,
         }
 
         [Flags]
@@ -107,7 +99,8 @@ namespace DisplayProfileManager.Helpers
             Active = 0x00000001,
             PreferredUnscaled = 0x00000004,
             SupportVirtualMode = 0x00000008,
-            ValidFlags = 0x0000000D,
+            BoostRefreshRate = 0x00000010,
+            ValidFlags = 0x0000001D,
         }
 
         [Flags]
@@ -170,6 +163,19 @@ namespace DisplayProfileManager.Helpers
             SetWcgState = 17,
             ForceUint32 = 0xFFFFFFFF
         }
+
+        public enum DisplayConfigAdvancedColorMode : uint
+        {
+            Sdr = 0,
+            Wcg = 1,
+            Hdr = 2,
+        }
+
+        public enum DisplayConfigSetAdvancedColorFlags : uint
+        {
+            EnableAdvancedColor = 0x1
+        }
+
         public enum DisplayConfigAdvancedColorInfoFlags : uint
         {
             AdvancedColorSupported = 0x1,
@@ -177,10 +183,18 @@ namespace DisplayProfileManager.Helpers
             WideColorEnforced = 0x4,
             AdvancedColorForceDisabled = 0x8,
         }
-        public enum DisplayConfigSetAdvancedColorFlags : uint
+
+        public enum DisplayConfigAdvancedColorInfo2Flags : uint
         {
-            EnableAdvancedColor = 0x1
+            AdvancedColorSupported = 0x1,
+            AdvancedColorActive = 0x2,
+            AdvancedColorLimitedByPolicy = 0x8,
+            HighDynamicRangeSupported = 0x10,
+            HighDynamicRangeUserEnabled = 0x20,
+            WideColorSupported = 0x40,
+            WideColorUserEnabled = 0x80,
         }
+
         public enum DisplayConfigColorEncoding : uint
         {
             Rgb = 0,
@@ -196,6 +210,17 @@ namespace DisplayProfileManager.Helpers
             Acm,
             Hdr
         }
+
+        #endregion
+
+        #region Constants
+
+        private const int ErrorSuccess = 0;
+        private const int ErrorGenFailure = 31;
+        private const int ErrorInvalidParameter = 87;
+
+        private const uint DisplayconfigPathSourceModeIdxInvalid = 0xffff;
+        private const uint DisplayconfigPathModeIdxInvalid = 0xffffffff;
 
         #endregion
 
@@ -370,6 +395,16 @@ namespace DisplayProfileManager.Helpers
         }
 
         [StructLayout(LayoutKind.Sequential)]
+        public struct DisplayConfigGetAdvancedColorInfo2
+        {
+            public DisplayConfigDeviceInfoHeader header;
+            public DisplayConfigAdvancedColorInfo2Flags values;
+            public DisplayConfigColorEncoding colorEncoding;
+            public DisplayConfigAdvancedColorMode activeColorMode;
+            public uint bitsPerColorChannel;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
         public struct DisplayConfigSetAdvancedColorState
         {
             public DisplayConfigDeviceInfoHeader header;
@@ -399,6 +434,8 @@ namespace DisplayProfileManager.Helpers
             // Identity
             public string DeviceName { get; set; } = string.Empty;
             public string FriendlyName { get; set; } = string.Empty;
+            public string ManufacturerName { get; set; } = string.Empty;
+            public string ProductCodeID { get; set; } = string.Empty;
             public LUID AdapterId { get; set; }
             public uint TargetId { get; set; }
             public uint RawTargetId { get; set; }
@@ -407,12 +444,11 @@ namespace DisplayProfileManager.Helpers
             public DisplayConfigVideoOutputTechnology OutputTechnology { get; set; }
             // State
             public bool IsEnabled { get; set; }
-            public bool IsAvailable { get; set; }
             public bool IsPrimary { get; set; }
             // Layout
             public int DisplayPositionX { get; set; }
             public int DisplayPositionY { get; set; }
-            // Active configuration
+            // Active Configuration
             public int Width { get; set; }
             public int Height { get; set; }
             public double RefreshRate { get; set; }
@@ -420,6 +456,8 @@ namespace DisplayProfileManager.Helpers
             public bool IsHdrSupported { get; set; } = false;
             public bool IsHdrEnabled { get; set; } = false;
             public bool IsAcmEnabled { get; set; } = false;
+            // DRR Capability
+            public bool SupportsDrr { get; set; } = false;
             public DisplayConfigColorEncoding ColorEncoding { get; set; } = DisplayConfigColorEncoding.Rgb;
             public uint BitsPerColorChannel { get; set; } = 8;
             public string ColorProfile { get; set; } = null;
@@ -438,8 +476,12 @@ namespace DisplayProfileManager.Helpers
 
             try
             {
-                int result = GetDisplayConfigBufferSizes(QueryDisplayConfigFlags.OnlyActivePaths, out uint pathCount, out uint modeCount);
+                // Preserve virtual refresh modes when supported
+                var queryFlags = QueryDisplayConfigFlags.OnlyActivePaths | QueryDisplayConfigFlags.VirtualRefreshRateAware;
+                if (GetDisplayConfigBufferSizes(queryFlags, out _, out _) != ErrorSuccess)
+                    queryFlags = QueryDisplayConfigFlags.OnlyActivePaths;
 
+                int result = GetDisplayConfigBufferSizes(queryFlags, out uint pathCount, out uint modeCount);
                 if (result != ErrorSuccess)
                 {
                     logger.Error($"GetDisplayConfigBufferSizes failed with error: {result}");
@@ -450,7 +492,7 @@ namespace DisplayProfileManager.Helpers
                 var modes = new DisplayConfigModeInfo[modeCount];
 
                 result = QueryDisplayConfig(
-                    QueryDisplayConfigFlags.OnlyActivePaths,
+                    queryFlags,
                     ref pathCount,
                     paths,
                     ref modeCount,
@@ -470,20 +512,21 @@ namespace DisplayProfileManager.Helpers
                     if (!path.targetInfo.targetAvailable) continue;
 
                     bool isActive = (path.flags & (uint)DisplayConfigPathInfoFlags.Active) != 0;
+
                     if (!isActive) continue;
 
-                    uint baseTargetId = path.targetInfo.id & 0xFFFF; // Extract base TargetId (lower 16 bits) — Windows encodes SourceId in high bytes during clone mode
+                    uint baseTargetId = path.targetInfo.id & 0xFFFF; // Mask clone-encoded TargetId to its base value
 
                     var displayConfig = new DisplayConfigInfo
                     {
                         PathIndex = i,
                         IsEnabled = isActive,
-                        IsAvailable = path.targetInfo.targetAvailable,
                         AdapterId = path.sourceInfo.adapterId,
                         SourceId = path.sourceInfo.id,
                         TargetId = baseTargetId,
                         RawTargetId = path.targetInfo.id,
-                        OutputTechnology = path.targetInfo.outputTechnology
+                        OutputTechnology = path.targetInfo.outputTechnology,
+                        SupportsDrr = (path.flags & (uint)DisplayConfigPathInfoFlags.BoostRefreshRate) != 0
                     };
 
                     // GDI device name (\\.\DISPLAYX)
@@ -506,37 +549,55 @@ namespace DisplayProfileManager.Helpers
 
                     result = DisplayConfigGetDeviceInfo(ref targetName);
                     if (result == ErrorSuccess)
+                    {
                         displayConfig.FriendlyName = targetName.monitorFriendlyDeviceName;
+                        displayConfig.ManufacturerName = DecodeEdidManufacturer(targetName.edidManufactureId);
+                        displayConfig.ProductCodeID = targetName.edidProductCodeId.ToString("X4");
+                    }
 
                     // Advanced color state (HDR/ACM)
-                    var colorInfo = new DisplayConfigGetAdvancedColorInfo();
-                    colorInfo.header.type = DisplayConfigDeviceInfoType.GetAdvancedColorInfo;
-                    colorInfo.header.size = (uint)Marshal.SizeOf(typeof(DisplayConfigGetAdvancedColorInfo));
-                    colorInfo.header.adapterId = path.targetInfo.adapterId;
-                    colorInfo.header.id = path.targetInfo.id;
-
-                    result = DisplayConfigGetDeviceInfo(ref colorInfo);
-                    if (result == ErrorSuccess)
+                    if (IsWindows24H2OrGreater() && GetAdvancedColorInfo2(path.targetInfo.adapterId, path.targetInfo.id, out var colorInfo2))
                     {
-                        var flags = colorInfo.values;
-                        bool isSupported = (flags & DisplayConfigAdvancedColorInfoFlags.AdvancedColorSupported) != 0;
-                        bool isEnabled = (flags & DisplayConfigAdvancedColorInfoFlags.AdvancedColorEnabled) != 0;
-                        bool isForceDisabled = (flags & DisplayConfigAdvancedColorInfoFlags.AdvancedColorForceDisabled) != 0;
+                        var flags2 = colorInfo2.values;
+                        bool isForceDisabled2 = (flags2 & DisplayConfigAdvancedColorInfo2Flags.AdvancedColorLimitedByPolicy) != 0;
 
-                        bool finalSupported = isSupported && !isForceDisabled;
-                        bool isHdrEncoding = colorInfo.colorEncoding == DisplayConfigColorEncoding.YCbCr444;
-
-                        displayConfig.IsHdrSupported = finalSupported;
-                        displayConfig.IsHdrEnabled = isEnabled && isHdrEncoding;
-                        displayConfig.IsAcmEnabled = isEnabled && !isHdrEncoding;
-                        displayConfig.ColorEncoding = colorInfo.colorEncoding;
-                        displayConfig.BitsPerColorChannel = (uint)colorInfo.bitsPerColorChannel;
+                        bool hdrBit = (flags2 & DisplayConfigAdvancedColorInfo2Flags.HighDynamicRangeSupported) != 0;
+                        bool advancedBit = (flags2 & DisplayConfigAdvancedColorInfo2Flags.AdvancedColorSupported) != 0;
+                        displayConfig.IsHdrSupported = (hdrBit || advancedBit) && !isForceDisabled2;
+                        displayConfig.IsHdrEnabled = (flags2 & DisplayConfigAdvancedColorInfo2Flags.HighDynamicRangeUserEnabled) != 0;
+                        displayConfig.IsAcmEnabled = (flags2 & DisplayConfigAdvancedColorInfo2Flags.WideColorUserEnabled) != 0;
+                        displayConfig.ColorEncoding = colorInfo2.colorEncoding;
+                        displayConfig.BitsPerColorChannel = colorInfo2.bitsPerColorChannel;
                     }
                     else
                     {
-                        logger.Debug($"Failed to get HDR info for {displayConfig.DeviceName}: Error {result}");
-                        displayConfig.IsHdrSupported = false;
-                        displayConfig.IsHdrEnabled = false;
+                        var colorInfo = new DisplayConfigGetAdvancedColorInfo();
+                        colorInfo.header.type = DisplayConfigDeviceInfoType.GetAdvancedColorInfo;
+                        colorInfo.header.size = (uint)Marshal.SizeOf(typeof(DisplayConfigGetAdvancedColorInfo));
+                        colorInfo.header.adapterId = path.targetInfo.adapterId;
+                        colorInfo.header.id = path.targetInfo.id;
+
+                        result = DisplayConfigGetDeviceInfo(ref colorInfo);
+                        if (result == ErrorSuccess)
+                        {
+                            var flags = colorInfo.values;
+                            bool isSupported = (flags & DisplayConfigAdvancedColorInfoFlags.AdvancedColorSupported) != 0;
+                            bool isEnabled = (flags & DisplayConfigAdvancedColorInfoFlags.AdvancedColorEnabled) != 0;
+                            bool isForceDisabled = (flags & DisplayConfigAdvancedColorInfoFlags.AdvancedColorForceDisabled) != 0;
+                            bool finalSupported = isSupported && !isForceDisabled;
+                            bool isHdrEncoding = colorInfo.colorEncoding == DisplayConfigColorEncoding.YCbCr444;
+                            displayConfig.IsHdrSupported = finalSupported;
+                            displayConfig.IsHdrEnabled = isEnabled && isHdrEncoding;
+                            displayConfig.IsAcmEnabled = isEnabled && !isHdrEncoding;
+                            displayConfig.ColorEncoding = colorInfo.colorEncoding;
+                            displayConfig.BitsPerColorChannel = (uint)colorInfo.bitsPerColorChannel;
+                        }
+                        else
+                        {
+                            logger.Debug($"Failed to get HDR info for {displayConfig.DeviceName}: Error {result}");
+                            displayConfig.IsHdrSupported = false;
+                            displayConfig.IsHdrEnabled = false;
+                        }
                     }
 
                     // Resolution and position from source mode
@@ -583,6 +644,46 @@ namespace DisplayProfileManager.Helpers
             return displays;
         }
 
+        public static HashSet<uint> GetAvailableTargetIds()
+        {
+            var result = new HashSet<uint>();
+            try
+            {
+                int ret = GetDisplayConfigBufferSizes(QueryDisplayConfigFlags.AllPaths, out uint pathCount, out uint modeCount);
+                if (ret != ErrorSuccess)
+                {
+                    return result;
+                }
+
+                var paths = new DisplayConfigPathInfo[pathCount];
+                var modes = new DisplayConfigModeInfo[modeCount];
+                ret = QueryDisplayConfig(QueryDisplayConfigFlags.AllPaths, ref pathCount, paths, ref modeCount, modes, IntPtr.Zero);
+                if (ret != ErrorSuccess)
+                {
+                    return result;
+                }
+
+                foreach (var path in paths)
+                {
+                    if (path.targetInfo.targetAvailable)
+                        result.Add(path.targetInfo.id & 0xFFFF);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex, "Error querying all-paths target availability");
+            }
+
+            return result;
+        }
+
+        private static int GetLivePathIndex(DisplayConfigPathInfo[] paths, uint targetId)
+        {
+            uint masked = targetId & 0xFFFF;
+            int active = Array.FindIndex(paths, p => (p.targetInfo.id & 0xFFFF) == masked && (p.flags & (uint)DisplayConfigPathInfoFlags.Active) != 0);
+            return active >= 0 ? active : Array.FindIndex(paths, p => (p.targetInfo.id & 0xFFFF) == masked);
+        }
+
         public static Dictionary<uint, uint> BuildSourceIdMap(List<DisplayConfigInfo> displayConfigs)
         {
             return displayConfigs.Where(d => d.IsEnabled)
@@ -599,7 +700,11 @@ namespace DisplayProfileManager.Helpers
             {
                 logger.Info("Applying display topology...");
 
-                int result = GetDisplayConfigBufferSizes(QueryDisplayConfigFlags.AllPaths, out uint pathCount, out uint modeCount);
+                // Compare without virtual mode so source IDs remain comparable
+                const QueryDisplayConfigFlags compareQueryFlags = QueryDisplayConfigFlags.AllPaths;
+                const QueryDisplayConfigFlags topologyQueryFlags = QueryDisplayConfigFlags.AllPaths | QueryDisplayConfigFlags.VirtualModeAware;
+
+                int result = GetDisplayConfigBufferSizes(compareQueryFlags, out uint pathCount, out uint modeCount);
 
                 if (result != ErrorSuccess)
                 {
@@ -611,7 +716,7 @@ namespace DisplayProfileManager.Helpers
                 var modes = new DisplayConfigModeInfo[modeCount];
 
                 result = QueryDisplayConfig(
-                    QueryDisplayConfigFlags.AllPaths,
+                    compareQueryFlags,
                     ref pathCount,
                     paths,
                     ref modeCount,
@@ -668,87 +773,152 @@ namespace DisplayProfileManager.Helpers
 
                 logger.Info("Display mismatch detected -> Applying topology update");
 
-                // Map TargetId to path index
-                var targetIdToPathIndex = new Dictionary<uint, int>();
-                for (int i = 0; i < paths.Length; i++)
+                void MutatePathsForTopology(DisplayConfigPathInfo[] targetPaths)
                 {
-                    if (paths[i].targetInfo.targetAvailable)
+                    var targetIdToPathIndex = new Dictionary<uint, int>();
+                    for (int i = 0; i < targetPaths.Length; i++)
                     {
-                        uint baseTargetId = paths[i].targetInfo.id & 0xFFFF;
-                        if (!targetIdToPathIndex.ContainsKey(baseTargetId))
+                        if (!targetPaths[i].targetInfo.targetAvailable) continue;
+
+                        uint baseTargetId = targetPaths[i].targetInfo.id & 0xFFFF;
+                        bool isActive = (targetPaths[i].flags & (uint)DisplayConfigPathInfoFlags.Active) != 0;
+
+                        // Prefer active path for each target
+                        if (!targetIdToPathIndex.TryGetValue(baseTargetId, out int existingIndex) || (isActive && (targetPaths[existingIndex].flags & (uint)DisplayConfigPathInfoFlags.Active) == 0))
                             targetIdToPathIndex[baseTargetId] = i;
                     }
-                }
 
-                // Assign a clone group index per unique SourceId
-                var sourceIdToCloneGroup = new Dictionary<uint, uint>();
-                uint nextCloneGroup = 0;
-                foreach (var display in displayConfigs.Where(d => d.IsEnabled))
-                {
-                    if (!sourceIdToCloneGroup.ContainsKey(display.SourceId))
-                        sourceIdToCloneGroup[display.SourceId] = nextCloneGroup++;
-                }
-
-                var targetIdToDisplay = displayConfigs.Where(d => d.IsEnabled).ToDictionary(d => d.TargetId & 0xFFFF);
-                foreach (var kvp in targetIdToPathIndex)
-                {
-                    uint targetId = kvp.Key;
-                    int pathIndex = kvp.Value;
-
-                    paths[pathIndex].targetInfo.modeInfoIdx = DisplayconfigPathModeIdxInvalid;
-
-                    if (targetIdToDisplay.TryGetValue(targetId, out var display))
+                    var sourceIdToCloneGroup = new Dictionary<uint, uint>();
+                    uint nextCloneGroup = 0;
+                    foreach (var display in displayConfigs.Where(d => d.IsEnabled))
                     {
-                        uint cloneGroup = sourceIdToCloneGroup[display.SourceId];
-                        paths[pathIndex].flags |= (uint)DisplayConfigPathInfoFlags.Active;
-                        paths[pathIndex].sourceInfo.ResetModeAndSetCloneGroup(cloneGroup);
+                        if (!sourceIdToCloneGroup.ContainsKey(display.SourceId))
+                            sourceIdToCloneGroup[display.SourceId] = nextCloneGroup++;
                     }
-                    else
+
+                    var targetIdToDisplay = displayConfigs.Where(d => d.IsEnabled).ToDictionary(d => d.TargetId & 0xFFFF);
+                    foreach (var kvp in targetIdToPathIndex)
                     {
-                        paths[pathIndex].flags &= ~(uint)DisplayConfigPathInfoFlags.Active;
-                        paths[pathIndex].sourceInfo.modeInfoIdx = DisplayconfigPathModeIdxInvalid;
+                        uint targetId = kvp.Key;
+                        int pathIndex = kvp.Value;
+
+                        targetPaths[pathIndex].targetInfo.modeInfoIdx = DisplayconfigPathModeIdxInvalid;
+
+                        if (targetIdToDisplay.TryGetValue(targetId, out var display))
+                        {
+                            uint cloneGroup = sourceIdToCloneGroup[display.SourceId];
+                            targetPaths[pathIndex].flags |= (uint)DisplayConfigPathInfoFlags.Active;
+                            targetPaths[pathIndex].sourceInfo.ResetModeAndSetCloneGroup(cloneGroup);
+                        }
+                        else
+                        {
+                            targetPaths[pathIndex].flags &= ~(uint)DisplayConfigPathInfoFlags.Active;
+                            targetPaths[pathIndex].sourceInfo.modeInfoIdx = DisplayconfigPathModeIdxInvalid;
+                        }
                     }
+
+                    // Shared source IDs represent clone groups
+                    var sourceIdTable = new Dictionary<LUID, uint>();
+                    var groupSourceId = new Dictionary<Tuple<LUID, uint>, uint>();
+                    for (int i = 0; i < targetPaths.Length; i++)
+                    {
+                        if ((targetPaths[i].flags & (uint)DisplayConfigPathInfoFlags.Active) == 0) continue;
+
+                        LUID adapterId = targetPaths[i].sourceInfo.adapterId;
+                        uint cloneGroup = targetPaths[i].sourceInfo.modeInfoIdx & 0xFFFF;
+                        var key = Tuple.Create(adapterId, cloneGroup);
+
+                        if (!groupSourceId.TryGetValue(key, out uint assigned))
+                        {
+                            if (!sourceIdTable.ContainsKey(adapterId))
+                                sourceIdTable[adapterId] = 0;
+
+                            assigned = sourceIdTable[adapterId]++;
+                            groupSourceId[key] = assigned;
+                        }
+
+                        targetPaths[i].sourceInfo.id = assigned;
+                    }
+
+                    foreach (var p in targetPaths.Where(p => (p.flags & (uint)DisplayConfigPathInfoFlags.Active) != 0))
+                        logger.Debug($"Topology path: target {p.targetInfo.id & 0xFFFF} source {p.sourceInfo.id} cloneGroup {p.sourceInfo.modeInfoIdx & 0xFFFF}");
                 }
 
-                // Assign contiguous source IDs per adapter across all active paths
-                var sourceIdTable = new Dictionary<LUID, uint>();
-                int activeCount = 0;
-
-                for (int i = 0; i < paths.Length; i++)
+                // Re-query with VirtualModeAware so clone-group encoding is preserved
+                result = GetDisplayConfigBufferSizes(topologyQueryFlags, out pathCount, out modeCount);
+                if (result != ErrorSuccess)
                 {
-                    if ((paths[i].flags & (uint)DisplayConfigPathInfoFlags.Active) != 0)
-                    {
-                        LUID adapterId = paths[i].sourceInfo.adapterId;
-                        if (!sourceIdTable.ContainsKey(adapterId))
-                            sourceIdTable[adapterId] = 0;
-                        paths[i].sourceInfo.id = sourceIdTable[adapterId]++;
-                        activeCount++;
-                    }
+                    logger.Error($"GetDisplayConfigBufferSizes failed for apply query with error: {result}");
+                    return false;
                 }
 
+                paths = new DisplayConfigPathInfo[pathCount];
+                modes = new DisplayConfigModeInfo[modeCount];
+
+                result = QueryDisplayConfig(topologyQueryFlags, ref pathCount, paths, ref modeCount, modes, IntPtr.Zero);
+                if (result != ErrorSuccess)
+                {
+                    logger.Error($"QueryDisplayConfig failed for apply query with error: {result}");
+                    return false;
+                }
+
+                MutatePathsForTopology(paths);
+
+                int activeCount = paths.Count(p => (p.flags & (uint)DisplayConfigPathInfoFlags.Active) != 0);
                 if (activeCount == 0)
                 {
                     logger.Error("No active displays to enable.");
                     return false;
                 }
 
-                result = SetDisplayConfig(
-                    pathCount,
-                    paths,
-                    0,
-                    null,
+                var topologyFlags =
                     SetDisplayConfigFlags.TopologySupplied |
                     SetDisplayConfigFlags.Apply |
                     SetDisplayConfigFlags.AllowPathOrderChanges |
-                    SetDisplayConfigFlags.VirtualModeAware);
+                    SetDisplayConfigFlags.VirtualModeAware;
 
-                if (result != ErrorSuccess)
+                result = SetDisplayConfig(pathCount, paths, 0, null, topologyFlags);
+
+                // Reaching recovery normally requires blank configuration database
+                if (SettingsManager.Instance.Debug.ForceTopologyRecovery && result == ErrorSuccess)
                 {
-                    logger.Error($"Topology failed with error: {result}");
+                    logger.Warn("[debugFlag: forceTopologyRecovery] Ignoring success and taking recovery path");
+                    result = ErrorGenFailure;
+                }
+
+                if (result == ErrorSuccess)
+                {
+                    logger.Info("Successfully applied topology.");
+                    return true;
+                }
+
+                if (result != ErrorGenFailure)
+                {
+                    logger.Error($"SetDisplayConfig failed to apply topology: Error {result}");
                     return false;
                 }
 
-                logger.Info("Successfully applied topology.");
+                // Retry with supplied configuration on ERROR_GEN_FAILURE
+                logger.Warn("Topology not in configuration database: retrying with supplied configuration (Error 31)");
+
+                var recoveryFlags =
+                    SetDisplayConfigFlags.UseSuppliedDisplayConfig |
+                    SetDisplayConfigFlags.Apply |
+                    SetDisplayConfigFlags.SaveToDatabase |
+                    SetDisplayConfigFlags.VirtualModeAware;
+
+                result = SetDisplayConfig(pathCount, paths, 0, null, recoveryFlags);
+
+                if (result != ErrorSuccess)
+                {
+                    logger.Error($"Topology recovery failed: Error {result}");
+                    return false;
+                }
+
+                // Refresh live configuration after recovery
+                GetDisplayConfigs();
+
+                logger.Info("Successfully applied topology and saved to configuration database.");
                 return true;
             }
             catch (Exception ex)
@@ -763,13 +933,11 @@ namespace DisplayProfileManager.Helpers
             var deferWatch = Stopwatch.StartNew();
             var expectedMonitors = displayConfigs.Where(d => d.IsEnabled).ToList();
             var verifiedTargetIds = new HashSet<uint>();
-            int deferCycles = 0;
 
-            logger.Info($"Deferring configuration until {expectedMonitors.Count} enabled display(s) stabilize...");
+            logger.Info($"Deferring configuration until {TextHelper.Plural(expectedMonitors.Count, "enabled display")} stabilize...");
 
             while (verifiedTargetIds.Count < expectedMonitors.Count && deferWatch.ElapsedMilliseconds < deferTimeout)
             {
-                deferCycles++;
                 var liveSnapshot = GetDisplayConfigs();
                 foreach (var monitor in expectedMonitors)
                 {
@@ -777,54 +945,65 @@ namespace DisplayProfileManager.Helpers
                     if (verifiedTargetIds.Contains(monitor.TargetId)) continue;
 
                     var match = liveSnapshot.FirstOrDefault(l => (l.TargetId & 0xFFFF) == maskedProfileId);
-                    if (match != null && match.IsEnabled && match.Width > 0 && match.Height > 0)
+                    if (match != null && match.IsEnabled)
                     {
                         verifiedTargetIds.Add(monitor.TargetId);
                         string name = !string.IsNullOrEmpty(monitor.FriendlyName) ? monitor.FriendlyName : monitor.DeviceName;
-                        deferWatch.Stop();
-                        logger.Debug($"{name} (TargetId {monitor.TargetId}) is active and stable.");
+                        logger.Debug($"{name} (TargetId {monitor.TargetId}) is active at {deferWatch.ElapsedMilliseconds}ms.");
                     }
                 }
 
                 if (verifiedTargetIds.Count < expectedMonitors.Count)
                     await Task.Delay(250);
             }
+            deferWatch.Stop();
 
             if (verifiedTargetIds.Count == expectedMonitors.Count)
-                logger.Info($"{expectedMonitors.Count} display(s) enabled and stabilized in {deferWatch.ElapsedMilliseconds}ms.");
+                logger.Info($"{TextHelper.Plural(expectedMonitors.Count, "display")} enabled and available in {deferWatch.ElapsedMilliseconds}ms.");
             else
             {
                 var failedMonitors = expectedMonitors.Where(m => !verifiedTargetIds.Contains(m.TargetId));
                 foreach (var failed in failedMonitors)
                 {
                     string name = string.IsNullOrEmpty(failed.FriendlyName) ? failed.DeviceName : failed.FriendlyName;
-                    logger.Warn($"TargetId {failed.TargetId} ({name}) FAILED to stabilize within timeout.");
+                    logger.Warn($"TargetId {failed.TargetId} ({name}) failed to stabilize within timeout.");
                 }
-                logger.Error($"Display stabilization timed out! Only {verifiedTargetIds.Count}/{expectedMonitors.Count} display(s) ready.");
+                logger.Error($"Display stabilization timed out -> only {verifiedTargetIds.Count}/{expectedMonitors.Count} displays ready.");
                 return false;
             }
 
             return true;
         }
 
-        public static bool ApplyDisplayLayout(List<DisplayConfigInfo> displayConfigs)
+        public static bool ApplyDisplayLayout(List<DisplayConfigInfo> displayConfigs, out int errorCode)
         {
+            errorCode = ErrorSuccess;
+
             try
             {
                 logger.Info("Applying display layout...");
 
-                var queryFlags = QueryDisplayConfigFlags.AllPaths;
+                var queryFlags = QueryDisplayConfigFlags.AllPaths | QueryDisplayConfigFlags.VirtualRefreshRateAware;
+                if (GetDisplayConfigBufferSizes(queryFlags, out _, out _) != ErrorSuccess)
+                    queryFlags = QueryDisplayConfigFlags.AllPaths;
+
                 int result = GetDisplayConfigBufferSizes(queryFlags, out uint pathCount, out uint modeCount);
-                if (result != ErrorSuccess) return false;
+                if (result != ErrorSuccess)
+                {
+                    return false;
+                }
 
                 var paths = new DisplayConfigPathInfo[pathCount];
                 var modes = new DisplayConfigModeInfo[modeCount];
                 result = QueryDisplayConfig(queryFlags, ref pathCount, paths, ref modeCount, modes, IntPtr.Zero);
-                if (result != ErrorSuccess) return false;
+                if (result != ErrorSuccess)
+                {
+                    return false;
+                }
 
                 var sourceIdMap = BuildSourceIdMap(displayConfigs);
 
-                // Offset all positions relative to the profile's primary display
+                // Offset all positions relative to profile's primary display
                 var primaryProfile = displayConfigs.FirstOrDefault(p => p.IsEnabled && p.IsPrimary) ?? displayConfigs.FirstOrDefault(p => p.IsEnabled);
                 int offsetX = primaryProfile != null ? -primaryProfile.DisplayPositionX : 0;
                 int offsetY = primaryProfile != null ? -primaryProfile.DisplayPositionY : 0;
@@ -834,7 +1013,7 @@ namespace DisplayProfileManager.Helpers
 
                 foreach (var profile in displayConfigs)
                 {
-                    var pIdx = Array.FindIndex(paths, p => (p.targetInfo.id & 0xFFFF) == (profile.TargetId & 0xFFFF));
+                    var pIdx = GetLivePathIndex(paths, profile.TargetId);
                     if (pIdx == -1) continue;
 
                     string mon = !string.IsNullOrEmpty(profile.FriendlyName) ? profile.FriendlyName : $"ID:{profile.TargetId}";
@@ -885,10 +1064,10 @@ namespace DisplayProfileManager.Helpers
                         if (tModeIdx != DisplayconfigPathModeIdxInvalid && tModeIdx < modes.Length)
                         {
                             ref var sig = ref modes[tModeIdx].modeInfo.targetMode.targetVideoSignalInfo;
-                            uint currentHz = sig.vSyncFreq.Numerator > 1000 ? sig.vSyncFreq.Numerator / 1000 : sig.vSyncFreq.Numerator;
-                            if (currentHz != (uint)profile.RefreshRate)
+                            uint liveHz = sig.vSyncFreq.Numerator > 1000 ? sig.vSyncFreq.Numerator / 1000 : sig.vSyncFreq.Numerator;
+                            if (liveHz != (uint)profile.RefreshRate)
                             {
-                                logger.Debug($"[RefreshRate] {mon}: Current={currentHz}Hz, Profile={profile.RefreshRate}Hz");
+                                logger.Debug($"[RefreshRate] {mon}: Current={liveHz}Hz, Profile={profile.RefreshRate}Hz");
                                 needsUpdate = true;
                             }
                         }
@@ -903,6 +1082,17 @@ namespace DisplayProfileManager.Helpers
 
                 logger.Info("Display mismatch detected -> Apply profile configuration");
 
+                // Record active paths before clearing flags
+                var livePathByTarget = new Dictionary<uint, int>();
+                for (int i = 0; i < paths.Length; i++)
+                {
+                    if ((paths[i].flags & (uint)DisplayConfigPathInfoFlags.Active) == 0) continue;
+
+                    uint masked = paths[i].targetInfo.id & 0xFFFF;
+                    if (!livePathByTarget.ContainsKey(masked))
+                        livePathByTarget[masked] = i;
+                }
+
                 // Clear all active flags before rebuilding topology
                 for (int i = 0; i < paths.Length; i++)
                     paths[i].flags &= ~(uint)DisplayConfigPathInfoFlags.Active;
@@ -911,7 +1101,9 @@ namespace DisplayProfileManager.Helpers
                 var sourceIdToModeIdx = new Dictionary<uint, uint>();
                 foreach (var profile in displayConfigs.Where(d => d.IsEnabled))
                 {
-                    int pIdx = Array.FindIndex(paths, p => (p.targetInfo.id & 0xFFFF) == (profile.TargetId & 0xFFFF));
+                    if (!livePathByTarget.TryGetValue(profile.TargetId & 0xFFFF, out int pIdx))
+                        pIdx = Array.FindIndex(paths, p => (p.targetInfo.id & 0xFFFF) == (profile.TargetId & 0xFFFF));
+
                     if (pIdx == -1) continue;
 
                     uint normalizedSourceId = sourceIdMap[profile.SourceId];
@@ -921,7 +1113,7 @@ namespace DisplayProfileManager.Helpers
                     if (profile.Rotation != 0)
                         paths[pIdx].targetInfo.rotation = (uint)profile.Rotation;
 
-                    // Ensure clone group members share the same source mode index
+                    // Share one source mode entry across clone-group members
                     if (!sourceIdToModeIdx.TryGetValue(normalizedSourceId, out uint sModeIdx))
                     {
                         sModeIdx = paths[pIdx].sourceInfo.modeInfoIdx;
@@ -943,7 +1135,13 @@ namespace DisplayProfileManager.Helpers
                     uint tModeIdx = paths[pIdx].targetInfo.modeInfoIdx;
                     if (tModeIdx != DisplayconfigPathModeIdxInvalid && tModeIdx < modes.Length)
                     {
+                        ref var targetInfo = ref paths[pIdx].targetInfo;
                         ref var sig = ref modes[tModeIdx].modeInfo.targetMode.targetVideoSignalInfo;
+
+                        // Keep virtual and physical refresh rates in sync
+                        targetInfo.refreshRate.Numerator = (uint)(profile.RefreshRate * 1000);
+                        targetInfo.refreshRate.Denominator = 1000;
+
                         sig.vSyncFreq.Numerator = (uint)(profile.RefreshRate * 1000);
                         sig.vSyncFreq.Denominator = 1000;
                         sig.activeSize.cx = (uint)profile.Width;
@@ -951,24 +1149,20 @@ namespace DisplayProfileManager.Helpers
                     }
                 }
 
-                // Commit topology and persist to the database
+                // Commit layout and persist to database
                 result = SetDisplayConfig(
                     pathCount, paths,
                     modeCount, modes,
                     SetDisplayConfigFlags.Apply |
                     SetDisplayConfigFlags.UseSuppliedDisplayConfig |
                     SetDisplayConfigFlags.SaveToDatabase |
-                    SetDisplayConfigFlags.AllowChanges);
+                    SetDisplayConfigFlags.AllowChanges |
+                    SetDisplayConfigFlags.VirtualRefreshRateAware);
 
-                // Cross-check with VerifyDisplayConfiguration before failing — Windows can return non-fatal codes on valid configs
                 if (result != ErrorSuccess)
                 {
-                    if (!VerifyDisplayConfiguration(displayConfigs))
-                    {
-                        logger.Error($"SetDisplayConfig failed: Error {result}");
-                        return false;
-                    }
-                    logger.Debug($"SetDisplayConfig reported Error {result}, but currentConfigs correctly matches displayConfigs.");
+                    logger.Error($"SetDisplayConfig failed to apply layout: Error {result}");
+                    return false;
                 }
 
                 return true;
@@ -985,29 +1179,54 @@ namespace DisplayProfileManager.Helpers
             try
             {
                 var totalWatch = Stopwatch.StartNew();
-                logger.Info($"Applying configuration for {displayConfigs.Count(d => d.IsEnabled)} enabled display(s)...");
+                logger.Info($"Applying configuration for {TextHelper.Plural(displayConfigs.Count(d => d.IsEnabled), "enabled display")}...");
+
+                // Exclude disconnected displays from defer set
+                var availableTargetIds = GetAvailableTargetIds();
+                var liveConfigs = displayConfigs
+                    .Where(d => d.IsEnabled && availableTargetIds.Contains(d.TargetId))
+                    .ToList();
+
+                // Defer until currently available displays stabilize
+                var deferWatch = Stopwatch.StartNew();
+                await DeferDisplayLayoutAsync(liveConfigs);
+                deferWatch.Stop();
 
                 // Apply resolution, position, and rotation atomically
                 var layoutWatch = Stopwatch.StartNew();
-                if (!ApplyDisplayLayout(displayConfigs))
+                if (!ApplyDisplayLayout(displayConfigs, out int layoutErrorCode))
                 {
-                    logger.Error("Failed to apply display layout");
-                    return false;
+                    if (layoutErrorCode == ErrorGenFailure)
+                    {
+                        logger.Warn("Display layout failed with Error 31 -> waiting for displays and retrying layout once");
+                        await DeferDisplayLayoutAsync(liveConfigs);
+
+                        if (!ApplyDisplayLayout(displayConfigs, out _))
+                        {
+                            logger.Error("Failed to apply display layout after Error 31 retry");
+                            return false;
+                        }
+                    }
+                    else
+                    {
+                        logger.Error("Failed to apply display layout");
+                        return false;
+                    }
                 }
                 layoutWatch.Stop();
 
-                // Apply Advanced Color state (HDR/ACM) after layout — requires valid target handles
+                // Apply advanced color state after layout
                 var hdrWatch = Stopwatch.StartNew();
                 ApplyAdvancedColorState(displayConfigs);
                 hdrWatch.Stop();
 
-                // Apply color profiles after Advanced Color state is established
+                // Apply color profiles after advanced color state is established
                 var colorWatch = Stopwatch.StartNew();
                 ApplyColorProfiles(displayConfigs);
                 colorWatch.Stop();
 
                 totalWatch.Stop();
-                logger.Info($"Configured - Layout: {layoutWatch.ElapsedMilliseconds}ms | HDR: {hdrWatch.ElapsedMilliseconds}ms | Color: {colorWatch.ElapsedMilliseconds}ms | TOTAL: {totalWatch.ElapsedMilliseconds}ms");
+                logger.Info($"Configured - Defer: {deferWatch.ElapsedMilliseconds}ms | Layout: {layoutWatch.ElapsedMilliseconds}ms | HDR: {hdrWatch.ElapsedMilliseconds}ms | Color: {colorWatch.ElapsedMilliseconds}ms | TOTAL: {totalWatch.ElapsedMilliseconds}ms");
 
                 return true;
             }
@@ -1021,15 +1240,15 @@ namespace DisplayProfileManager.Helpers
         public static bool ApplyAdvancedColorState(List<DisplayConfigInfo> displayConfigs)
         {
             logger.Info("Applying Advanced Color state...");
-            
+
             // Fresh live query — RawTargetId values are required by DisplayConfigSetDeviceInfo
-            var currentConfigs = GetDisplayConfigs();
+            var liveConfigs = GetDisplayConfigs();
             bool allSuccessful = true;
             foreach (var profileDisplay in displayConfigs)
             {
                 if (!profileDisplay.IsEnabled) continue;
 
-                var activeDisplay = currentConfigs.FirstOrDefault(c => c.TargetId == profileDisplay.TargetId);
+                var activeDisplay = liveConfigs.FirstOrDefault(c => c.TargetId == profileDisplay.TargetId);
                 if (activeDisplay == null)
                 {
                     if (profileDisplay.IsHdrSupported)
@@ -1040,7 +1259,7 @@ namespace DisplayProfileManager.Helpers
                     continue;
                 }
 
-                // Per-device isolation — IDD virtual paths throw ERROR_GEN_FAILURE/ERROR_INVALID_PARAMETER
+                // Isolate per-device failures on virtual display paths
                 try
                 {
                     if (profileDisplay.IsHdrSupported)
@@ -1053,13 +1272,16 @@ namespace DisplayProfileManager.Helpers
                                 logger.Error($"Failed to apply HDR setting for {activeDisplay.FriendlyName}.");
                                 allSuccessful = false;
                             }
+                            else if (!VerifyHdrState(activeDisplay.RawTargetId, profileDisplay.IsHdrEnabled))
+                                logger.Warn($"HDR state for {activeDisplay.FriendlyName} did not verify as {(profileDisplay.IsHdrEnabled ? "on" : "off")}");
                         }
                         else
                             logger.Debug($"Skipping {activeDisplay.FriendlyName} -> HDR is already {(profileDisplay.IsHdrEnabled ? "on" : "off")}");
                     }
 
-                    // ACM — forced on when HDR is on; independently toggleable otherwise
+                    // ACM follows HDR when HDR is enabled
                     bool wantAcm = profileDisplay.IsHdrEnabled || profileDisplay.IsAcmEnabled;
+
                     if (wantAcm != activeDisplay.IsAcmEnabled)
                     {
                         logger.Info($"Setting {activeDisplay.FriendlyName} -> ACM to {(wantAcm ? "on" : "off")}");
@@ -1071,7 +1293,7 @@ namespace DisplayProfileManager.Helpers
                 }
                 catch (Exception ex)
                 {
-                    logger.Warn(ex, $"Advanced color state failed for {activeDisplay.FriendlyName} (TargetId {activeDisplay.TargetId}) — likely an uninitialized IDD virtual path. Skipping.");
+                    logger.Warn(ex, $"Advanced color state failed for {activeDisplay.FriendlyName} (TargetId {activeDisplay.TargetId}): skipping");
                 }
             }
 
@@ -1121,7 +1343,8 @@ namespace DisplayProfileManager.Helpers
                 int result = DisplayConfigSetDeviceInfo(ref s);
                 if (result == ErrorSuccess)
                 {
-                    logger.Info($"Set HDR to {enable} for RawTargetId {rawTargetId}"); return true;
+                    logger.Info($"Set HDR to {enable} for RawTargetId {rawTargetId}");
+                    return true;
                 }
 
                 logger.Error($"Failed to set HDR state for RawTargetId {rawTargetId}: Error {result}");
@@ -1133,11 +1356,17 @@ namespace DisplayProfileManager.Helpers
 
         public static bool SetAcmState(LUID adapterId, uint rawTargetId, bool enable)
         {
-            if (IsWindows24H2OrGreater()) return SetWcgState(adapterId, rawTargetId, enable);
+            if (IsWindows24H2OrGreater())
+            {
+                return SetWcgState(adapterId, rawTargetId, enable);
+            }
 
-            if (!enable) return SetAdvancedColorState(adapterId, rawTargetId, DisplayConfigColorIntent.Off);
+            if (!enable)
+            {
+                return SetAdvancedColorState(adapterId, rawTargetId, DisplayConfigColorIntent.Off);
+            }
 
-            // Pre-24H2: the ACM bit only works on SDR-only displays; on HDR-capable displays it maps to HDR
+            // Pre-24H2: ACM bit only works on SDR-only displays; on HDR-capable displays it maps to HDR
             var liveConfigs = GetDisplayConfigs();
             var display = liveConfigs.FirstOrDefault(c => c.RawTargetId == rawTargetId);
             if (display?.IsHdrSupported == true)
@@ -1148,8 +1377,6 @@ namespace DisplayProfileManager.Helpers
 
             return SetAdvancedColorState(adapterId, rawTargetId, DisplayConfigColorIntent.Acm);
         }
-
-        public static bool IsAcmSupported(bool isHdrSupported) => IsWindows1122H2OrGreater() && isHdrSupported;
 
         public static bool ApplyColorProfiles(List<DisplayConfigInfo> displayConfigs)
         {
@@ -1186,100 +1413,56 @@ namespace DisplayProfileManager.Helpers
             return allSuccessful;
         }
 
-        public static bool VerifyDisplayConfiguration(List<DisplayConfigInfo> expectedConfigs)
+        public static DisplayConfigInfo ResolveLiveDisplay(DisplaySetting setting, List<DisplayConfigInfo> liveConfigs)
         {
-            try
+            if (setting == null || liveConfigs == null || liveConfigs.Count == 0) return null;
+
+            uint masked = setting.TargetId & 0xFFFF;
+            var onPort = liveConfigs.FirstOrDefault(c => (c.TargetId & 0xFFFF) == masked);
+
+            if (onPort != null && (!setting.HasEdidIdentity || setting.MatchesEdid(onPort)))
             {
-                var currentConfigs = GetDisplayConfigs();
+                return onPort;
+            }
 
-                int expEnabled = expectedConfigs.Count(c => c.IsEnabled);
-                int expDisabled = expectedConfigs.Count(c => !c.IsEnabled);
-                int foundActive = currentConfigs.Count(c => c.IsEnabled);
-                int foundInactive = currentConfigs.Count - foundActive;
-
-                string expectedStr = $"{expEnabled} enabled";
-                if (expDisabled > 0)
-                    expectedStr += $" / {expDisabled} disabled";
-
-                string foundStr = $"{foundActive} active";
-                if (foundInactive > 0)
-                    foundStr += $" / {foundInactive} inactive";
-
-                logger.Info($"Verifying display configuration: Expected {expectedStr} display(s), found {foundStr}");
-
-                bool allMatched = true;
-
-                foreach (var expected in expectedConfigs)
-                {
-                    if (!expected.IsEnabled)
-                    {
-                        var found = currentConfigs.FirstOrDefault(c => c.TargetId == expected.TargetId);
-                        if (found != null && found.IsEnabled)
-                        {
-                            logger.Error($"TargetId {expected.TargetId} should be DISABLED but is ACTIVE");
-                            allMatched = false;
-                        }
-                        else
-                            logger.Info($"TargetId {expected.TargetId} ({expected.FriendlyName}): disabled");
-                        continue;
-                    }
-
-                    var current = currentConfigs.FirstOrDefault(c => c.TargetId == expected.TargetId);
-
-                    if (current == null)
-                    {
-                        logger.Error($"Expected TargetId {expected.TargetId} not found in current configuration");
-                        allMatched = false;
-                        continue;
-                    }
-
-                    if (!current.IsEnabled)
-                    {
-                        logger.Error($"TargetId {expected.TargetId} ({expected.FriendlyName}) should be ENABLED but is DISABLED");
-                        allMatched = false;
-                        continue;
-                    }
-
-                    logger.Debug($"TargetId {expected.TargetId} ({expected.FriendlyName}): enabled");
-                }
-
-                // Verify targets sharing a profile SourceId also share a Windows SourceId
-                var cloneGroups = expectedConfigs
-                    .Where(e => e.IsEnabled)
-                    .GroupBy(e => e.SourceId)
-                    .Where(g => g.Count() > 1);
-
-                foreach (var cloneGroup in cloneGroups)
-                {
-                    var targetIds = cloneGroup.Select(e => e.TargetId).ToList();
-                    var actualSourceIds = targetIds
-                        .Select(tid => currentConfigs.FirstOrDefault(c => c.TargetId == tid))
-                        .Where(c => c != null)
-                        .Select(c => c.SourceId)
-                        .Distinct()
-                        .ToList();
-
-                    if (actualSourceIds.Count == 1)
-                        logger.Info($"Clone group (profile SourceId {cloneGroup.Key}): Targets [{string.Join(", ", targetIds)}] correctly share actual SourceId {actualSourceIds[0]}");
-                    else
-                    {
-                        logger.Error($"Clone group (profile SourceId {cloneGroup.Key}): Targets [{string.Join(", ", targetIds)}] have different actual SourceIds: [{string.Join(", ", actualSourceIds)}]");
-                        allMatched = false;
-                    }
-                }
-
-                if (allMatched)
-                    logger.Info("Display configuration verification PASSED");
+            var byEdid = setting.HasEdidIdentity ? liveConfigs.FirstOrDefault(c => setting.MatchesEdid(c)) : null;
+            if (byEdid != null)
+            {
+                if (onPort == null)
+                    logger.Warn($"'{setting.ReadableDeviceName}' moved from TargetId {masked} to {byEdid.TargetId & 0xFFFF} -> following monitor");
                 else
-                    logger.Error("Display configuration verification FAILED");
+                    logger.Warn($"TargetId {masked} now holds {onPort.ManufacturerName}{onPort.ProductCodeID}; '{setting.ReadableDeviceName}' is on TargetId {byEdid.TargetId & 0xFFFF} -> following monitor");
 
-                return allMatched;
+                return byEdid;
             }
-            catch (Exception ex)
+
+            if (onPort != null && setting.HasEdidIdentity)
+                logger.Warn($"TargetId {masked} holds {onPort.ManufacturerName}{onPort.ProductCodeID}, not captured {setting.ManufacturerName}{setting.ProductCodeID} -> applying to port anyway");
+
+            return onPort;
+        }
+
+        public static string DecodeEdidManufacturer(ushort edidManufactureId)
+        {
+            if (edidManufactureId == 0)
             {
-                logger.Error(ex, "Error verifying display configuration");
-                return false;
+                return string.Empty;
             }
+
+            ushort value = (ushort)((edidManufactureId >> 8) | (edidManufactureId << 8));
+            var letters = new char[3];
+            for (int i = 0; i < 3; i++)
+            {
+                int code = (value >> (10 - i * 5)) & 0x1F;
+                if (code < 1 || code > 26)
+                {
+                    return string.Empty;
+                }
+
+                letters[i] = (char)('A' + code - 1);
+            }
+
+            return new string(letters);
         }
 
         public static LUID GetLUIDFromString(string adapterIdString)
@@ -1297,12 +1480,43 @@ namespace DisplayProfileManager.Helpers
                     logger.Warn(ex, $"Failed to parse AdapterId '{adapterIdString}'");
                 }
             }
+
             return new LUID { HighPart = 0, LowPart = 0 };
         }
 
         #endregion
 
         #region Private Methods
+
+        private static bool GetAdvancedColorInfo2(LUID adapterId, uint targetId, out DisplayConfigGetAdvancedColorInfo2 colorInfo)
+        {
+            colorInfo = new DisplayConfigGetAdvancedColorInfo2();
+            colorInfo.header.type = DisplayConfigDeviceInfoType.GetAdvancedColorInfo2;
+            colorInfo.header.size = (uint)Marshal.SizeOf(typeof(DisplayConfigGetAdvancedColorInfo2));
+            colorInfo.header.adapterId = adapterId;
+            colorInfo.header.id = targetId;
+
+            return DisplayConfigGetDeviceInfo(ref colorInfo) == ErrorSuccess;
+        }
+
+        private static bool VerifyHdrState(uint rawTargetId, bool expectedEnabled)
+        {
+            const int maxAttempts = 3;
+            const int delayMs = 100;
+
+            // Re-query because HDR state may settle asynchronously
+            for (int attempt = 1; attempt <= maxAttempts; attempt++)
+            {
+                System.Threading.Thread.Sleep(delayMs);
+                var live = GetDisplayConfigs().FirstOrDefault(c => c.RawTargetId == rawTargetId);
+                if (live != null && live.IsHdrEnabled == expectedEnabled)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
 
         private static bool SetWcgState(LUID adapterId, uint rawTargetId, bool enable)
         {

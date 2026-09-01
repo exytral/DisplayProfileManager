@@ -2,7 +2,6 @@ using NLog;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Management;
 using System.Runtime.InteropServices;
 
 namespace DisplayProfileManager.Helpers
@@ -16,15 +15,11 @@ namespace DisplayProfileManager.Helpers
         [DllImport("user32.dll")]
         private static extern int ChangeDisplaySettingsEx(string deviceName, ref DEVMODE devMode, IntPtr hwnd, ChangeDisplaySettingsFlags flags, IntPtr lParam);
         [DllImport("user32.dll")]
+        private static extern int ChangeDisplaySettingsEx(string deviceName, IntPtr devMode, IntPtr hwnd, uint flags, IntPtr lParam);
+        [DllImport("user32.dll")]
         private static extern bool EnumDisplaySettings(string deviceName, int modeNum, ref DEVMODE devMode);
         [DllImport("user32.dll")]
         private static extern bool EnumDisplayDevices(string lpDevice, uint iDevNum, ref DISPLAY_DEVICE lpDisplayDevice, uint dwFlags);
-
-        #endregion
-
-        #region Constants
-
-        private const int EnumCurrentSettings = -1;
 
         #endregion
 
@@ -33,9 +28,11 @@ namespace DisplayProfileManager.Helpers
         [StructLayout(LayoutKind.Sequential)]
         public struct DEVMODE
         {
-            public const int DmPelsWidth= 0x80000;
+            public const int DmPelsWidth = 0x80000;
             public const int DmPelsHeight = 0x100000;
             public const int DmDisplayFrequency = 0x400000;
+            public const int DmInterlaced = 0x00000002;
+            public const int DmPosition = 0x00000020;
             private const int CchDeviceName = 32;
             private const int CchFormName = 32;
 
@@ -134,6 +131,12 @@ namespace DisplayProfileManager.Helpers
 
         #endregion
 
+        #region Constants
+
+        private const int EnumCurrentSettings = -1;
+
+        #endregion
+
         #region Public Classes
 
         public class DisplayInfo
@@ -141,13 +144,14 @@ namespace DisplayProfileManager.Helpers
             public string DeviceName { get; set; } = string.Empty;
             public string DeviceString { get; set; } = string.Empty;
             public string ReadableDeviceName { get; set; } = string.Empty;
+            public string DeviceInstanceId { get; set; } = string.Empty;
             public int Width { get; set; }
             public int Height { get; set; }
             public int Frequency { get; set; }
             public int BitsPerPixel { get; set; }
+            public bool IsInterlaced { get; set; }
             public bool IsPrimary { get; set; }
             public DEVMODE DevMode { get; set; }
-            public string DeviceInstanceId { get; set; } = string.Empty;
         }
 
         public class ResolutionInfo
@@ -156,33 +160,18 @@ namespace DisplayProfileManager.Helpers
             public int Height { get; set; }
             public int Frequency { get; set; }
             public int BitsPerPixel { get; set; }
+            public bool IsInterlaced { get; set; }
         }
 
-        public class MonitorInfo
+        public class DisplayCapabilities
         {
-            public string Name { get; set; } = string.Empty;
-            public string DeviceID { get; set; } = string.Empty;
-            public string PnPDeviceID { get; set; } = string.Empty;
-            public string Description { get; set; } = string.Empty;
-            public string Manufacturer { get; set; } = string.Empty;
-        }
-
-        public class MonitorIdInfo
-        {
-            public string InstanceName { get; set; } = string.Empty;
-            public string ManufacturerName { get; set; } = string.Empty;
-            public string ProductCodeID { get; set; } = string.Empty;
-            public string SerialNumberID { get; set; } = string.Empty;
-
-            public override string ToString()
-            {
-                return $"{ManufacturerName}-{ProductCodeID}-{SerialNumberID}";
-            }
+            public List<string> Resolutions { get; set; } = new List<string>();
+            public Dictionary<string, List<int>> RefreshRates { get; set; } = new Dictionary<string, List<int>>();
         }
 
         #endregion
 
-        #region Methods
+        #region Public Methods
 
         public static List<DisplayInfo> GetDisplays()
         {
@@ -205,19 +194,17 @@ namespace DisplayProfileManager.Helpers
                         {
                             DeviceName = displayDevice.DeviceName,
                             DeviceString = displayDevice.DeviceString,
+                            ReadableDeviceName = displayDevice.DeviceName,
                             DeviceInstanceId = displayDevice.DeviceID,
                             Width = devMode.dmPelsWidth,
                             Height = devMode.dmPelsHeight,
                             Frequency = devMode.dmDisplayFrequency,
                             BitsPerPixel = devMode.dmBitsPerPel,
                             IsPrimary = (displayDevice.StateFlags & DisplayDeviceStateFlags.PrimaryDevice) != 0,
-                            DevMode = devMode,
-                            ReadableDeviceName = displayDevice.DeviceName
+                            DevMode = devMode
                         };
 
-                        logger.Debug($"Display[{deviceIndex}]: Device={displayDevice.DeviceName}, " +
-                            $"String={displayDevice.DeviceString}, DeviceID={displayDevice.DeviceID}, Primary={displayInfo.IsPrimary}");
-
+                        logger.Debug($"Display[{deviceIndex}]: Device={displayDevice.DeviceName}, " + $"String={displayDevice.DeviceString}, DeviceID={displayDevice.DeviceID}, Primary={displayInfo.IsPrimary}");
                         displays.Add(displayInfo);
                     }
                 }
@@ -256,10 +243,11 @@ namespace DisplayProfileManager.Helpers
                     Width = devMode.dmPelsWidth,
                     Height = devMode.dmPelsHeight,
                     Frequency = devMode.dmDisplayFrequency,
-                    BitsPerPixel = devMode.dmBitsPerPel
+                    BitsPerPixel = devMode.dmBitsPerPel,
+                    IsInterlaced = (devMode.dmDisplayFlags & DEVMODE.DmInterlaced) != 0
                 };
 
-                string key = $"{resolution.Width}x{resolution.Height} • {resolution.Frequency}Hz";
+                string key = $"{resolution.Width}x{resolution.Height} • {resolution.Frequency}Hz{(resolution.IsInterlaced ? " • i" : "")}";
                 if (!uniqueResolutions.Contains(key))
                 {
                     uniqueResolutions.Add(key);
@@ -271,14 +259,22 @@ namespace DisplayProfileManager.Helpers
 
             resolutions.Sort((a, b) =>
             {
-                if (a.Width != b.Width) return b.Width.CompareTo(a.Width);
-                if (a.Height != b.Height) return b.Height.CompareTo(a.Height);
+                if (a.Width != b.Width)
+                {
+                    return b.Width.CompareTo(a.Width);
+                }
+
+                if (a.Height != b.Height)
+                {
+                    return b.Height.CompareTo(a.Height);
+                }
+
                 return b.Frequency.CompareTo(a.Frequency);
             });
 
             return resolutions;
         }
-        
+
         public static List<string> GetSupportedResolutionsOnly(string deviceName)
         {
             if (string.IsNullOrEmpty(deviceName)) return new List<string>();
@@ -286,6 +282,7 @@ namespace DisplayProfileManager.Helpers
             var allResolutions = GetAvailableResolutions(deviceName);
             var uniqueResolutions = new HashSet<string>();
             var resolutionList = new List<(int width, int height, string text)>();
+
             foreach (var resolution in allResolutions)
             {
                 var resolutionText = $"{resolution.Width}x{resolution.Height}";
@@ -298,11 +295,60 @@ namespace DisplayProfileManager.Helpers
 
             resolutionList.Sort((a, b) =>
             {
-                if (a.width != b.width) return b.width.CompareTo(a.width);
+                if (a.width != b.width)
+                {
+                    return b.width.CompareTo(a.width);
+                }
+
                 return b.height.CompareTo(a.height);
             });
 
             return resolutionList.Select(r => r.text).ToList();
+        }
+
+        public static DisplayCapabilities GetDisplayCapabilities(string deviceName)
+        {
+            var capabilities = new DisplayCapabilities();
+            if (string.IsNullOrEmpty(deviceName))
+            {
+                return capabilities;
+            }
+
+            var allModes = GetAvailableResolutions(deviceName);
+            var order = new List<(int width, int height, string text)>();
+            var rates = new Dictionary<string, HashSet<int>>();
+
+            foreach (var mode in allModes)
+            {
+                var text = $"{mode.Width}x{mode.Height}";
+                if (!rates.ContainsKey(text))
+                {
+                    rates[text] = new HashSet<int>();
+                    order.Add((mode.Width, mode.Height, text));
+                }
+
+                rates[text].Add(mode.Frequency);
+            }
+
+            order.Sort((a, b) =>
+            {
+                if (a.width != b.width)
+                {
+                    return b.width.CompareTo(a.width);
+                }
+
+                return b.height.CompareTo(a.height);
+            });
+
+            capabilities.Resolutions = order.Select(r => r.text).ToList();
+            foreach (var text in capabilities.Resolutions)
+            {
+                var sorted = rates[text].ToList();
+                sorted.Sort((a, b) => b.CompareTo(a));
+                capabilities.RefreshRates[text] = sorted;
+            }
+
+            return capabilities;
         }
 
         public static List<int> GetAvailableRefreshRates(string deviceName, int width, int height)
@@ -319,153 +365,6 @@ namespace DisplayProfileManager.Helpers
             sortedRates.Sort((a, b) => b.CompareTo(a));
 
             return sortedRates;
-        }
-
-        public static List<MonitorInfo> GetMonitorsFromWin32PnPEntity()
-        {
-            var monitors = new List<MonitorInfo>();
-
-            try
-            {
-                logger.Debug("Querying WMI Win32PnPEntity for monitor information...");
-                using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_PnPEntity WHERE Service='monitor' OR PNPClass='Monitor'"))
-                {
-                    using (var collection = searcher.Get())
-                    {
-                        foreach (ManagementObject obj in collection)
-                        {
-                            var monitor = new MonitorInfo
-                            {
-                                Name = obj["Name"]?.ToString() ?? "",
-                                DeviceID = obj["DeviceID"]?.ToString() ?? "",
-                                PnPDeviceID = obj["PNPDeviceID"]?.ToString() ?? "",
-                                Description = obj["Description"]?.ToString() ?? "",
-                                Manufacturer = obj["Manufacturer"]?.ToString() ?? ""
-                            };
-                            logger.Debug($"WMI Win32PnPEntity Monitor: Name='{monitor.Name}', DeviceID='{monitor.DeviceID}', PnPDeviceID='{monitor.PnPDeviceID}'");
-
-                            if (!string.IsNullOrEmpty(monitor.Name))
-                                monitors.Add(monitor);
-                        }
-                    }
-                }
-                logger.Info($"Found {monitors.Count} monitors from WMI Win32PnPEntity");
-            }
-            catch (Exception ex)
-            {
-                logger.Error(ex, "WMI Win32PnPEntity query failed");
-            }
-
-            return monitors;
-        }
-
-        public static List<MonitorIdInfo> GetMonitorIDsFromWmiMonitorID()
-        {
-            var monitorIDs = new List<MonitorIdInfo>();
-
-            try
-            {
-                logger.Debug("Querying WMI WmiMonitorID for monitor information...");
-                var scope = new ManagementScope(@"\\.\root\wmi");
-                var query = new ObjectQuery("SELECT * FROM WmiMonitorID");
-                using (var searcher = new ManagementObjectSearcher(scope, query))
-                {
-                    using (var collection = searcher.Get())
-                    {
-                        foreach (ManagementObject obj in collection)
-                        {
-                            var monitorId = new MonitorIdInfo
-                            {
-                                InstanceName = obj["InstanceName"]?.ToString() ?? "",
-                                // ManufacturerName, ProductCodeID, SerialNumberID are returned as ushort[] (UTF-16 words)
-                                ManufacturerName = ArrayUshortToString(obj["ManufacturerName"] as ushort[]),
-                                ProductCodeID = ArrayUshortToHexString(obj["ProductCodeID"] as ushort[]),
-                                SerialNumberID = ArrayUshortToString(obj["SerialNumberID"] as ushort[]),
-                            };
-
-                            logger.Debug($"WMI WmiMonitorID Monitor: " +
-                                $"InstanceName='{monitorId.InstanceName}', " +
-                                $"ManufacturerName='{monitorId.ManufacturerName}', " +
-                                $"ProductCodeID='{monitorId.ProductCodeID}', " +
-                                $"SerialNumberID='{monitorId.SerialNumberID}'");
-
-                            if (!string.IsNullOrEmpty(monitorId.InstanceName))
-                                monitorIDs.Add(monitorId);
-                        }
-                    }
-                }
-                logger.Info($"Found {monitorIDs.Count} monitor ids from WMI WmiMonitorID");
-            }
-            catch (Exception ex)
-            {
-                logger.Error(ex, "WMI WmiMonitorID query failed");
-            }
-
-            return monitorIDs;
-        }
-
-        private static string ArrayUshortToString(ushort[] arr)
-        {
-            if (arr == null || arr.Length == 0) return string.Empty;
-            var chars = arr.Select(u => (char)u).ToArray();
-
-            return new string(chars).Trim('\0');
-        }
-
-        private static string ArrayUshortToHexString(ushort[] arr)
-        {
-            if (arr == null || arr.Length == 0) return string.Empty;
-
-            // Join bytes: each ushort value is a char code; sometimes product ID fits in two bytes
-            var bytes = arr.SelectMany(u => BitConverter.GetBytes(u)).ToArray();
-            int len = bytes.Length;
-            while (len > 0 && bytes[len - 1] == 0) len--;
-
-            return BitConverter.ToString(bytes, 0, len).Replace("-", "");
-        }
-
-        public static string GetDeviceNameFromWMIMonitorID(string manufacturerName, string productCodeID, string serialNumberID, List<MonitorIdInfo> monitorIds = null, List<DisplayConfigHelper.DisplayConfigInfo> displayConfigs = null)
-        {
-            if (string.IsNullOrEmpty(manufacturerName) ||
-                string.IsNullOrEmpty(productCodeID) ||
-                string.IsNullOrEmpty(serialNumberID) ||
-                serialNumberID == "0")
-            {
-                return string.Empty;
-            }
-
-            string targetInstanceName = string.Empty;
-            var monitorIDs = monitorIds ?? GetMonitorIDsFromWmiMonitorID();
-            foreach (var monitorId in monitorIDs)
-            {
-                if (monitorId.ManufacturerName.Equals(manufacturerName, StringComparison.OrdinalIgnoreCase) &&
-                    monitorId.ProductCodeID.Equals(productCodeID, StringComparison.OrdinalIgnoreCase) &&
-                    monitorId.SerialNumberID.Equals(serialNumberID, StringComparison.OrdinalIgnoreCase))
-                {
-                    targetInstanceName = monitorId.InstanceName;
-                    logger.Info("Found matching monitor ID: " + monitorId.ToString());
-                    break;
-                }
-            }
-
-            if (string.IsNullOrEmpty(targetInstanceName))
-            {
-                logger.Warn("No matching monitor ID found for: " +
-                    $"Manufacturer='{manufacturerName}', ProductCodeID='{productCodeID}', SerialNumberID='{serialNumberID}'");
-                return string.Empty;
-            }
-
-            displayConfigs = displayConfigs ?? DisplayConfigHelper.GetDisplayConfigs();
-            foreach (var display in displayConfigs)
-            {
-                if (targetInstanceName.Contains($"UID{display.TargetId}"))
-                {
-                    logger.Info($"Matched InstanceName '{targetInstanceName}' to {display.FriendlyName} ({display.DeviceName})");
-                    return display.DeviceName;
-                }
-            }
-
-            return string.Empty;
         }
 
         public static bool IsMonitorConnected(string deviceName)

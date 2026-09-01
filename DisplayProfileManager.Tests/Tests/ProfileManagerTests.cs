@@ -1,11 +1,9 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using DisplayProfileManager.Core;
 using DisplayProfileManager.Helpers;
-using DisplayProfileManager.Tests.Helpers;
 
 namespace DisplayProfileManager.Tests.Tests
 {
@@ -20,9 +18,7 @@ namespace DisplayProfileManager.Tests.Tests
         {
             _pm = ProfileManager.Instance;
 
-            _profilesField = typeof(ProfileManager).GetField(
-                "_profiles",
-                BindingFlags.NonPublic | BindingFlags.Instance);
+            _profilesField = typeof(ProfileManager).GetField("_profiles", BindingFlags.NonPublic | BindingFlags.Instance);
 
             Assert.IsNotNull(_profilesField, "_profiles field not found — was it renamed?");
 
@@ -51,29 +47,29 @@ namespace DisplayProfileManager.Tests.Tests
         [TestCategory("Unit")]
         public void GetProfileByName_ExactMatch_ReturnsProfile()
         {
-            var p = MakeProfile("Gaming");
+            var p = MakeProfile("Profile");
             Seed(p);
 
-            Assert.AreSame(p, _pm.GetProfileByName("Gaming"));
+            Assert.AreSame(p, _pm.GetProfileByName("Profile"));
         }
 
         [TestMethod]
         [TestCategory("Unit")]
         public void GetProfileByName_CaseInsensitive_ReturnsProfile()
         {
-            Seed(MakeProfile("Gaming"));
+            Seed(MakeProfile("Profile"));
 
-            Assert.IsNotNull(_pm.GetProfileByName("gaming"));
-            Assert.IsNotNull(_pm.GetProfileByName("GAMING"));
+            Assert.IsNotNull(_pm.GetProfileByName("profile"));
+            Assert.IsNotNull(_pm.GetProfileByName("PROFILE"));
         }
 
         [TestMethod]
         [TestCategory("Unit")]
         public void GetProfileByName_TrimsWhitespace()
         {
-            Seed(MakeProfile("Gaming"));
+            Seed(MakeProfile("Profile"));
 
-            Assert.IsNotNull(_pm.GetProfileByName("  Gaming  "));
+            Assert.IsNotNull(_pm.GetProfileByName("  Profile  "));
         }
 
         [TestMethod]
@@ -109,9 +105,9 @@ namespace DisplayProfileManager.Tests.Tests
         [TestCategory("Unit")]
         public void HasProfile_ExistingName_ReturnsTrue()
         {
-            Seed(MakeProfile("Work"));
+            Seed(MakeProfile("Profile"));
 
-            Assert.IsTrue(_pm.HasProfile("work"));
+            Assert.IsTrue(_pm.HasProfile("profile"));
         }
 
         [TestMethod]
@@ -129,25 +125,25 @@ namespace DisplayProfileManager.Tests.Tests
         [TestCategory("Unit")]
         public void GetUniqueProfileName_WhenNameNotTaken_ReturnsOriginal()
         {
-            Assert.AreEqual("Gaming", _pm.GetUniqueProfileName("Gaming"));
+            Assert.AreEqual("Profile", _pm.GetUniqueProfileName("Profile"));
         }
 
         [TestMethod]
         [TestCategory("Unit")]
         public void GetUniqueProfileName_WhenNameTaken_AppendsCounter()
         {
-            Seed(MakeProfile("Gaming"));
+            Seed(MakeProfile("Profile"));
 
-            Assert.AreEqual("Gaming (1)", _pm.GetUniqueProfileName("Gaming"));
+            Assert.AreEqual("Profile (1)", _pm.GetUniqueProfileName("Profile"));
         }
 
         [TestMethod]
         [TestCategory("Unit")]
         public void GetUniqueProfileName_WhenMultipleTaken_IncreasesCounter()
         {
-            Seed(MakeProfile("Gaming"), MakeProfile("Gaming (1)"), MakeProfile("Gaming (2)"));
+            Seed(MakeProfile("Profile"), MakeProfile("Profile (1)"), MakeProfile("Profile (2)"));
 
-            Assert.AreEqual("Gaming (3)", _pm.GetUniqueProfileName("Gaming"));
+            Assert.AreEqual("Profile (3)", _pm.GetUniqueProfileName("Profile"));
         }
 
         // GetProfile / GetAllProfiles / GetProfileCount
@@ -180,8 +176,7 @@ namespace DisplayProfileManager.Tests.Tests
             var copy = _pm.GetAllProfiles();
             copy.Clear();
 
-            Assert.AreEqual(2, _pm.GetProfileCount(),
-                "GetAllProfiles must return a copy — clearing it must not affect the internal list.");
+            Assert.AreEqual(2, _pm.GetProfileCount(), "GetAllProfiles must return a copy — clearing it must not affect the internal list.");
         }
 
         [TestMethod]
@@ -197,40 +192,13 @@ namespace DisplayProfileManager.Tests.Tests
 
         [TestMethod]
         [TestCategory("Unit")]
-        public void SetDefaultProfile_MarksCorrectProfile()
+        public void GetDefaultProfile_WhenNoDefaultConfigured_ReturnsNull()
         {
             var a = MakeProfile("A");
             var b = MakeProfile("B");
             Seed(a, b);
 
-            _pm.SetDefaultProfile(b.Id);
-
-            Assert.IsFalse(a.IsDefault);
-            Assert.IsTrue(b.IsDefault);
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void SetDefaultProfile_ClearsOldDefault()
-        {
-            var a = MakeProfile("A");
-            var b = MakeProfile("B");
-            a.IsDefault = true;
-            Seed(a, b);
-
-            _pm.SetDefaultProfile(b.Id);
-
-            Assert.IsFalse(a.IsDefault,
-                "SetDefaultProfile must clear the previously-default profile.");
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void GetDefaultProfile_WhenNoneIsDefault_ReturnsNull()
-        {
-            Seed(MakeProfile("A"), MakeProfile("B"));
-
-            Assert.IsNull(_pm.GetDefaultProfile());
+            Assert.IsNull(_pm.GetDefaultProfile(), "The default is Settings.DefaultProfileId, which no seeded profile has set.");
         }
 
         // Add / Update / Delete
@@ -261,7 +229,7 @@ namespace DisplayProfileManager.Tests.Tests
         [TestCategory("Unit")]
         public void UpdateProfile_AdvancesLastModifiedDate()
         {
-            var p = MakeProfile("Test");
+            var p = MakeProfile("Profile");
             Seed(p);
             var before = p.LastModifiedDate;
 
@@ -301,7 +269,7 @@ namespace DisplayProfileManager.Tests.Tests
 
         [TestMethod]
         [TestCategory("Unit")]
-        public void GetAllProfilesWithHotkeys_IncludesDisabledHotkeys()
+        public void GetProfilesWithHotkeys_IncludesDisabledHotkeys()
         {
             var enabled = ProfileWithHotkey("A", System.Windows.Input.Key.F1, System.Windows.Input.ModifierKeys.Control, enabled: true);
             var disabled = ProfileWithHotkey("B", System.Windows.Input.Key.F2, System.Windows.Input.ModifierKeys.Control, enabled: false);
@@ -315,7 +283,7 @@ namespace DisplayProfileManager.Tests.Tests
 
         [TestMethod]
         [TestCategory("Unit")]
-        public void GetProfilesWithHotkeys_ReturnsOnlyEnabledHotkeys()
+        public void GetProfilesWithActiveHotkeys_ReturnsOnlyEnabledHotkeys()
         {
             var enabled = ProfileWithHotkey("A", System.Windows.Input.Key.F1, System.Windows.Input.ModifierKeys.Control, enabled: true);
             var disabled = ProfileWithHotkey("B", System.Windows.Input.Key.F2, System.Windows.Input.ModifierKeys.Control, enabled: false);
@@ -366,16 +334,14 @@ namespace DisplayProfileManager.Tests.Tests
 
         [TestMethod]
         [TestCategory("Unit")]
-        public void DuplicateProfile_IsNotDefault()
+        public void DuplicateProfile_HasDistinctId()
         {
             var original = MakeProfile("A");
-            original.IsDefault = true;
             Seed(original);
 
             var dup = _pm.DuplicateProfile(original.Id);
 
-            Assert.IsFalse(dup.IsDefault,
-                "A duplicated profile must never be marked as default.");
+            Assert.AreNotEqual(original.Id, dup.Id, "A duplicate must receive a distinct profile ID.");
         }
 
         [TestMethod]
@@ -387,8 +353,7 @@ namespace DisplayProfileManager.Tests.Tests
 
             var dup = _pm.DuplicateProfile(original.Id);
 
-            Assert.AreEqual(System.Windows.Input.Key.None, dup.HotkeyConfig.Key,
-                "Duplicated profile must have hotkey cleared to avoid conflicts.");
+            Assert.AreEqual(System.Windows.Input.Key.None, dup.HotkeyConfig.Key, "Duplicated profile must have hotkey cleared to avoid conflicts.");
         }
 
         [TestMethod]
@@ -417,8 +382,7 @@ namespace DisplayProfileManager.Tests.Tests
             var dup = _pm.DuplicateProfile(original.Id);
             dup.Scripts.Clear();
 
-            Assert.AreEqual(1, original.Scripts.Count,
-                "Clearing the duplicate's Scripts must not affect the original.");
+            Assert.AreEqual(1, original.Scripts.Count, "Clearing the duplicate's Scripts must not affect the original.");
         }
 
         [TestMethod]
@@ -441,13 +405,12 @@ namespace DisplayProfileManager.Tests.Tests
         [TestCategory("Unit")]
         public void DuplicateProfile_GetsUniqueName()
         {
-            var original = MakeProfile("Gaming");
+            var original = MakeProfile("Profile");
             Seed(original);
 
             var dup = _pm.DuplicateProfile(original.Id);
 
-            Assert.AreNotEqual(original.Name, dup.Name,
-                "Duplicated profile must receive a unique name.");
+            Assert.AreNotEqual(original.Name, dup.Name, "Duplicated profile must receive a unique name.");
         }
 
         // GetApplyResultErrorMessage / ProfileApplyResult
@@ -463,7 +426,7 @@ namespace DisplayProfileManager.Tests.Tests
                 AudioSuccess = true
             };
 
-            StringAssert.Contains(_pm.GetApplyResultErrorMessage("Work Setup", result), "Work Setup");
+            StringAssert.Contains(_pm.GetApplyResultErrorMessage("Profile", result), "Profile");
         }
 
         [TestMethod]
@@ -500,6 +463,231 @@ namespace DisplayProfileManager.Tests.Tests
             var result = new ProfileManager.ProfileApplyResult();
 
             Assert.IsFalse(result.Success);
+        }
+
+        // Duplicate Naming
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void GetDuplicateProfileName_AppendsCopySuffix()
+        {
+            Seed(MakeProfile("Profile"));
+
+            Assert.AreEqual("Profile - Copy", _pm.GetDuplicateProfileName("Profile"));
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void GetDuplicateProfileName_SecondDuplicateNumbersCopy()
+        {
+            Seed(MakeProfile("Profile"), MakeProfile("Profile - Copy"));
+
+            Assert.AreEqual("Profile - Copy (1)", _pm.GetDuplicateProfileName("Profile"));
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void GetDuplicateProfileName_DuplicatingCopyChainsRatherThanNumbers()
+        {
+            Seed(MakeProfile("Profile - Copy"));
+
+            Assert.AreEqual("Profile - Copy - Copy", _pm.GetDuplicateProfileName("Profile - Copy"));
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void GetDuplicateProfileName_NeverExceedsNameLimit()
+        {
+            var longName = new string('z', ProfileManager.MaxProfileNameLength);
+            Seed(MakeProfile(longName));
+
+            var result = _pm.GetDuplicateProfileName(longName);
+
+            Assert.IsTrue(result.Length <= ProfileManager.MaxProfileNameLength, $"'{result}' is {result.Length} characters");
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void GetDuplicateProfileName_TruncationKeepsMarkerAndMarksCut()
+        {
+            var longName = new string('z', ProfileManager.MaxProfileNameLength);
+            Seed(MakeProfile(longName));
+
+            var result = _pm.GetDuplicateProfileName(longName);
+
+            StringAssert.EndsWith(result, " - Copy");
+            StringAssert.Contains(result, "\u2026");
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void GetUniqueProfileName_KeepsExistingCopyMarkerWhenNumbering()
+        {
+            var stem = new string('z', ProfileManager.MaxProfileNameLength - " - Copy".Length);
+            var copy = stem + " - Copy";
+            Seed(MakeProfile(stem), MakeProfile(copy));
+
+            var result = _pm.GetUniqueProfileName(copy);
+
+            Assert.IsTrue(result.Length <= ProfileManager.MaxProfileNameLength);
+            StringAssert.Contains(result, " - Copy");
+            StringAssert.EndsWith(result, " (1)");
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void GetDuplicateProfileName_TreatsHandTypedMarkerAsPartOfChain()
+        {
+            Seed(MakeProfile("Profile - Copy"));
+
+            Assert.AreEqual("Profile - Copy - Copy", _pm.GetDuplicateProfileName("Profile - Copy"));
+        }
+
+        // SelectRollbackTarget
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void SelectRollbackTarget_RecoveryDisabled_ReturnsNone()
+        {
+            var target = ProfileManager.SelectRollbackTarget(rollbackAfterApplyFailure: false, rollbackToPreviousProfile: true, hasPreviousProfile: true);
+
+            Assert.AreEqual(ProfileManager.RollbackTarget.None, target);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void SelectRollbackTarget_PreviousProfileRecoveryWithPreviousProfile_ReturnsPreviousProfile()
+        {
+            var target = ProfileManager.SelectRollbackTarget(rollbackAfterApplyFailure: true, rollbackToPreviousProfile: true, hasPreviousProfile: true);
+
+            Assert.AreEqual(ProfileManager.RollbackTarget.PreviousProfile, target);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void SelectRollbackTarget_PreviousProfileRecoveryWithoutPreviousProfile_ReturnsSnapshot()
+        {
+            var target = ProfileManager.SelectRollbackTarget(rollbackAfterApplyFailure: true, rollbackToPreviousProfile: true, hasPreviousProfile: false);
+
+            Assert.AreEqual(ProfileManager.RollbackTarget.Snapshot, target);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void SelectRollbackTarget_SnapshotRecovery_ReturnsSnapshot()
+        {
+            var target = ProfileManager.SelectRollbackTarget(rollbackAfterApplyFailure: true, rollbackToPreviousProfile: false, hasPreviousProfile: true);
+
+            Assert.AreEqual(ProfileManager.RollbackTarget.Snapshot, target);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void SelectRollbackTarget_SnapshotRecoveryWithoutPreviousProfile_ReturnsSnapshot()
+        {
+            var target = ProfileManager.SelectRollbackTarget(rollbackAfterApplyFailure: true, rollbackToPreviousProfile: false, hasPreviousProfile: false);
+
+            Assert.AreEqual(ProfileManager.RollbackTarget.Snapshot, target);
+        }
+
+    }
+
+    [TestClass]
+    public class ResolveLiveDisplayTests
+    {
+        private static DisplayConfigHelper.DisplayConfigInfo Live(uint targetId, string manufacturer, string productCode, string deviceName)
+        {
+            return new DisplayConfigHelper.DisplayConfigInfo
+            {
+                TargetId = targetId,
+                ManufacturerName = manufacturer,
+                ProductCodeID = productCode,
+                DeviceName = deviceName
+            };
+        }
+
+        private static DisplaySetting Stored(uint targetId, string manufacturer, string productCode)
+        {
+            return new DisplaySetting
+            {
+                TargetId = targetId,
+                ManufacturerName = manufacturer,
+                ProductCodeID = productCode
+            };
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void ResolveLiveDisplay_PrefersStoredTargetWhenIdentityAgrees()
+        {
+            var live = new List<DisplayConfigHelper.DisplayConfigInfo>
+            {
+                Live(1, "MAN", "A1B2", "\\\\.\\DISPLAY1"),
+                Live(2, "MAN", "A1B2", "\\\\.\\DISPLAY2")
+            };
+
+            var resolved = DisplayConfigHelper.ResolveLiveDisplay(Stored(2, "MAN", "A1B2"), live);
+
+            Assert.AreEqual(2u, resolved.TargetId, "Two identical panels must resolve to the stored port, not to whichever matches first.");
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void ResolveLiveDisplay_FollowsIdentityWhenMonitorMovedPorts()
+        {
+            var live = new List<DisplayConfigHelper.DisplayConfigInfo>
+            {
+                Live(1, "DEV", "C3D4", "\\\\.\\DISPLAY1"),
+                Live(2, "MAN", "A1B2", "\\\\.\\DISPLAY2")
+            };
+
+            var resolved = DisplayConfigHelper.ResolveLiveDisplay(Stored(1, "MAN", "A1B2"), live);
+
+            Assert.AreEqual(2u, resolved.TargetId);
+            Assert.AreEqual("\\\\.\\DISPLAY2", resolved.DeviceName);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void ResolveLiveDisplay_AppliesToPortWhenCapturedMonitorIsAbsent()
+        {
+            var live = new List<DisplayConfigHelper.DisplayConfigInfo> { Live(1, "DEV", "C3D4", "\\\\.\\DISPLAY1") };
+
+            var resolved = DisplayConfigHelper.ResolveLiveDisplay(Stored(1, "MAN", "A1B2"), live);
+
+            Assert.AreEqual(1u, resolved.TargetId, "A replaced monitor still applies, so a profile cannot leave the desktop unconfigured.");
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void ResolveLiveDisplay_MatchesOnTargetIdWhenIdentityIsAbsent()
+        {
+            var live = new List<DisplayConfigHelper.DisplayConfigInfo> { Live(1, "", "", "\\\\.\\DISPLAY1") };
+
+            var resolved = DisplayConfigHelper.ResolveLiveDisplay(Stored(1, "", ""), live);
+
+            Assert.AreEqual(1u, resolved.TargetId, "Profiles predating EDID capture must resolve exactly as they did before.");
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void ResolveLiveDisplay_MasksTargetIdToBaseId()
+        {
+            var live = new List<DisplayConfigHelper.DisplayConfigInfo> { Live(0x00010004, "MAN", "A1B2", "\\\\.\\DISPLAY1") };
+
+            var resolved = DisplayConfigHelper.ResolveLiveDisplay(Stored(4, "MAN", "A1B2"), live);
+
+            Assert.IsNotNull(resolved, "Profiles store the low 16 bits, so a live raw target id must still match.");
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void ResolveLiveDisplay_ReturnsNullWhenDisplayIsDisconnected()
+        {
+            var live = new List<DisplayConfigHelper.DisplayConfigInfo> { Live(1, "DEV", "C3D4", "\\\\.\\DISPLAY1") };
+
+            Assert.IsNull(DisplayConfigHelper.ResolveLiveDisplay(Stored(9, "MAN", "A1B2"), live));
+            Assert.IsNull(DisplayConfigHelper.ResolveLiveDisplay(Stored(9, "MAN", "A1B2"), new List<DisplayConfigHelper.DisplayConfigInfo>()));
         }
     }
 }

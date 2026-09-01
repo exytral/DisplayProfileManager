@@ -7,7 +7,7 @@
 *.rsuser
 *.env
 
-# ── Build output ─────────────────────────────────────────────────────
+# ── Build Output ─────────────────────────────────────────────────────
 [Dd]ebug/
 [Dd]ebugPublic/
 [Rr]elease/
@@ -36,7 +36,7 @@ bld/
 *.nuget.props
 *.nuget.targets
 
-# ── Test results ─────────────────────────────────────────────────────
+# ── Test Results ─────────────────────────────────────────────────────
 [Tt]est[Rr]esult*/
 [Bb]uild[Ll]og.*
 *.trx
@@ -44,7 +44,7 @@ bld/
 *.coveragexml
 TestResults/
 
-# ── Compiled output ───────────────────────────────────────────────────
+# ── Compiled Output ───────────────────────────────────────────────────
 *.pdb
 *.ilk
 *.obj
@@ -56,10 +56,9 @@ TestResults/
 *.tlb
 *.tli
 *.tlh
-*.tmp
 *_wpftmp.csproj
 
-# ── Installer build output ───────────────────────────────────────────
+# ── Installer Build Output ───────────────────────────────────────────
 *.cab
 *.msi
 *.msix
@@ -67,7 +66,10 @@ TestResults/
 [Ss]etups/
 publish/
 
-# ── Python (DPM Theme Builder) ────────────────────────────────────────
+# ── Release Output ───────────────────────────────────────────────────
+dist/
+
+# ── Python ────────────────────────────────────────────────────────────
 **/__pycache__/
 *.pyc
 *.pyo
@@ -86,7 +88,7 @@ _ReSharper*/
 *.[Rr]e[Ss]harper
 *.DotSettings.user
 
-# ── Coverage tools ────────────────────────────────────────────────────
+# ── Coverage Tools ────────────────────────────────────────────────────
 coverage*.json
 coverage*.xml
 coverage*.info

@@ -1,6 +1,5 @@
 using DisplayProfileManager.Helpers;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 
@@ -18,8 +17,6 @@ namespace DisplayProfileManager.Core
         public string Description { get; set; } = string.Empty;
         [JsonProperty("icon")]
         public string Icon { get; set; } = null;
-        [JsonProperty("isDefault")]
-        public bool IsDefault { get; set; } = false;
         [JsonProperty("createdDate")]
         public DateTime CreatedDate { get; set; } = DateTime.Now;
         [JsonProperty("lastModifiedDate")]
@@ -28,14 +25,17 @@ namespace DisplayProfileManager.Core
         public int SchemaVersion { get; set; } = 0;
         [JsonProperty("displaySettings")]
         public List<DisplaySetting> DisplaySettings { get; set; } = new List<DisplaySetting>();
+        [JsonProperty("enableWallpaper")]
+        public bool EnableWallpaper { get; set; } = false;
+        [JsonProperty("wallpaperSettings")]
+        public WallpaperSettings WallpaperSettings { get; set; } = null;
         [JsonProperty("enableAudio")]
-        public bool EnableAudio { get; set; } = true;
+        public bool EnableAudio { get; set; } = false;
         [JsonProperty("audioSettings")]
         public AudioSetting AudioSettings { get; set; } = new AudioSetting();
         [JsonProperty("enableScripts")]
         public bool EnableScripts { get; set; } = false;
         [JsonProperty("scripts")]
-        [JsonConverter(typeof(ScriptListConverter))]
         public List<Script> Scripts { get; set; } = new List<Script>();
         [JsonProperty("hotkeyConfig")]
         public HotkeyConfig HotkeyConfig { get; set; } = new HotkeyConfig();
@@ -70,8 +70,6 @@ namespace DisplayProfileManager.Core
         public string ManufacturerName { get; set; } = string.Empty;
         [JsonProperty("productCodeID")]
         public string ProductCodeID { get; set; } = string.Empty;
-        [JsonProperty("serialNumberID")]
-        public string SerialNumberID { get; set; } = string.Empty;
         [JsonIgnore]
         public DisplayConfigHelper.LUID AdapterLuid { get; set; }
         [JsonProperty("adapterId")]
@@ -124,15 +122,15 @@ namespace DisplayProfileManager.Core
         [JsonIgnore] public int? OriginalPositionX { get; set; } = null;
         [JsonIgnore] public int? OriginalPositionY { get; set; } = null;
         [JsonIgnore] public uint? OriginalSourceId { get; set; } = null;
+        [JsonIgnore] public bool? OriginalIsPrimary { get; set; } = null;
         [JsonIgnore] public int? OriginalWidth { get; set; } = null;
         [JsonIgnore] public int? OriginalHeight { get; set; } = null;
         [JsonIgnore] public int? OriginalFrequency { get; set; } = null;
-        [JsonIgnore] public bool? OriginalIsPrimary { get; set; } = null;
-        [JsonIgnore] public uint? OriginalDpiScaling { get; set; } = null;
         [JsonIgnore] public int? OriginalRotation { get; set; } = null;
-        [JsonIgnore] public string OriginalColorProfile { get; set; } = null;
+        [JsonIgnore] public uint? OriginalDpiScaling { get; set; } = null;
         [JsonIgnore] public bool? OriginalIsHdrEnabled { get; set; } = null;
         [JsonIgnore] public bool? OriginalIsAcmEnabled { get; set; } = null;
+        [JsonIgnore] public string OriginalColorProfile { get; set; } = null;
 
         // Native
         [JsonProperty("nativeWidth")]
@@ -150,9 +148,38 @@ namespace DisplayProfileManager.Core
 
         public DisplaySetting() { }
 
-        public string GetResolutionString() => $"{Width}x{Height} • {Frequency}Hz";
+        public string ResolutionString() => $"{Width}x{Height} • {Frequency}Hz";
 
-        public string GetDpiString() => $"{DpiScaling}%";
+        public string DpiString() => $"{DpiScaling}%";
+
+        public bool IsPartOfCloneGroup() => !string.IsNullOrEmpty(CloneGroupId);
+
+        public bool HasEdidIdentity => !string.IsNullOrEmpty(ManufacturerName) && !string.IsNullOrEmpty(ProductCodeID);
+
+        public bool MatchesEdid(DisplayConfigHelper.DisplayConfigInfo config)
+        {
+            if (config == null || !HasEdidIdentity)
+            {
+                return false;
+
+            }
+
+            if (string.IsNullOrEmpty(config.ManufacturerName) || string.IsNullOrEmpty(config.ProductCodeID))
+            {
+                return false;
+            }
+
+            return ManufacturerName.Equals(config.ManufacturerName, StringComparison.OrdinalIgnoreCase) && ProductCodeID.Equals(config.ProductCodeID, StringComparison.OrdinalIgnoreCase);
+        }
+
+        public void ResolveDeviceName(List<DisplayConfigHelper.DisplayConfigInfo> displayConfigs = null)
+        {
+            var configs = displayConfigs ?? DisplayConfigHelper.GetDisplayConfigs();
+            var match = DisplayConfigHelper.ResolveLiveDisplay(this, configs);
+
+            if (match != null && !string.IsNullOrEmpty(match.DeviceName))
+                DeviceName = match.DeviceName;
+        }
 
         public override string ToString()
         {
@@ -160,19 +187,8 @@ namespace DisplayProfileManager.Core
             var hdrStatus = IsHdrSupported ? (IsHdrEnabled ? "HDR On" : "HDR Off") : "No HDR";
             var enabledStatus = IsEnabled ? "Enabled" : "Disabled";
 
-            return $"{name}: {GetResolutionString()}, DPI: {GetDpiString()}, {hdrStatus} [{enabledStatus}]";
+            return $"{name}: {ResolutionString()}, DPI: {DpiString()}, {hdrStatus} [{enabledStatus}]";
         }
-
-        public void UpdateDeviceNameFromWMI(List<DisplayHelper.MonitorIdInfo> monitorIds = null, List<DisplayConfigHelper.DisplayConfigInfo> displayConfigs = null)
-        {
-            string resolvedDeviceName = DisplayHelper.GetDeviceNameFromWMIMonitorID(ManufacturerName, ProductCodeID, SerialNumberID, monitorIds, displayConfigs);
-            if (string.IsNullOrEmpty(resolvedDeviceName))
-                resolvedDeviceName = DeviceName;
-
-            DeviceName = resolvedDeviceName;
-        }
-
-        public bool IsPartOfCloneGroup() => !string.IsNullOrEmpty(CloneGroupId);
     }
 
     #endregion
@@ -218,44 +234,6 @@ namespace DisplayProfileManager.Core
 
             return parts.Count > 0 ? string.Join(", ", parts) : "No audio devices configured";
         }
-    }
-
-    #endregion
-
-    #region ScriptListConverter
-
-    public class ScriptListConverter : JsonConverter
-    {
-        public override bool CanConvert(Type objectType) =>
-            objectType == typeof(List<Script>);
-
-        public override object ReadJson(JsonReader reader, Type objectType,
-        object existingValue, JsonSerializer serializer)
-        {
-            var token = JToken.Load(reader);
-            if (token.Type == JTokenType.Null) return new List<Script>();
-
-            var list = new List<Script>();
-            foreach (var item in token.Children())
-            {
-                if (item.Type == JTokenType.String)
-                {
-                    var parsed = ScriptHelper.ParseScriptString(item.Value<string>());
-                    list.Add(new Script
-                    {
-                        FileName = parsed.Path,
-                        Arguments = parsed.Args,
-                        IsEnabled = true
-                    });
-                }
-                else if (item.Type == JTokenType.Object)
-                    list.Add(item.ToObject<Script>(serializer));
-            }
-
-            return list;
-        }
-
-        public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer) => serializer.Serialize(writer, value);
     }
 
     #endregion

@@ -121,8 +121,7 @@ namespace DisplayProfileManager.Tests.Tests
             var enabled = new HotkeyConfig(Key.F5, ModifierKeys.Control, isEnabled: true);
             var disabled = new HotkeyConfig(Key.F5, ModifierKeys.Control, isEnabled: false);
 
-            Assert.IsTrue(enabled.Equals(disabled),
-                "Equality is based on Key+Modifiers only; IsEnabled must not affect it.");
+            Assert.IsTrue(enabled.Equals(disabled), "Equality is based on Key+Modifiers only; IsEnabled must not affect it.");
         }
 
         [TestMethod]

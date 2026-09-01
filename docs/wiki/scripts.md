@@ -1,65 +1,71 @@
 # Scripts
 
-Each profile can run scripts automatically after display settings, DPI, and audio changes have all been committed. Use this to launch apps, control smart devices, kill background processes, or trigger anything else that should change with your new display context.
+A profile can run scripts after the display, wallpaper, and audio stages have completed. Scripts can launch applications, invoke automation tools, or perform other changes associated with a change of display context.
 
 ---
 
 ## Supported file types
 
-| Type | How it runs |
-|---|---|
-| `.exe` | Converted to a `.lnk` shortcut on import, launched via Windows Shell — see below |
-| `.ps1` | PowerShell — launched with `-ExecutionPolicy Bypass` |
-| `.bat`/`.cmd` | Batch — launched via `cmd.exe /c` |
-| `.vbs` | VBScript — launched via `cscript.exe /nologo` |
-| `.js` | JScript — launched via `cscript.exe /nologo` |
-| `.py` | Python — launched via `python.exe` on `PATH` |
-| `.ahk` | AutoHotkey — launched via `autohotkey.exe` on `PATH` |
+| Type          | How it runs                                                                     |
+| ------------- | ------------------------------------------------------------------------------- |
+| `.exe`        | Converted to a `.lnk` shortcut on import and launched through the Windows Shell |
+| `.ps1`        | PowerShell with `-ExecutionPolicy Bypass`                                       |
+| `.bat`/`.cmd` | `cmd.exe /c`                                                                    |
+| `.vbs`/`.js`  | `cscript.exe /nologo`                                                           |
+| `.py`         | `python.exe` from `PATH`                                                        |
+| `.ahk`        | `autohotkey.exe` from `PATH`                                                    |
 
-### A note on `.exe` files
+Imported `.exe` files are converted to `.lnk` shortcuts in the scripts sandbox. The shortcut is stored in the profile and used for execution.
 
-DPM does not launch `.exe` files directly. When you import an executable, DPM automatically creates a `.lnk` shortcut for it in the scripts folder and executes via the Windows Shell. This avoids COM reference issues with direct process launch, with arguments still passed through normally.
-
-### A note on `.py` and `.ahk` files
-
-Python and AutoHotkey must be installed and available on your system `PATH`. If the interpreter isn't found, the script will silently fail — DPM logs the error but does not surface it in the UI—whether a script actually functions is the user's responsibility.
+Python and AutoHotkey must be installed and available on `PATH`. Launch failures are logged when the required interpreter cannot be started.
 
 ---
 
 ## Scripts folder
 
-All scripts are sandboxed to:
+All imported scripts are sandboxed to:
 
-```
+```text
 %AppData%\Roaming\DisplayProfileManager\Scripts\
 ```
 
-When you import a script, it is copied into this folder automatically. Scripts must live here — references to files outside this folder are not supported.
+Imported files are copied into this folder. References to files outside the sandbox are not supported.
 
-To delete a script file from the sandbox, click **Open Folder** in the main window, navigate to the `Scripts\` subfolder, and delete the file there. This does not remove it from any profiles that reference it — you'll need to remove it from those profiles separately.
+Deleting a file directly from the sandbox does not automatically remove script entries from profiles that reference it.
 
 ---
 
 ## Adding a script to a profile
 
-See [Creating and Managing Profiles — Scripts](./profiles.md#scripts) for the UI walkthrough. In brief:
+See [Creating and Managing Profiles — Scripts](./profiles.md#scripts) for the editor walkthrough.
+
+In brief:
 
 1. Open the profile editor and scroll to **Scripts**.
-2. Click **Import** and select your script file.
-3. Optionally type arguments in the field next to the script entry.
+2. Click **"Import"** and select a supported file.
+3. Enter optional arguments for the script.
+4. Use the row checkbox to enable or disable that script without removing it.
 
-The **Enable** toggle in the Scripts section header controls whether any scripts run for this profile. There is no per-script toggle.
+---
+
+## Enabling and disabling
+
+The section-level **"Enable"** toggle controls whether scripts run for the profile.
+
+Each script row also has its own checkbox. Clearing it keeps the script and its arguments stored but skips it during profile switches.
+
+Deleting a script removes the entry from the profile when the profile is saved. The underlying file remains in the scripts folder.
 
 ---
 
 ## Arguments
 
-Arguments are appended after the script when DPM launches it:
+Arguments are appended after the script path according to the script type:
 
-- `.exe`/`.lnk`: executed via Windows Shell with args passed through
+- `.lnk`: launched through the Windows Shell with arguments
 - `.ps1`: `powershell.exe -ExecutionPolicy Bypass -File "script.ps1" <args>`
-- `.bat`/`.cmd`: `cmd.exe /c "script.bat" <args>`
-- `.vbs`/`.js`: `cscript.exe /nologo "script.vbs" <args>`
+- `.bat` / `.cmd`: `cmd.exe /c "script.bat" <args>`
+- `.vbs` / `.js`: `cscript.exe /nologo "script.vbs" <args>`
 - `.py`: `python.exe "script.py" <args>`
 - `.ahk`: `autohotkey.exe "script.ahk" <args>`
 
@@ -71,44 +77,34 @@ Arguments are appended after the script when DPM launches it:
 
 ```bat
 @echo off
-start "" "C:\Program Files\MyApp\MyApp.exe"
+start "" "C:\Program Files\Folder\App.exe"
 ```
 
-Save as `launch-myapp.bat` and add to your profile. Runs silently when the profile is applied.
-
----
+Save as `launch-app.bat` and add it to a profile.
 
 ### Kill a process when switching profiles
 
 ```powershell
-Stop-Process -Name "MyApp" -ErrorAction SilentlyContinue
+Stop-Process -Name "App" -ErrorAction SilentlyContinue
 ```
 
-Save as `kill-myapp.ps1` and add to the profile you switch *to* when leaving that setup.
-
----
+Save as `kill-app.ps1` and add it to a profile used when that process should stop.
 
 ### Launch Steam Big Picture Mode on profile apply
-
-Use this as a profile script when you want switching to a TV profile to also open Big Picture Mode immediately — for example, when you sit down at a couch setup and want everything to start at once.
 
 ```powershell
 Start-Process "steam://open/bigpicture"
 ```
 
-Save as `launch-bigpicture.ps1` and add it to your TV profile. Steam must already be running.
+Save as `launch-bigpicture.ps1` and add it to a profile that should launch Big Picture Mode.
 
-> For the reverse — automatically switching profiles *when* Big Picture Mode opens or closes rather than triggering it manually — see [CLI Reference — Steam Big Picture Mode watcher](./cli.md#steam-big-picture-mode-watcher).
-
-> For general game and app launch integration — switching profiles when you launch any game through Steam, Epic, GOG Galaxy, or other launchers — see [CLI Reference — DPM Shortcut Builder](./cli.md#dpm-shortcut-builder).
+> For the reverse direction — changing profiles when Big Picture Mode opens or closes — see [CLI Reference — Steam Big Picture Mode watcher](./cli.md#steam-big-picture-mode-watcher).
 
 ---
 
-### Control an LG TV via LGTV Companion
+## LG TV switching example
 
-`lg-tv-switch.ps1` powers an LG WebOS TV on or off using [LGTV Companion](https://github.com/JPersson77/LGTVCompanion)'s `LGTVcli.exe`. Defaults to `off` if no argument is given.
-
-LGTV Companion runs as a background service and handles sleep/resume automatically, powering the TV on when your PC wakes and off when it sleeps. This script is only needed for explicit profile-triggered switching (e.g. switching to a work profile that doesn't use the TV).
+`lg-tv-switch.ps1` can call LGTV Companion's `LGTVcli.exe` for explicit profile-triggered power changes.
 
 ```powershell
 param(
@@ -120,122 +116,17 @@ param(
 $cli = "C:\Program Files\LGTV Companion\LGTVcli.exe"
 
 if (-not (Test-Path $cli)) {
-    Write-Error "LGTVcli.exe not found. Install LGTV Companion from https://github.com/JPersson77/LGTVCompanion"
+    Write-Error "LGTVcli.exe not found. Install LGTV Companion or update the path in this script."
     exit 1
 }
 
 $arg = if ($State -eq "on") { "-poweron" } else { "-poweroff" }
 
-try {
-    & $cli $arg
-    Write-Host "Success: sent '$arg' to LG TV" -ForegroundColor Green
-} catch {
-    Write-Error "Failed to call LGTVcli.exe: $($_.Exception.Message)"
+& $cli $arg
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "LGTVcli.exe returned exit code $LASTEXITCODE."
+    exit $LASTEXITCODE
 }
 ```
 
-**Setup:**
-
-1. Install [LGTV Companion](https://github.com/JPersson77/LGTVCompanion) and configure your TV in its settings (IP address, MAC address). Run through its setup wizard to pair.
-2. Confirm `LGTVcli.exe` is at `C:\Program Files\LGTV Companion\` or update the path in the script.
-3. Add the script to your TV profile with argument `on`, and to your desktop profile with argument `off`.
-
-> **Note:** LGTV Companion requires the TV to be on the same subnet as your PC (Wake-on-LAN is layer 2 only). Ensure "Turn on via WiFi" is enabled in your TV's network settings regardless of whether you use Wi-Fi or Ethernet.
-
----
-
-### Control a Samsung Smart TV via Home Assistant
-
-`ha-smarttv-switch.ps1` controls a Samsung Smart TV through the Home Assistant REST API. It accepts `on` or `off` as an argument (defaults to `off` if none is given).
-
-The script controls two HA entities simultaneously:
-- `media_player.samsung_smarttv` — powers the TV on or off
-- `input_boolean.samsung_smarttv` — a helper boolean that tracks the intended TV state
-
-The boolean enables HA to handle PC power events. Although HA can track both the PC and TV's state, HA does not know whether the TV should always turn on with the PC — DPM only runs the script at profile apply time. The boolean records the intended state: when it's on, a separate HA automation turns on the TV when it detects PC activity. Without it, the TV stays off between sleep and wake events.
-
-```powershell
-[CmdletBinding(DefaultParameterSetName = "Positional")]
-param(
-    [Parameter(ParameterSetName = "Positional", Position = 0)]
-    [ValidateSet("on", "off")]
-    [string]$State = "off",
-
-    [Parameter(ParameterSetName = "OnSwitch")]
-    [switch]$On,
-
-    [Parameter(ParameterSetName = "OffSwitch")]
-    [switch]$Off
-)
-
-# Read the HA token silently from Windows Credential Manager (no plaintext secrets)
-$code = @"
-using System;
-using System.Runtime.InteropServices;
-
-public class CredInterop {
-    [DllImport("advapi32.dll", EntryPoint = "CredReadW", CharSet = CharSet.Unicode, SetLastError = true)]
-    public static extern bool CredRead(string target, int type, int reserved, out IntPtr credentialPtr);
-
-    public static string GetPassword(string target) {
-        IntPtr authPtr;
-        if (CredRead(target, 1, 0, out authPtr)) {
-            var cred = (Credential)Marshal.PtrToStructure(authPtr, typeof(Credential));
-            return Marshal.PtrToStringUni(cred.CredentialBlob);
-        }
-        return null;
-    }
-
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    private struct Credential {
-        public int Flags; public int Type; public string TargetName;
-        public string Comment;
-        public System.Runtime.InteropServices.ComTypes.FILETIME LastWritten;
-        public int CredentialBlobSize; public IntPtr CredentialBlob;
-        public int Persist; public int AttributeCount; public IntPtr Attributes;
-        public string TargetAlias; public string UserName;
-    }
-}
-"@
-
-if (-not ([System.Management.Automation.PSTypeName]"CredInterop").Type) {
-    Add-Type -TypeDefinition $code
-}
-
-if ($On)       { $State = "on" }
-elseif ($Off)  { $State = "off" }
-
-$token = [CredInterop]::GetPassword("HomeAssistantToken")
-if ([string]::IsNullOrWhiteSpace($token)) {
-    Write-Error "Could not find 'HomeAssistantToken' in Credential Manager."
-    exit 1
-}
-
-$haUrl      = "http://homeassistant.local:8123"
-$tvEntity   = "media_player.samsung_smarttv"
-$boolEntity = "input_boolean.samsung_smarttv"
-$headers    = @{ "Authorization" = "Bearer $token"; "Content-Type" = "application/json" }
-
-function Send-HARequest {
-    param($Domain, $EntityId, $State)
-    $body = @{ entity_id = $EntityId } | ConvertTo-Json
-    try {
-        Invoke-RestMethod -Method Post -Uri "$haUrl/api/services/$Domain/turn_$State" `
-            -Headers $headers -Body $body -ErrorAction Stop -TimeoutSec 5
-        Write-Host "Success: $State -> $EntityId" -ForegroundColor Green
-    } catch {
-        Write-Error "Failed for ${EntityId}: $($_.Exception.Message)"
-    }
-}
-
-Send-HARequest -Domain "media_player"  -EntityId $tvEntity   -State $State
-Send-HARequest -Domain "input_boolean" -EntityId $boolEntity -State $State
-```
-
-**Setup:**
-
-1. In HA, create an `input_boolean` helper named `samsung_smarttv` (Settings → Devices & Services → Helpers).
-2. Create an HA automation: when PC changes to `on` AND if `input_boolean.samsung_smarttv` is `on`, call `media_player.turn_on` for your TV. This handles wake-from-sleep.
-3. Store your Long-Lived Access Token in Windows Credential Manager: open **Credential Manager → Windows Credentials → Add a generic credential**. Set the name to `HomeAssistantToken`, leave username blank, paste your token as the password.
-4. Update `$haUrl`, `$tvEntity`, and `$boolEntity` to match your setup.
-5. Add the script to your TV profile with argument `on`, and to your desktop profile with argument `off`.
+LGTV Companion is an external tool; configure it separately before using this example.

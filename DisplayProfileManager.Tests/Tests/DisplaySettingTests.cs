@@ -13,8 +13,7 @@ namespace DisplayProfileManager.Tests.Tests
         {
             var setting = new DisplaySetting();
 
-            Assert.IsFalse(setting.IsPartOfCloneGroup(),
-                "A DisplaySetting with no CloneGroupId must be treated as extended mode.");
+            Assert.IsFalse(setting.IsPartOfCloneGroup(), "A DisplaySetting with no CloneGroupId must be treated as extended mode.");
         }
 
         [TestMethod]

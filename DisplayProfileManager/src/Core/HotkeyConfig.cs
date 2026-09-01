@@ -36,6 +36,27 @@ namespace DisplayProfileManager.Core
                    Key != Key.LWin && Key != Key.RWin;
         }
 
+        public bool Equals(HotkeyConfig other)
+        {
+            if (other == null)
+            {
+                return false;
+
+            }
+
+            return Key == other.Key && ModifierKeys == other.ModifierKeys;
+        }
+
+        public HotkeyConfig Clone()
+        {
+            return new HotkeyConfig
+            {
+                Key = this.Key,
+                ModifierKeys = this.ModifierKeys,
+                IsEnabled = this.IsEnabled
+            };
+        }
+
         public override string ToString()
         {
             if (Key == Key.None) return string.Empty;
@@ -64,24 +85,6 @@ namespace DisplayProfileManager.Core
             parts.Add(keyStr);
 
             return string.Join(" + ", parts);
-        }
-
-        public bool Equals(HotkeyConfig other)
-        {
-            if (other == null)
-                return false;
-
-            return Key == other.Key && ModifierKeys == other.ModifierKeys;
-        }
-
-        public HotkeyConfig Clone()
-        {
-            return new HotkeyConfig
-            {
-                Key = this.Key,
-                ModifierKeys = this.ModifierKeys,
-                IsEnabled = this.IsEnabled
-            };
         }
     }
 }

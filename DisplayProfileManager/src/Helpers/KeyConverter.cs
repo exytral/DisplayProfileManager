@@ -5,7 +5,7 @@ namespace DisplayProfileManager.Helpers
 {
     public static class KeyConverter
     {
-        private static readonly Dictionary<Key, int> KeyToVirtualKey = new Dictionary<Key, int>
+        private static readonly Dictionary<Key, int> _keyToVirtualKey = new Dictionary<Key, int>
         {
             { Key.None, 0x00 },
             { Key.Cancel, 0x03 },
@@ -152,50 +152,38 @@ namespace DisplayProfileManager.Helpers
             { Key.Oem8, 0xDF },
             { Key.OemBackslash, 0xE2 }
         };
-        private static readonly Dictionary<int, Key> VirtualKeyToKey = new Dictionary<int, Key>();
+        private static readonly Dictionary<int, Key> _virtualKeyToKey = new Dictionary<int, Key>();
 
         static KeyConverter()
         {
-            foreach (var kvp in KeyToVirtualKey)
+            foreach (var kvp in _keyToVirtualKey)
             {
-                if (!VirtualKeyToKey.ContainsKey(kvp.Value))
-                    VirtualKeyToKey[kvp.Value] = kvp.Key;
+                if (!_virtualKeyToKey.ContainsKey(kvp.Value))
+                    _virtualKeyToKey[kvp.Value] = kvp.Key;
             }
         }
 
-        public static int ToVirtualKey(Key key) => KeyToVirtualKey.TryGetValue(key, out int vk) ? vk : 0;
+        public static int ToVirtualKey(Key key) => _keyToVirtualKey.TryGetValue(key, out int vk) ? vk : 0;
 
-        public static Key ToWpfKey(int virtualKey) => VirtualKeyToKey.TryGetValue(virtualKey, out Key key) ? key : Key.None;
+        public static Key ToWpfKey(int virtualKey) => _virtualKeyToKey.TryGetValue(virtualKey, out Key key) ? key : Key.None;
 
         public static uint ConvertModifierKeys(ModifierKeys modifiers)
         {
             uint result = 0;
-
-            if ((modifiers & ModifierKeys.Alt) == ModifierKeys.Alt)
-                result |= 0x0001;
-            if ((modifiers & ModifierKeys.Control) == ModifierKeys.Control)
-                result |= 0x0002;
-            if ((modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
-                result |= 0x0004;
-            if ((modifiers & ModifierKeys.Windows) == ModifierKeys.Windows)
-                result |= 0x0008;
-
+            if ((modifiers & ModifierKeys.Alt) == ModifierKeys.Alt) result |= 0x0001;
+            if ((modifiers & ModifierKeys.Control) == ModifierKeys.Control) result |= 0x0002;
+            if ((modifiers & ModifierKeys.Shift) == ModifierKeys.Shift) result |= 0x0004;
+            if ((modifiers & ModifierKeys.Windows) == ModifierKeys.Windows) result |= 0x0008;
             return result;
         }
 
         public static ModifierKeys ConvertToModifierKeys(uint modifiers)
         {
             ModifierKeys result = ModifierKeys.None;
-
-            if ((modifiers & 0x0001) != 0)
-                result |= ModifierKeys.Alt;
-            if ((modifiers & 0x0002) != 0)
-                result |= ModifierKeys.Control;
-            if ((modifiers & 0x0004) != 0)
-                result |= ModifierKeys.Shift;
-            if ((modifiers & 0x0008) != 0)
-                result |= ModifierKeys.Windows;
-
+            if ((modifiers & 0x0001) != 0) result |= ModifierKeys.Alt;
+            if ((modifiers & 0x0002) != 0) result |= ModifierKeys.Control;
+            if ((modifiers & 0x0004) != 0) result |= ModifierKeys.Shift;
+            if ((modifiers & 0x0008) != 0) result |= ModifierKeys.Windows;
             return result;
         }
 
@@ -212,16 +200,10 @@ namespace DisplayProfileManager.Helpers
         public static ModifierKeys GetCurrentModifiers()
         {
             ModifierKeys modifiers = ModifierKeys.None;
-
-            if (Keyboard.IsKeyDown(Key.LeftCtrl) || Keyboard.IsKeyDown(Key.RightCtrl))
-                modifiers |= ModifierKeys.Control;
-            if (Keyboard.IsKeyDown(Key.LeftAlt) || Keyboard.IsKeyDown(Key.RightAlt))
-                modifiers |= ModifierKeys.Alt;
-            if (Keyboard.IsKeyDown(Key.LeftShift) || Keyboard.IsKeyDown(Key.RightShift))
-                modifiers |= ModifierKeys.Shift;
-            if (Keyboard.IsKeyDown(Key.LWin) || Keyboard.IsKeyDown(Key.RWin))
-                modifiers |= ModifierKeys.Windows;
-
+            if (Keyboard.IsKeyDown(Key.LeftCtrl) || Keyboard.IsKeyDown(Key.RightCtrl)) modifiers |= ModifierKeys.Control;
+            if (Keyboard.IsKeyDown(Key.LeftAlt) || Keyboard.IsKeyDown(Key.RightAlt)) modifiers |= ModifierKeys.Alt;
+            if (Keyboard.IsKeyDown(Key.LeftShift) || Keyboard.IsKeyDown(Key.RightShift)) modifiers |= ModifierKeys.Shift;
+            if (Keyboard.IsKeyDown(Key.LWin) || Keyboard.IsKeyDown(Key.RWin)) modifiers |= ModifierKeys.Windows;
             return modifiers;
         }
     }

@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Media;
 
 namespace DisplayProfileManager.Helpers
 {
@@ -20,6 +21,7 @@ namespace DisplayProfileManager.Helpers
 
         private static readonly string _themesFolderPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DisplayProfileManager", "Themes");
         private static readonly string[] _themeOrder = { "Light", "Dark", "Black" };
+        private static readonly string[] _packagedThemes = { "Light", "Dark", "Black" };
         private static readonly string[] _requiredThemeKeys = { "WindowBackgroundBrush", "PrimaryTextBrush", "ContentBackgroundBrush", "BorderBrush", "ButtonBackgroundBrush", "ButtonForegroundBrush" };
 
         private const string RegistryKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize";
@@ -76,138 +78,8 @@ namespace DisplayProfileManager.Helpers
             if (settings.Theme == "System")
                 SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
 
+            SystemEvents.UserPreferenceChanged += OnAccentChanged;
             ApplyTheme(theme);
-        }
-
-        public static void ApplyTheme(string theme)
-        {
-            try
-            {
-                Application.Current.Dispatcher.Invoke(() =>
-                {
-                    var appResources = Application.Current.Resources;
-
-                    if (!appResources.MergedDictionaries.Contains(_baseTheme))
-                        appResources.MergedDictionaries.Add(_baseTheme);
-
-                    if (_currentColorTheme != null && appResources.MergedDictionaries.Contains(_currentColorTheme))
-                        appResources.MergedDictionaries.Remove(_currentColorTheme);
-
-                    string resolvedTheme = string.Equals(theme, "System", StringComparison.OrdinalIgnoreCase) ? (IsSystemUsingDarkTheme() ? "Dark" : "Light") : theme;
-                    if (_themes.TryGetValue(resolvedTheme, out var dict))
-                        _currentColorTheme = dict;
-                    else
-                    {
-                        logger.Warn($"Theme '{theme}' not found, falling back to Light");
-                        _currentColorTheme = _themes["Light"];
-                    }
-
-                    appResources.MergedDictionaries.Add(_currentColorTheme);
-                    ThemeChanged?.Invoke(null, EventArgs.Empty);
-                });
-            }
-            catch (Exception ex)
-            {
-                logger.Error(ex, "Error applying theme");
-            }
-        }
-
-        public static bool IsSystemUsingDarkTheme()
-        {
-            try
-            {
-                using (var key = Registry.CurrentUser.OpenSubKey(RegistryKeyPath))
-                {
-                    if (key != null)
-                    {
-                        var value = key.GetValue(RegistryValueName);
-                        if (value != null)
-                            return (int)value == 0;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                logger.Error(ex, "Error reading system theme");
-            }
-
-            return false;
-        }
-
-        public static void RefreshThemes()
-        {
-            var userKeys = _themes.Keys.Except(_themeOrder, StringComparer.OrdinalIgnoreCase).ToList();
-            foreach (var key in userKeys)
-                _themes.Remove(key);
-
-            LoadThemesFromFolder();
-            ThemeChanged?.Invoke(null, EventArgs.Empty);
-        }
-
-        public static async Task<string> ImportThemeAsync(string sourcePath)
-        {
-            try
-            {
-                if (!File.Exists(sourcePath)) return null;
-
-                ResourceDictionary dict;
-                try
-                {
-                    dict = new ResourceDictionary { Source = new Uri(sourcePath, UriKind.Absolute) };
-                }
-                catch
-                {
-                    logger.Warn($"Theme file failed to load as ResourceDictionary: {sourcePath}");
-                    return null;
-                }
-
-                var missingKeys = _requiredThemeKeys.Where(k => !dict.Contains(k)).ToList();
-                if (missingKeys.Any())
-                {
-                    logger.Warn($"Theme file missing required keys: {string.Join(", ", missingKeys)}");
-                    return null;
-                }
-
-                EnsureThemesFolderExists();
-
-                if (string.Equals(Path.GetDirectoryName(sourcePath), _themesFolderPath, StringComparison.OrdinalIgnoreCase)) return Path.GetFileNameWithoutExtension(sourcePath);
-
-                string fileName = Path.GetFileName(sourcePath);
-                string name = Path.GetFileNameWithoutExtension(fileName);
-
-                if (name == "System")
-                {
-                    logger.Warn("Theme name 'System' is reserved");
-                    return null;
-                }
-
-                string destPath = Path.Combine(_themesFolderPath, fileName);
-
-                // Handle duplicates
-                int counter = 1;
-                while (File.Exists(destPath))
-                {
-                    destPath = Path.Combine(_themesFolderPath, $"{name} ({counter}).xaml");
-                    counter++;
-                }
-
-                await Task.Run(() => File.Copy(sourcePath, destPath));
-
-                string importedName = Path.GetFileNameWithoutExtension(destPath);
-                _themes[importedName] = new ResourceDictionary { Source = new Uri(destPath, UriKind.Absolute) };
-
-                logger.Info($"Imported theme: {importedName}");
-                ApplyTheme(importedName);
-                _ = SettingsManager.Instance.SetThemeAsync(importedName);
-                ThemeChanged?.Invoke(null, EventArgs.Empty);
-
-                return importedName;
-            }
-            catch (Exception ex)
-            {
-                logger.Error(ex, $"Error importing theme: {sourcePath}");
-                return null;
-            }
         }
 
         private static void LoadThemesFromFolder()
@@ -247,6 +119,253 @@ namespace DisplayProfileManager.Helpers
             }
         }
 
+        public static void ApplyTheme(string theme)
+        {
+            try
+            {
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    var appResources = Application.Current.Resources;
+
+                    if (!appResources.MergedDictionaries.Contains(_baseTheme))
+                        appResources.MergedDictionaries.Add(_baseTheme);
+
+                    if (_currentColorTheme != null && appResources.MergedDictionaries.Contains(_currentColorTheme))
+                        appResources.MergedDictionaries.Remove(_currentColorTheme);
+
+                    string resolvedTheme = string.Equals(theme, "System", StringComparison.OrdinalIgnoreCase) ? (IsSystemUsingDarkTheme() ? "Dark" : "Light") : theme;
+                    if (_themes.TryGetValue(resolvedTheme, out var dict))
+                        _currentColorTheme = dict;
+                    else
+                    {
+                        var fallback = IsSystemUsingDarkTheme() ? "Dark" : "Light";
+                        logger.Warn($"Theme '{theme}' not found -> falling back to {fallback}");
+                        _currentColorTheme = _themes[fallback];
+                    }
+
+                    try
+                    {
+                        appResources.MergedDictionaries.Add(_currentColorTheme);
+                        ApplyAccentForeground();
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.Error(ex, $"Theme '{resolvedTheme}' failed to merge -> falling back to Light");
+                        _currentColorTheme = _themes["Light"];
+                        appResources.MergedDictionaries.Add(_currentColorTheme);
+                    }
+                    ThemeChanged?.Invoke(null, EventArgs.Empty);
+                });
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex, "Error applying theme");
+            }
+        }
+
+        public static async Task<string> ImportThemeAsync(string sourcePath)
+        {
+            try
+            {
+                if (!File.Exists(sourcePath)) return null;
+
+                ResourceDictionary dict;
+                try
+                {
+                    dict = new ResourceDictionary { Source = new Uri(sourcePath, UriKind.Absolute) };
+                }
+                catch
+                {
+                    logger.Warn($"Theme file failed to load as ResourceDictionary: {sourcePath}");
+                    return null;
+                }
+
+                var missingKeys = _requiredThemeKeys.Where(k => !dict.Contains(k)).ToList();
+                if (missingKeys.Any())
+                {
+                    logger.Warn($"Theme file missing required keys: {string.Join(", ", missingKeys)}");
+                    return null;
+                }
+
+                EnsureThemesFolderExists();
+
+                if (string.Equals(Path.GetDirectoryName(sourcePath), _themesFolderPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    return Path.GetFileNameWithoutExtension(sourcePath);
+                }
+
+                string fileName = Path.GetFileName(sourcePath);
+                string name = Path.GetFileNameWithoutExtension(fileName);
+
+                if (name == "System")
+                {
+                    logger.Warn("Theme name 'System' is reserved");
+                    return null;
+                }
+
+                string destPath = Path.Combine(_themesFolderPath, fileName);
+
+                int counter = 1;
+                while (File.Exists(destPath))
+                {
+                    destPath = Path.Combine(_themesFolderPath, $"{name} ({counter}).xaml");
+                    counter++;
+                }
+
+                await Task.Run(() => File.Copy(sourcePath, destPath));
+
+                string importedName = Path.GetFileNameWithoutExtension(destPath);
+                _themes[importedName] = new ResourceDictionary { Source = new Uri(destPath, UriKind.Absolute) };
+
+                logger.Info($"Imported theme: {importedName}");
+                ApplyTheme(importedName);
+                _ = SettingsManager.Instance.SetThemeAsync(importedName);
+                ThemeChanged?.Invoke(null, EventArgs.Empty);
+
+                return importedName;
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex, $"Error importing theme: {sourcePath}");
+                return null;
+            }
+        }
+
+        public static async Task<bool> DeleteThemeAsync(string theme)
+        {
+            if (!IsUserTheme(theme))
+            {
+                logger.Warn($"Refusing to delete system '{theme}' theme file");
+                return false;
+            }
+
+            try
+            {
+                await Task.Run(() => File.Delete(Path.Combine(_themesFolderPath, theme + ".xaml")));
+
+                _themes.Remove(theme);
+
+                // Restore packaged theme when shadowing file is removed
+                if (_packagedThemes.Contains(theme, StringComparer.OrdinalIgnoreCase))
+                {
+                    _themes[theme] = new ResourceDictionary
+                    {
+                        Source = new Uri($"/DisplayProfileManager;component/src/UI/Themes/{theme}.xaml", UriKind.Relative)
+                    };
+                }
+
+                LoadThemesFromFolder();
+
+                var target = _themes.ContainsKey(theme) ? theme : "System";
+                await SettingsManager.Instance.SetThemeAsync(target);
+                ApplyTheme(target);
+
+                logger.Info($"Deleted theme: {theme}");
+                ThemeChanged?.Invoke(null, EventArgs.Empty);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex, $"Error deleting theme: {theme}");
+                return false;
+            }
+        }
+
+        private static void ApplyAccentForeground()
+        {
+            try
+            {
+                var accent = SystemColors.AccentColor;
+                double luma = (0.2126 * accent.R + 0.7152 * accent.G + 0.0722 * accent.B) / 255.0;
+                var foreground = luma > 0.55 ? Colors.Black : Colors.White;
+                Application.Current.Resources["ButtonForegroundBrush"] = new SolidColorBrush(foreground);
+            }
+            catch (Exception ex)
+            {
+                logger.Debug(ex, "Could not derive accent foreground -> leaving theme value");
+            }
+        }
+
+        public static void RefreshThemes()
+        {
+            var userKeys = _themes.Keys.Except(_packagedThemes, StringComparer.OrdinalIgnoreCase).ToList();
+            foreach (var key in userKeys)
+                _themes.Remove(key);
+
+            foreach (var name in _themeOrder)
+            {
+                _themes[name] = new ResourceDictionary
+                {
+                    Source = new Uri($"/DisplayProfileManager;component/src/UI/Themes/{name}.xaml", UriKind.Relative)
+                };
+            }
+
+            LoadThemesFromFolder();
+            ApplyTheme(SettingsManager.Instance.Settings.Theme);
+            ThemeChanged?.Invoke(null, EventArgs.Empty);
+        }
+
+        public static void RefreshSystemThemes()
+        {
+            foreach (var name in _themeOrder)
+            {
+                _themes[name] = new ResourceDictionary
+                {
+                    Source = new Uri($"/DisplayProfileManager;component/src/UI/Themes/{name}.xaml", UriKind.Relative)
+                };
+            }
+
+            ApplyTheme(SettingsManager.Instance.Settings.Theme);
+        }
+
+        public static bool ThemeExists(string theme)
+        {
+            if (string.IsNullOrWhiteSpace(theme))
+            {
+                return false;
+            }
+            if (string.Equals(theme, "System", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            return _themes.Keys.Contains(theme, StringComparer.OrdinalIgnoreCase);
+        }
+
+        public static bool IsSystemUsingDarkTheme()
+        {
+            try
+            {
+                using (var key = Registry.CurrentUser.OpenSubKey(RegistryKeyPath))
+                {
+                    if (key != null)
+                    {
+                        var value = key.GetValue(RegistryValueName);
+                        if (value != null)
+                        {
+                            return (int)value == 0;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex, "Error reading system theme");
+            }
+
+            return false;
+        }
+
+        public static bool IsUserTheme(string theme)
+        {
+            if (string.IsNullOrWhiteSpace(theme) || theme == "System")
+            {
+                return false;
+            }
+
+            return File.Exists(Path.Combine(_themesFolderPath, theme + ".xaml"));
+        }
+
         private static void OnUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
         {
             if (e.Category == UserPreferenceCategory.General)
@@ -256,6 +375,13 @@ namespace DisplayProfileManager.Helpers
             }
         }
 
+        private static void OnAccentChanged(object sender, UserPreferenceChangedEventArgs e)
+        {
+            if (e.Category != UserPreferenceCategory.Color && e.Category != UserPreferenceCategory.General && e.Category != UserPreferenceCategory.VisualStyle) return;
+
+            RefreshSystemThemes();
+        }
+
         public static void UpdateThemeSubscription(string theme)
         {
             SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
@@ -263,6 +389,10 @@ namespace DisplayProfileManager.Helpers
                 SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
         }
 
-        public static void Cleanup() => SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
+        public static void Cleanup()
+        {
+            SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
+            SystemEvents.UserPreferenceChanged -= OnAccentChanged;
+        }
     }
 }

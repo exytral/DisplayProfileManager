@@ -8,7 +8,7 @@ namespace DisplayProfileManager.Core
 {
     public class ScriptManager
     {
-        private static readonly Logger logger = LoggerHelper.GetLogger();
+        private static readonly Logger _logger = LoggerHelper.GetLogger();
 
         private static readonly Lazy<ScriptManager> _instance = new Lazy<ScriptManager>(() => new ScriptManager());
         private readonly string _scriptsFolderPath;
@@ -44,10 +44,10 @@ namespace DisplayProfileManager.Core
             {
                 string argsLog = !string.IsNullOrEmpty(script.Arguments) ? " " + script.Arguments : "";
                 _ = _scriptHelper.ExecuteScriptAsync(path, script.Arguments);
-                logger.Info("Executed: " + script.FileName + argsLog);
+                _logger.Info("Executed: " + script.FileName + argsLog);
             }
             else
-                logger.Warn("Script not found: " + script.FileName);
+                _logger.Warn("Script not found: " + script.FileName);
         }
 
         public async Task<string> ImportScriptAsync(string sourcePath)
@@ -67,10 +67,13 @@ namespace DisplayProfileManager.Core
 
                 string destinationPath = Path.Combine(_scriptsFolderPath, fileName);
 
-                logger.Debug($"ImportScript sandbox check: dir='{Path.GetFullPath(Path.GetDirectoryName(sourcePath)).TrimEnd(Path.DirectorySeparatorChar)}' sandbox='{Path.GetFullPath(_scriptsFolderPath).TrimEnd(Path.DirectorySeparatorChar)}'");
+                _logger.Debug($"ImportScript sandbox check: dir='{Path.GetFullPath(Path.GetDirectoryName(sourcePath)).TrimEnd(Path.DirectorySeparatorChar)}' sandbox='{Path.GetFullPath(_scriptsFolderPath).TrimEnd(Path.DirectorySeparatorChar)}'");
 
                 // Early-return if already in sandbox
-                if (string.Equals(Path.GetFullPath(Path.GetDirectoryName(sourcePath)).TrimEnd(Path.DirectorySeparatorChar), Path.GetFullPath(_scriptsFolderPath).TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase)) return Path.GetFileName(sourcePath);
+                if (string.Equals(Path.GetFullPath(Path.GetDirectoryName(sourcePath)).TrimEnd(Path.DirectorySeparatorChar), Path.GetFullPath(_scriptsFolderPath).TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase))
+                {
+                    return Path.GetFileName(sourcePath);
+                }
 
                 int counter = 1;
                 while (File.Exists(destinationPath))
@@ -92,7 +95,7 @@ namespace DisplayProfileManager.Core
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Failed to import script to sandbox.");
+                _logger.Error(ex, "Failed to import script to sandbox.");
                 return null;
             }
         }
