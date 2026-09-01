@@ -189,7 +189,7 @@ jobs:
           $content = Get-Content -Raw -Path "RELEASE-NOTES.md"
           $version = "${{ github.ref_name }}".TrimStart('v')
 
-          $versionPattern = '(?ms)^##\s+' + [regex]::Escape($version) + '\b.*?(?=^##\s+|\z)'
+          $versionPattern = '(?ms)^##\s+' + [regex]::Escape($version) + '\b.*?(?=^---\s*$|\z)'
           $versionMatch = [regex]::Match($content, $versionPattern)
 
           if (-not $versionMatch.Success) {
@@ -207,14 +207,14 @@ jobs:
 
           $cumulativeSection = $cumulativeMatch.Value.Trim()
 
-          $assetPattern = '(?ms)^#\s+Current Release Assets\s*\r?\n.*\z'
-          $assetMatch = [regex]::Match($content, $assetPattern)
+          $footerPattern = '(?ms)^For a full technical breakdown, see \[CHANGELOG\.md\]\(CHANGELOG\.md\)\.\s*\r?\n\r?\n^---\s*$\r?\n\r?\n^#\s+Current Release Assets\s*\r?\n.*\z'
+          $footerMatch = [regex]::Match($content, $footerPattern)
 
-          if (-not $assetMatch.Success) {
-            throw "No Current Release Assets block found."
+          if (-not $footerMatch.Success) {
+            throw "No release footer or Current Release Assets block found."
           }
 
-          $assetsSection = $assetMatch.Value.Trim()
+          $footerSection = $footerMatch.Value.Trim()
 
           $section = @(
             $cumulativeSection
@@ -225,7 +225,7 @@ jobs:
             ""
             "---"
             ""
-            $assetsSection
+            $footerSection
           ) -join "`r`n"
 
           $section = $section -replace '\{\{VERSION\}\}', $version

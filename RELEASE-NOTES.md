@@ -26,7 +26,7 @@ See [Themes & DPM Theme Builder](./docs/wiki/themes.md) for built-in themes, cus
 
 ### ⚙️ Automation & integration
 
-Switch profiles with global hotkeys, the system tray, or the desktop classic right-click menu, and use the CLI for external automation. Optional update checking notify about newer releases without the application directly downloading or installing them.
+Switch profiles with global hotkeys, the system tray, or the desktop classic right-click menu, and use the CLI for external automation. Optional update checking notifies about newer releases without the application directly downloading or installing them.
 
 ---
 
@@ -243,6 +243,8 @@ Display configuration is now handled through a more reliable, atomic application
 ### 🔧 Other changes
 
 - **General refinement** — various code cleanup, bug fixes, reliability improvements, refactors, UI refinements, and optimizations.
+
+For a full technical breakdown, see [CHANGELOG.md](CHANGELOG.md).
 
 ---
 

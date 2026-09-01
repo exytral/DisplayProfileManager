@@ -6,7 +6,7 @@
 
 A lightweight Windows desktop application for managing display profiles — save the desktop layout, monitor settings, current wallpaper, audio devices, and helper scripts. Then, switch between presets on demand!
 
-<video src="./docs/img/main-window.webm" autoplay loop muted playsinline align="center"></video>
+![Main Window](./docs/img/main-window.webp)
 
 ---
 
