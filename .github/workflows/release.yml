@@ -223,8 +223,6 @@ jobs:
             ""
             $versionSection
             ""
-            "---"
-            ""
             $footerSection
           ) -join "`r`n"
 
