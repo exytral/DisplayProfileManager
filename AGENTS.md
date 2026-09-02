@@ -247,7 +247,7 @@ The application uses the Windows Display Configuration API (`SetDisplayConfig`) 
 - **Clone groups must be set in `ApplyDisplayTopology` with `SDC_TOPOLOGY_SUPPLIED`.** Once the mode array is used for layout, changing clone groups would invalidate mode indices.
 - **HDR and ACM are distinct.** `IsHdrEnabled` and `IsAcmEnabled` represent separate API states. HDR forces ACM on during apply, but ACM remains independently configurable when HDR is off. On pre-24H2 systems, the shared legacy toggle resets to `Off` before applying `Acm` intent so Windows initializes ACM rather than re-engaging HDR.
 - **HDR requires a live `RawTargetId`.** Always query live display configuration after topology apply, match by base `TargetId` (lower 16 bits), and use `activeDisplay.RawTargetId` for `DisplayConfigSetDeviceInfo`.
-- **Disconnected-display detection must distinguish deep sleep from absence.** `ApplyDisplayConfig` captures `GetAvailableTargetIds` once using `QDC_ALL_PATHS` and `targetAvailable`, then excludes enabled profile displays that are absent from that availability snapshot from the stabilization wait.
+- **Disconnected-display detection must distinguish deep sleep from absence.** `ApplyDisplayConfig` captures `GetPresentTargetIds` once using `QDC_ALL_PATHS`, then excludes enabled profile displays that are absent from that presence snapshot from the stabilization wait.
 
 ## Display Recovery
 

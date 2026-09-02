@@ -7,7 +7,7 @@ For user-facing release notes, see the [GitHub Releases](https://github.com/exyt
 ---
 
 <a id="2.2.0"></a>
-## [2.2.0] - TBD
+## [2.2.0] - 2026-09-02
 
 _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManager/releases/tag/2.2.0)_
 

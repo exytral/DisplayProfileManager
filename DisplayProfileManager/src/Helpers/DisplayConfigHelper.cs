@@ -644,7 +644,7 @@ namespace DisplayProfileManager.Helpers
             return displays;
         }
 
-        public static HashSet<uint> GetAvailableTargetIds()
+        public static HashSet<uint> GetPresentTargetIds()
         {
             var result = new HashSet<uint>();
             try
@@ -664,14 +664,11 @@ namespace DisplayProfileManager.Helpers
                 }
 
                 foreach (var path in paths)
-                {
-                    if (path.targetInfo.targetAvailable)
-                        result.Add(path.targetInfo.id & 0xFFFF);
-                }
+                    result.Add(path.targetInfo.id & 0xFFFF);
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error querying all-paths target availability");
+                logger.Error(ex, "Error querying all-paths target presence");
             }
 
             return result;
@@ -1182,7 +1179,7 @@ namespace DisplayProfileManager.Helpers
                 logger.Info($"Applying configuration for {TextHelper.Plural(displayConfigs.Count(d => d.IsEnabled), "enabled display")}...");
 
                 // Exclude disconnected displays from defer set
-                var availableTargetIds = GetAvailableTargetIds();
+                var availableTargetIds = GetPresentTargetIds();
                 var liveConfigs = displayConfigs
                     .Where(d => d.IsEnabled && availableTargetIds.Contains(d.TargetId))
                     .ToList();
