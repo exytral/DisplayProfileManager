@@ -1179,12 +1179,10 @@ namespace DisplayProfileManager.Helpers
                 logger.Info($"Applying configuration for {TextHelper.Plural(displayConfigs.Count(d => d.IsEnabled), "enabled display")}...");
 
                 // Exclude disconnected displays from defer set
-                var availableTargetIds = GetPresentTargetIds();
-                var liveConfigs = displayConfigs
-                    .Where(d => d.IsEnabled && availableTargetIds.Contains(d.TargetId))
-                    .ToList();
+                var presentTargetIds = GetPresentTargetIds();
+                var liveConfigs = displayConfigs.Where(d => d.IsEnabled && presentTargetIds.Contains(d.TargetId)).ToList();
 
-                // Defer until currently available displays stabilize
+                // Defer until currently present displays stabilize
                 var deferWatch = Stopwatch.StartNew();
                 await DeferDisplayLayoutAsync(liveConfigs);
                 deferWatch.Stop();
