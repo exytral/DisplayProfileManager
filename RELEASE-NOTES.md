@@ -6,21 +6,15 @@
 
 Manage complex multi-monitor desktop configurations from preset profiles. Configure per-monitor enable/disable state, primary display, resolution, refresh rate, rotation, DPI, HDR/ACM, and color profiles; extend or clone displays in any combination; and reliably restore configurations when displays change, wake from deep sleep, or an apply fails. Capture and restore wallpaper, switch default playback and recording devices, and attach helper scripts to run after display configuration has finished.
 
-See [Creating and Managing Profiles](./docs/wiki/profiles.md) for profiles, displays, wallpaper, audio, scripts, and hotkeys.
-
 ### 💻 CLI
 
 Control the application through scripts and external tools, with commands that work against the running application or independently when it is not running.
-
-See [CLI & DPM Shortcut Builder](./docs/wiki/cli.md) for available commands, usage examples, and shortcut creation.
 
 **🎮 DPM Shortcut Builder** — included standalone Python tool for creating game/app launch shortcuts that switch display profiles before launch and restore a selected profile on exit, with guided launcher integration for Steam, Epic Games, GOG Galaxy, Heroic, and Playnite.
 
 ### 🎨 UI
 
 Customize the application with a cleaner, more consistent visual system built around shared control styles, three packaged themes, and imported `.xaml` themes. Packaged themes integrate with the Windows accent color, while custom themes retain their own colors and accents.
-
-See [Themes & DPM Theme Builder](./docs/wiki/themes.md) for built-in themes, custom themes, and theme generation.
 
 **🛠️ DPM Theme Builder** — included standalone Python tool for generating compatible `.xaml` themes from the [tinted-theming/schemes](https://github.com/tinted-theming/schemes) database.
 

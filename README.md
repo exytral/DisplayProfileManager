@@ -79,12 +79,12 @@ A lightweight Windows desktop application for managing display profiles — save
 
 ## 📖 Documentation
 
-- [Creating and Managing Profiles](./docs/wiki/profiles.md) — profiles, displays, wallpaper, audio, scripts, and hotkeys
-- [Scripts](./docs/wiki/scripts.md) — supported types, execution, arguments, configuration, and examples
-- [Settings](./docs/wiki/settings.md) — application settings, startup, integrations, notifications, and hotkeys
-- [Themes & DPM Theme Builder](./docs/wiki/themes.md) — built-in themes, custom themes, and theme generation
-- [CLI & DPM Shortcut Builder](./docs/wiki/cli.md) — command-line flags, usage examples, and shortcut creation
-- [Reporting Issues](./docs/wiki/bug_report.md) — what to include when filing a bug report
+- **[Creating and Managing Profiles](./docs/wiki/profiles.md)** — profiles, displays, wallpaper, audio, scripts, and hotkeys
+- **[Scripts](./docs/wiki/scripts.md)** — supported types, execution, arguments, configuration, and examples
+- **[Settings](./docs/wiki/settings.md)** — application settings, startup, integrations, notifications, and hotkeys
+- **[Themes & DPM Theme Builder](./docs/wiki/themes.md)** — built-in themes, custom themes, and theme generation
+- **[CLI & DPM Shortcut Builder](./docs/wiki/cli.md)** — command-line flags, usage examples, and shortcut creation
+- **[Reporting Issues](./docs/wiki/bug_report.md)** — what to include when filing a bug report
 
 ---
 
@@ -94,28 +94,28 @@ MIT + Commons Clause — see [LICENSE](LICENSE) for details. Third-party license
 
 ## 🙏 Acknowledgments
 
-- [Newtonsoft.Json](https://www.newtonsoft.com/json) (MIT) — JSON serialization
-- [NLog](https://nlog-project.org/) (BSD-3-Clause) — Logging
+- **[Newtonsoft.Json](https://www.newtonsoft.com/json)** (MIT) — JSON serialization
+- **[NLog](https://nlog-project.org/)** (BSD-3-Clause) — Logging
 
 ### 🤝 Contributors
 
-**This project**
+**This Project**
 
-- [@vivittel](https://github.com/vivittel) ([PR #1](https://github.com/vivittel/DisplayProfileManager/pull/1)) — Partial HDR and advanced color state detection fixes
+- **[@vivittel](https://github.com/vivittel)** ([PR #1](https://github.com/vivittel/DisplayProfileManager/pull/1)) — Partial HDR and advanced color state detection fixes
 
 **Upstream**
 
-- [@zac15987](https://github.com/zac15987) ([Original Project](https://github.com/zac15987/DisplayProfileManager/releases)) — Display profiles, themes, system tray, auto-start, global hotkeys
-- [@jarandal](https://github.com/jarandal) ([PR #8](https://github.com/zac15987/DisplayProfileManager/pull/8)) — Initial HDR support, screen rotation
-- [@jonathanasdf](https://github.com/jonathanasdf) ([PR #14](https://github.com/zac15987/DisplayProfileManager/pull/14)) — Initial clone display support
-- [@rvahilario](https://github.com/rvahilario) ([PR #23](https://github.com/zac15987/DisplayProfileManager/pull/23)) — Partial clone fixes, test infrastructure
+- **[@zac15987](https://github.com/zac15987)** ([Original Project](https://github.com/zac15987/DisplayProfileManager/releases)) — Display profiles, themes, system tray, auto-start, global hotkeys
+- **[@jarandal](https://github.com/jarandal)** ([PR #8](https://github.com/zac15987/DisplayProfileManager/pull/8)) — Initial HDR support, screen rotation
+- **[@jonathanasdf](https://github.com/jonathanasdf)** ([PR #14](https://github.com/zac15987/DisplayProfileManager/pull/14)) — Initial clone display support
+- **[@rvahilario](https://github.com/rvahilario)** ([PR #23](https://github.com/zac15987/DisplayProfileManager/pull/23)) — Partial clone fixes, test infrastructure
 
 **Community**
 
-- [@Catriks](https://github.com/Catriks) ([#1](https://github.com/zac15987/DisplayProfileManager/issues/1)) — Requested audio device switching
-- [@anodynos](https://github.com/anodynos) ([#2](https://github.com/zac15987/DisplayProfileManager/issues/2)) — Requested global hotkeys for profile switching
-- [@xtrilla](https://github.com/xtrilla) ([#4](https://github.com/zac15987/DisplayProfileManager/issues/4)) — Requested monitor enable/disable configuration
-- [@ffgtthr](https://github.com/ffgtthr) ([#2](https://github.com/zac15987/DisplayProfileManager/issues/2)) — Requested custom profile icons
+- **[@Catriks](https://github.com/Catriks)** ([#1](https://github.com/zac15987/DisplayProfileManager/issues/1)) — Requested audio device switching
+- **[@anodynos](https://github.com/anodynos)** ([#2](https://github.com/zac15987/DisplayProfileManager/issues/2)) — Requested global hotkeys for profile switching
+- **[@xtrilla](https://github.com/xtrilla)** ([#4](https://github.com/zac15987/DisplayProfileManager/issues/4)) — Requested monitor enable/disable configuration
+- **[@ffgtthr](https://github.com/ffgtthr)** ([#2](https://github.com/zac15987/DisplayProfileManager/issues/2)) — Requested custom profile icons
 
 ---
 
