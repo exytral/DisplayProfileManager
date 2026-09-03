@@ -644,7 +644,7 @@ namespace DisplayProfileManager.Helpers
             return displays;
         }
 
-        public static HashSet<uint> GetPresentTargetIds()
+        public static HashSet<uint> GetAllPathTargetIds()
         {
             var result = new HashSet<uint>();
             try
@@ -987,6 +987,8 @@ namespace DisplayProfileManager.Helpers
                 int result = GetDisplayConfigBufferSizes(queryFlags, out uint pathCount, out uint modeCount);
                 if (result != ErrorSuccess)
                 {
+                    logger.Error($"GetDisplayConfigBufferSizes failed with error: {result}");
+                    errorCode = result;
                     return false;
                 }
 
@@ -995,6 +997,8 @@ namespace DisplayProfileManager.Helpers
                 result = QueryDisplayConfig(queryFlags, ref pathCount, paths, ref modeCount, modes, IntPtr.Zero);
                 if (result != ErrorSuccess)
                 {
+                    logger.Error($"GetDisplayConfigBufferSizes failed with error: {result}");
+                    errorCode = result;
                     return false;
                 }
 
@@ -1159,6 +1163,7 @@ namespace DisplayProfileManager.Helpers
                 if (result != ErrorSuccess)
                 {
                     logger.Error($"SetDisplayConfig failed to apply layout: Error {result}");
+                    errorCode = result;
                     return false;
                 }
 
@@ -1178,11 +1183,11 @@ namespace DisplayProfileManager.Helpers
                 var totalWatch = Stopwatch.StartNew();
                 logger.Info($"Applying configuration for {TextHelper.Plural(displayConfigs.Count(d => d.IsEnabled), "enabled display")}...");
 
-                // Exclude disconnected displays from defer set
-                var presentTargetIds = GetPresentTargetIds();
-                var liveConfigs = displayConfigs.Where(d => d.IsEnabled && presentTargetIds.Contains(d.TargetId)).ToList();
+                // Exclude displays absent from enumeration from defer set
+                var allPathTargetIds = GetAllPathTargetIds();
+                var liveConfigs = displayConfigs.Where(d => d.IsEnabled && allPathTargetIds.Contains(d.TargetId)).ToList();
 
-                // Defer until currently present displays stabilize
+                // Defer until expected displays stabilize
                 var deferWatch = Stopwatch.StartNew();
                 await DeferDisplayLayoutAsync(liveConfigs);
                 deferWatch.Stop();
