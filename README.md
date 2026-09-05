@@ -64,7 +64,6 @@ A lightweight Windows desktop application for managing display profiles — save
 
 - **Installer** — use the latest installer from the [Releases](../../releases) page
 - **Portable** — extract the portable archive from the [Releases](../../releases) page
-- **WinGet** — run `winget install Exytral.DisplayProfileManager`
 
 ### Requirements
 
