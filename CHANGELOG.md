@@ -7,7 +7,7 @@ For user-facing release notes, see the [GitHub Releases](https://github.com/exyt
 ---
 
 <a id="2.2.0"></a>
-## [2.2.0] - 2026-09-03
+## [2.2.0] - 2026-09-07
 
 _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManager/releases/tag/2.2.0)_
 
@@ -28,7 +28,7 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 ### feat — display engine
 
 - **EDID-based display identity** — `ManufacturerName` and `ProductCodeID` are decoded from `DISPLAYCONFIG_TARGET_DEVICE_NAME`; `ResolveLiveDisplay` prefers captured `TargetId` when EDID matches and otherwise follows the panel to its current connector. Replacement monitors can inherit captured settings when the live identity resolves to the stored display mapping, while EDID-unavailable displays fall back to `TargetId`.
-- **Dynamic refresh preservation** — display queries and applies use `QDC_VIRTUAL_REFRESH_RATE_AWARE` and `SDC_VIRTUAL_REFRESH_RATE_AWARE`, with fallback when unsupported. `DisplayConfigInfo.SupportsDrr` records capability only; Windows' separate Dynamic refresh rate setting remains outside the application's control.
+- **Dynamic refresh preservation** — Windows 11 display queries and applies use `QDC_VIRTUAL_REFRESH_RATE_AWARE` and `SDC_VIRTUAL_REFRESH_RATE_AWARE`, while Windows 10 retains the compatible non-VRR-aware path. `DisplayConfigInfo.SupportsDrr` records capability only; Windows' separate Dynamic refresh rate setting remains outside the application's control.
 
 ### feat — display recovery
 
@@ -70,8 +70,8 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 - **DPI scaling validation** — unreadable scaling ranges no longer report false success, unsupported in-range values snap to the nearest supported step, and write results are logged.
 - **DPI scaling targeting** — scaling is resolved against the live display immediately before application when live display configuration is available, dropping reliance on stale device-name match.
 - **Topology recovery for `ERROR_GEN_FAILURE` (31)** — `SDC_TOPOLOGY_SUPPLIED` failures now retry with `SDC_USE_SUPPLIED_DISPLAY_CONFIG | SDC_SAVE_TO_DATABASE`; `SDC_ALLOW_PATH_ORDER_CHANGES` is omitted from retry while `SDC_VIRTUAL_MODE_AWARE` is retained. Recovers display topologies that Windows has not yet committed to the display configuration database, including cases where changing display identity or EDID causes previously unseen topology to be rejected by the normal database-backed path.
-- **Availability-based display handling** — `QDC_ALL_PATHS` and `targetAvailable` classify which enabled profile displays belong in the stabilization wait set, while `QDC_ONLY_ACTIVE_PATHS` is used by the wait itself to observe active displays. Displays absent from availability snapshot are excluded from the wait without creating separate disconnected-display result state; displays that remain available but are temporarily absent from active query remain eligible for later polling.
-- **Deep-sleep layout recovery** — `ApplyDisplayConfig` captures target availability once, excludes unavailable displays from the stabilization wait set, defers currently available displays before the normal `ApplyDisplayLayout`, and preserves the full requested configuration as the layout payload. Layout-stage `ERROR_GEN_FAILURE` (31) invokes the same defer set again and retries the full layout once, allowing transient post-topology states to settle before the second submission.
+- **Presence-aware display handling** — `QDC_ALL_PATHS` membership classifies which enabled profile displays are present for stabilization without using transient `targetAvailable` as a presence gate, while `QDC_ONLY_ACTIVE_PATHS` is used by the wait itself to observe active displays. Displays absent from the all-paths snapshot are excluded from the wait without creating separate disconnected-display result state; present displays that are temporarily absent from the active query remain eligible for later polling.
+- **Deep-sleep layout recovery** — `ApplyDisplayConfig` captures all-paths target presence once, excludes absent displays from the stabilization wait set, defers present displays before the normal `ApplyDisplayLayout`, and preserves the full requested configuration as the layout payload. Layout-stage `ERROR_GEN_FAILURE` (31) invokes the same defer set again and retries the full layout once, allowing transient post-topology states to settle before the second submission.
 - **`VerifyDisplayConfiguration` retired** — the post-failure verifier checked only the coarse live topology state, confirming the expected display enablement and clone-group SourceId sharing. Did not verify requested position, resolution, refresh rate, or other settings, so it could convert a failed layout `SetDisplayConfig` into apparent success. Verifier was removed so failed layout submission remains a failure and follows the normal error and recovery path.
 - **Live-path selection** — `ApplyDisplayLayout` now prefers the active path when `QDC_ALL_PATHS` returns inactive alternates, and mutation path records which entry was live before clearing `Active`. Prevents layout, resolution, rotation, and subsequent live-display lookups from targeting an inactive route.
 

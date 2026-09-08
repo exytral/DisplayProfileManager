@@ -13,6 +13,7 @@ namespace DisplayProfileManager.Helpers
     {
         private static readonly Logger logger = LoggerHelper.GetLogger();
 
+        private static bool IsWindows11OrGreater() => Environment.OSVersion.Version.Build >= 22000;
         private static bool IsWindows22H2OrGreater() => Environment.OSVersion.Version.Build >= 22621;
         private static bool IsWindows24H2OrGreater() => Environment.OSVersion.Version.Build >= 26100;
         public static bool IsAcmSupported(bool isHdrSupported) => IsWindows22H2OrGreater() && isHdrSupported;
@@ -731,7 +732,7 @@ namespace DisplayProfileManager.Helpers
                 var profileLookup = displayConfigs.ToDictionary(d => d.TargetId & 0xFFFF);
                 var sourceIdMap = BuildSourceIdMap(displayConfigs);
 
-                var pathsByTarget = paths.Where(p => p.targetInfo.targetAvailable).GroupBy(p => p.targetInfo.id & 0xFFFF);
+                var pathsByTarget = paths.GroupBy(p => p.targetInfo.id & 0xFFFF);
                 foreach (var group in pathsByTarget)
                 {
                     uint hardwareId = group.Key;
@@ -775,11 +776,8 @@ namespace DisplayProfileManager.Helpers
                     var targetIdToPathIndex = new Dictionary<uint, int>();
                     for (int i = 0; i < targetPaths.Length; i++)
                     {
-                        if (!targetPaths[i].targetInfo.targetAvailable) continue;
-
                         uint baseTargetId = targetPaths[i].targetInfo.id & 0xFFFF;
                         bool isActive = (targetPaths[i].flags & (uint)DisplayConfigPathInfoFlags.Active) != 0;
-
                         // Prefer active path for each target
                         if (!targetIdToPathIndex.TryGetValue(baseTargetId, out int existingIndex) || (isActive && (targetPaths[existingIndex].flags & (uint)DisplayConfigPathInfoFlags.Active) == 0))
                             targetIdToPathIndex[baseTargetId] = i;
@@ -980,9 +978,9 @@ namespace DisplayProfileManager.Helpers
             {
                 logger.Info("Applying display layout...");
 
-                var queryFlags = QueryDisplayConfigFlags.AllPaths | QueryDisplayConfigFlags.VirtualRefreshRateAware;
-                if (GetDisplayConfigBufferSizes(queryFlags, out _, out _) != ErrorSuccess)
-                    queryFlags = QueryDisplayConfigFlags.AllPaths;
+                var queryFlags = QueryDisplayConfigFlags.AllPaths;
+                if (IsWindows11OrGreater())
+                    queryFlags |= QueryDisplayConfigFlags.VirtualRefreshRateAware;
 
                 int result = GetDisplayConfigBufferSizes(queryFlags, out uint pathCount, out uint modeCount);
                 if (result != ErrorSuccess)
@@ -1151,14 +1149,17 @@ namespace DisplayProfileManager.Helpers
                 }
 
                 // Commit layout and persist to database
-                result = SetDisplayConfig(
-                    pathCount, paths,
-                    modeCount, modes,
+                var layoutFlags =
                     SetDisplayConfigFlags.Apply |
                     SetDisplayConfigFlags.UseSuppliedDisplayConfig |
                     SetDisplayConfigFlags.SaveToDatabase |
-                    SetDisplayConfigFlags.AllowChanges |
-                    SetDisplayConfigFlags.VirtualRefreshRateAware);
+                    SetDisplayConfigFlags.AllowChanges;
+                if (IsWindows11OrGreater())
+                    layoutFlags |= SetDisplayConfigFlags.VirtualRefreshRateAware;
+                result = SetDisplayConfig(
+                    pathCount, paths,
+                    modeCount, modes,
+                    layoutFlags);
 
                 if (result != ErrorSuccess)
                 {
