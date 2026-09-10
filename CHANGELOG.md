@@ -7,7 +7,7 @@ For user-facing release notes, see the [GitHub Releases](https://github.com/exyt
 ---
 
 <a id="2.2.0"></a>
-## [2.2.0] - 2026-09-07
+## [2.2.0] - 2026-09-10
 
 _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManager/releases/tag/2.2.0)_
 
@@ -78,6 +78,7 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 ### fix — UI
 
 - **Tray interaction and profile ordering** — left-click on the tray icon now opens the main window. The tray menu is presented directly rather than through a separate profile flyout, and Tray/ShellExt profile menus use the same natural name ordering as the main profile list.
+- **Tray lifecycle recovery** — Explorer taskbar recreation invalidates stale notification-area registration state and re-registers the visible GUID-addressed tray icon, allowing the icon to recover without restarting Display Profile Manager.
 - **Theme and editor refresh** — hotkey/contributor/version-link resources rebuild after theme changes; unavailable slideshow intervals are logged; disabled scripts and unavailable audio are shown distinctly; apply logs count enabled scripts only.
 - **Profile list and apply state** — external applies and profile edits preserve selection and external applies report their source and elapsed duration in status text and notifications.
 - **Tray menu icon rendering** — inactive profile icons are rendered at the native small-menu size with preserved transparency, avoiding oversized icons and opaque backgrounds in the native popup menu. Tray icon updates now resolve from the active profile when another profile is edited or added.
@@ -121,7 +122,7 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 ### fix — packaging
 
 - **Portable package completeness** — `runtimes\` assets are included and `*.exp`/`*.lib` shell-extension byproducts are excluded.
-- **Installer metadata and architecture** — `AppVerName` is set explicitly and `TargetArch` now respects `release.yml`'s architecture define.
+- **Installer metadata and architecture** — `AppVerName` is set explicitly; release builds now supply and assert `TargetArch`, use matching Windows RIDs and native platforms for x64, x86, and ARM64, validate packaged PE machine types, and reject identical architecture installer outputs.
 - **Installer updated for .NET 10** — Inno Setup package now consumes SDK-style Release output, including the application assembly, runtime configuration files, dependencies, native shell extension, and `runtimes\` assets; obsolete `.exe.config` and legacy AudioSwitcher files removed from upgraded installations, while debug symbols are not included in the package.
 - **Per-user and per-machine installation** — installer supports installing for current user without elevation or for all users with administrative elevation, while retaining a fixed application-owned installation location instead of exposing an arbitrary destination path.
 - **.NET 10 Desktop Runtime prerequisite** — installer detects required Windows Desktop Runtime through installed `dotnet` host, downloads architecture-matched Microsoft Desktop Runtime when missing, runs Microsoft installer, and blocks installation until the required runtime is detected.
@@ -159,7 +160,7 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 ### misc — repository maintenance
 
 - **Runtime dependency reporting** — About-window dependency versions are read from loaded assemblies instead of duplicated constants.
-- **Developer build script** — `dev-build.ps1` gracefully requests shutdown of a running `--dev` instance before building, falls back to forced termination if it does not exit within bounded wait, always attempts to unregister the native shell extension before building, retries a failed unregister once, and re-registers the extension only when it was previously enabled.
+- **Developer build script** — `dev-build.ps1` auto-detects the host OS architecture when `-Platform` is omitted, supplies the matching Windows RID for .NET 10 builds, preserves explicit x86/x64/ARM64 overrides, gracefully requests shutdown of a running `--dev` instance before building, and restores the shell extension when it was previously enabled.
 - **General refinement** — various code cleanup, bug fixes, UI refinements, and optimizations.
 
 ---

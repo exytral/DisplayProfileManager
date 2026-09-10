@@ -20,9 +20,18 @@
 #endif
 
 ; ---- Select Target Architecture (can be x64 / x86 / arm64) ----
-#define TargetArch "x64"
-; #define TargetArch "x86"
-; #define TargetArch "arm64"
+; GitHub Actions supplies TargetArch. Default to x64 only for local builds.
+#ifndef TargetArch
+  #define TargetArch "x64"
+#endif
+
+; Release builds also supply ExpectedTargetArch so an accidental local/default
+; override cannot silently package the wrong architecture under another label.
+#ifdef ExpectedTargetArch
+  #if TargetArch != ExpectedTargetArch
+    #error "TargetArch does not match ExpectedTargetArch"
+  #endif
+#endif
 
 ; ---- Architecture-specific Settings ----
 #if TargetArch == "x64"
@@ -32,7 +41,6 @@
   #define ArchAllowed         "x64os"
   #define ArchInstall64       "x64os"
   #define DotNetArch          "x64"
-  #define DotNetRoot          HKLM64
   #define DotNetRuntimeUrl    "https://aka.ms/dotnet/10.0/windowsdesktop-runtime-win-x64.exe"
   #define DotNetInstallerName "windowsdesktop-runtime-win-x64.exe"
 #elif TargetArch == "x86"
@@ -42,7 +50,6 @@
   #define ArchAllowed         "x86"
   #define ArchInstall64       ""
   #define DotNetArch          "x86"
-  #define DotNetRoot          HKLM32
   #define DotNetRuntimeUrl    "https://aka.ms/dotnet/10.0/windowsdesktop-runtime-win-x86.exe"
   #define DotNetInstallerName "windowsdesktop-runtime-win-x86.exe"
 #elif TargetArch == "arm64"
@@ -52,7 +59,6 @@
   #define ArchAllowed         "arm64"
   #define ArchInstall64       "arm64"
   #define DotNetArch          "arm64"
-  #define DotNetRoot          HKLM64
   #define DotNetRuntimeUrl    "https://aka.ms/dotnet/10.0/windowsdesktop-runtime-win-arm64.exe"
   #define DotNetInstallerName "windowsdesktop-runtime-win-arm64.exe"
 #else
@@ -105,7 +111,7 @@ Type: files; Name: "{app}\*.pdb"
 Source: "{#MyBuildFolder}\*.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#MyBuildFolder}\*.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#MyBuildFolder}\*.json"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#MyBuildFolder}\runtimes\*"; DestDir: "{app}\runtimes"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#MyBuildFolder}\runtimes\*"; DestDir: "{app}\runtimes"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 Source: "{#MyBuildFolder}\NLog.config"; DestDir: "{app}"; Flags: ignoreversion
 
 ; ---- Shortcuts ----
@@ -462,7 +468,7 @@ begin
   try
     if not ExecAndCaptureOutput(
       'dotnet.exe',
-      '--list-runtimes',
+      '--list-runtimes --arch {#DotNetArch}',
       '',
       SW_SHOWNORMAL,
       ewWaitUntilTerminated,

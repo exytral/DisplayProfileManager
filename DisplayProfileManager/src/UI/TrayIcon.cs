@@ -306,7 +306,7 @@ namespace DisplayProfileManager.UI
             {
                 logger.Warn(ex, "Failed to update tray icon");
 
-                if (icon != null &&!ReferenceEquals(icon, _defaultIcon) && !ReferenceEquals(icon, _currentIcon))
+                if (icon != null && !ReferenceEquals(icon, _defaultIcon) && !ReferenceEquals(icon, _currentIcon))
                     icon.Dispose();
 
                 if (!ReferenceEquals(_currentIcon, _defaultIcon))
@@ -404,7 +404,7 @@ namespace DisplayProfileManager.UI
             {
                 return IntPtr.Zero;
             }
-                
+
             int iconSize = GetSystemMetrics(SmCxSmIcon);
             var profiles = _profileManager.GetAllProfiles().OrderBy(p => p.Name, NaturalStringComparer.Instance).ToList();
 
@@ -583,7 +583,7 @@ namespace DisplayProfileManager.UI
                 logger.Error(ex, "Error applying profile from tray");
                 try
                 {
-                    ShowNotification("Apply failed","Error applying profile", TrayNotificationIcon.Error);
+                    ShowNotification("Apply failed", "Error applying profile", TrayNotificationIcon.Error);
                 }
                 catch { }
             }
@@ -631,8 +631,15 @@ namespace DisplayProfileManager.UI
         {
             if (unchecked((uint)msg) == _taskbarCreatedMessage)
             {
+                logger.Info($"TaskbarCreated received; invalidating tray icon registration (visible={_visible})");
+                _iconAdded = false;
+
                 if (_visible)
+                {
                     AddNotifyIcon();
+                    if (_iconAdded)
+                        logger.Info("Tray icon re-registered after TaskbarCreated");
+                }
 
                 handled = true;
 
@@ -686,7 +693,7 @@ namespace DisplayProfileManager.UI
                 cbSize = (uint)Marshal.SizeOf<NOTIFYICONDATA>(),
                 hWnd = _hwndSource.Handle,
                 uID = 1,
-                uFlags = flags,
+                uFlags = flags | NifGuid,
                 uCallbackMessage = WmAppTray,
                 guidItem = _iconGuid
             };

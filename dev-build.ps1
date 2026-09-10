@@ -1,7 +1,29 @@
 param(
     [string]$Configuration = "Release",
-    [string]$Platform      = "x64"
+    [ValidateSet("x86", "x64", "ARM64")]
+    [string]$Platform
 )
+
+if (-not $Platform) {
+    $Platform = switch ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()) {
+        "X86"   { "x86" }
+        "X64"   { "x64" }
+        "Arm64" { "ARM64" }
+        default { throw "Unsupported OS architecture: $([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)" }
+    }
+}
+
+$Platform = switch ($Platform.ToLowerInvariant()) {
+    "x86"   { "x86" }
+    "x64"   { "x64" }
+    "arm64" { "ARM64" }
+}
+
+$runtimeIdentifier = switch ($Platform) {
+    "x86"   { "win-x86" }
+    "x64"   { "win-x64" }
+    "ARM64" { "win-arm64" }
+}
 
 $vswhere  = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
 $vsRoot   = & $vswhere -latest -requires Microsoft.Component.MSBuild -property installationPath
@@ -9,6 +31,8 @@ $msbuild  = Join-Path $vsRoot "MSBuild\Current\Bin\MSBuild.exe"
 $sln      = "$PSScriptRoot\DisplayProfileManager.sln"
 $exe      = "$PSScriptRoot\DisplayProfileManager\bin\$Platform\$Configuration\DisplayProfileManager.exe"
 $settings = "$env:APPDATA\DisplayProfileManager\Settings.json"
+
+Write-Host "Building for $Platform ($runtimeIdentifier)..." -ForegroundColor Cyan
 
 # Gracefully close any running dev instance before building
 $devProcs = Get-CimInstance Win32_Process -Filter "Name = 'DisplayProfileManager.exe' AND CommandLine LIKE '%--dev%'"
@@ -54,7 +78,7 @@ $unshellExitCode = $LASTEXITCODE
 
 # Restore NuGet packages for solution via MSBuild
 Write-Host "Restoring NuGet packages..." -ForegroundColor Cyan
-& $msbuild $sln /t:Restore /p:Configuration=$Configuration /p:Platform=$Platform /v:minimal
+& $msbuild $sln /t:Restore /p:Configuration=$Configuration /p:Platform=$Platform /p:RuntimeIdentifier=$runtimeIdentifier /v:minimal
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Restore failed." -ForegroundColor Red
     Start-Sleep -Seconds 5
@@ -72,7 +96,7 @@ if ($LASTEXITCODE -ne 0) {
 
 # Build DisplayProfileManager
 Write-Host "Building DisplayProfileManager $Configuration $Platform..." -ForegroundColor Cyan
-& $msbuild $sln /t:DisplayProfileManager /p:Configuration=$Configuration /p:Platform=$Platform /v:minimal
+& $msbuild $sln /t:DisplayProfileManager /p:Configuration=$Configuration /p:Platform=$Platform /p:RuntimeIdentifier=$runtimeIdentifier /p:SelfContained=false /v:minimal
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Build failed." -ForegroundColor Red
     Start-Sleep -Seconds 5

@@ -44,11 +44,10 @@ This does not establish universal source-member ordering. Logical capability lis
 ## Control Flow and Braces
 
 - `try`, `catch`, and `finally` always use braces.
-- Conditional and loop bodies use braces when they contain meaningful work or a meaningful branch result.
-- A single-line `return`, `break`, or `continue` may remain unbraced only when it functions as a trivial early escape from the current control flow.
-- Other single-statement conditional and loop bodies use braces.
-- Meaningful returns use a braced conditional branch when the return represents the result of that branch rather than merely terminating the method early.
-- Early-escape returns may remain on the same line as their controlling condition when that compact form is consistent with the surrounding method.
+- Single-statement conditional and loop bodies may remain unbraced when the body is simple and the surrounding structure remains clear.
+- A trivial early `return`, `break`, or `continue` may remain unbraced and may share the line with its controlling condition when that compact form is consistent with the surrounding method.
+- A conditional branch whose return expresses a meaningful branch result uses braces rather than the compact early-escape form.
+- Multi-statement conditional and loop bodies use braces.
 - Returns that conclude meaningful work or establish the method's resulting value remain visually separated from preceding work according to the local method structure.
 - The distinction between an early escape and a meaningful return is semantic and follows the established style of the surrounding file or type rather than the returned value itself.
 

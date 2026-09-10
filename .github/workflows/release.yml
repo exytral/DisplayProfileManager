@@ -49,25 +49,43 @@ jobs:
       - name: Restore
         run: dotnet restore DisplayProfileManager.sln
 
+      - name: Run tests
+        run: dotnet test DisplayProfileManager.Tests/DisplayProfileManager.Tests.csproj --configuration Release --no-restore -p:Platform=x64
+
+      - name: Clean release build outputs
+        shell: pwsh
+        run: |
+          Remove-Item -Recurse -Force -ErrorAction SilentlyContinue DisplayProfileManager/bin, DisplayProfileManager/obj
+          Remove-Item -Recurse -Force -ErrorAction SilentlyContinue DisplayProfileManager.ShellExt/bin, DisplayProfileManager.ShellExt/obj
+
       - name: Build x64
         run: >
           msbuild DisplayProfileManager/DisplayProfileManager.csproj
+          /restore
           /p:Configuration=Release
           /p:Platform=x64
+          /p:RuntimeIdentifier=win-x64
+          /p:SelfContained=false
           /p:SolutionDir="${{ github.workspace }}\"
 
       - name: Build x86
         run: >
           msbuild DisplayProfileManager/DisplayProfileManager.csproj
+          /restore
           /p:Configuration=Release
           /p:Platform=x86
+          /p:RuntimeIdentifier=win-x86
+          /p:SelfContained=false
           /p:SolutionDir="${{ github.workspace }}\"
 
       - name: Build ARM64
         run: >
           msbuild DisplayProfileManager/DisplayProfileManager.csproj
+          /restore
           /p:Configuration=Release
           /p:Platform=ARM64
+          /p:RuntimeIdentifier=win-arm64
+          /p:SelfContained=false
           /p:SolutionDir="${{ github.workspace }}\"
 
       - name: Build DisplayProfileManager.ShellExt x64
@@ -91,8 +109,52 @@ jobs:
           /p:Platform=ARM64
           /p:SolutionDir="${{ github.workspace }}\"
 
-      - name: Run tests
-        run: dotnet test DisplayProfileManager.Tests/DisplayProfileManager.Tests.csproj --configuration Release --no-restore -p:Platform=x64
+      - name: Validate release architecture payloads
+        shell: pwsh
+        run: |
+          function Get-PeMachine([string]$Path) {
+            $bytes = [System.IO.File]::ReadAllBytes($Path)
+            if ($bytes.Length -lt 64 -or $bytes[0] -ne 0x4D -or $bytes[1] -ne 0x5A) {
+              throw "$Path is not a PE file."
+            }
+
+            $peOffset = [BitConverter]::ToInt32($bytes, 0x3C)
+            if ($peOffset -lt 0 -or $peOffset + 6 -gt $bytes.Length) {
+              throw "$Path has an invalid PE header offset."
+            }
+
+            if ($bytes[$peOffset] -ne 0x50 -or $bytes[$peOffset + 1] -ne 0x45 -or
+                $bytes[$peOffset + 2] -ne 0 -or $bytes[$peOffset + 3] -ne 0) {
+              throw "$Path has no PE signature."
+            }
+
+            return [BitConverter]::ToUInt16($bytes, $peOffset + 4)
+          }
+
+          $expectations = @(
+            @{ Path='DisplayProfileManager/bin/x64/Release/DisplayProfileManager.exe'; Machine=0x8664 },
+            @{ Path='DisplayProfileManager/bin/x64/Release/DisplayProfileManager.dll'; Machine=0x8664 },
+            @{ Path='DisplayProfileManager/bin/x64/Release/ShellExt.dll'; Machine=0x8664 },
+            @{ Path='DisplayProfileManager/bin/x86/Release/DisplayProfileManager.exe'; Machine=0x014c },
+            @{ Path='DisplayProfileManager/bin/x86/Release/DisplayProfileManager.dll'; Machine=0x014c },
+            @{ Path='DisplayProfileManager/bin/x86/Release/ShellExt.dll'; Machine=0x014c },
+            @{ Path='DisplayProfileManager/bin/ARM64/Release/DisplayProfileManager.exe'; Machine=0xAA64 },
+            @{ Path='DisplayProfileManager/bin/ARM64/Release/DisplayProfileManager.dll'; Machine=0xAA64 },
+            @{ Path='DisplayProfileManager/bin/ARM64/Release/ShellExt.dll'; Machine=0xAA64 }
+          )
+
+          foreach ($item in $expectations) {
+            if (-not (Test-Path $item.Path)) {
+              throw "Missing release payload: $($item.Path)"
+            }
+
+            $machine = Get-PeMachine $item.Path
+            Write-Host ("{0} => 0x{1:X4}" -f $item.Path, $machine)
+
+            if ($machine -ne $item.Machine) {
+              throw ("Architecture mismatch for {0}: expected 0x{1:X4}, got 0x{2:X4}" -f $item.Path, $item.Machine, $machine)
+            }
+          }
 
       - name: Package portable zips
         shell: pwsh
@@ -163,16 +225,37 @@ jobs:
           $version = $tag.TrimStart('v')
 
           foreach ($arch in $archs) {
-            $outArch = $arch.ToLower()
-            $outputName = "DisplayProfileManager-$version-$outArch-Setup"
+            $targetArch = $arch.ToLower()
+            $outputName = "DisplayProfileManager-$version-$targetArch-Setup"
 
             & $iscc $iss `
-              "/DTargetArch=$arch" `
+              "/DTargetArch=$targetArch" `
+              "/DExpectedTargetArch=$targetArch" `
               "/DMyAppVersion=$tag" `
               "/O$PWD/dist/installers" `
               "/F$outputName"
 
             if ($LASTEXITCODE -ne 0) { exit 1 }
+          }
+
+          $expectedInstallers = @('x64', 'x86', 'arm64') | ForEach-Object {
+            "dist/installers/DisplayProfileManager-$version-$_-Setup.exe"
+          }
+
+          foreach ($installer in $expectedInstallers) {
+            if (-not (Test-Path $installer)) {
+              throw "Missing installer: $installer"
+            }
+          }
+
+          $hashes = $expectedInstallers | ForEach-Object {
+            $hash = (Get-FileHash -Algorithm SHA256 $_).Hash
+            Write-Host "$_ => $hash"
+            $hash
+          }
+
+          if (($hashes | Select-Object -Unique).Count -ne $expectedInstallers.Count) {
+            throw "Architecture installers are not distinct binaries."
           }
 
       - name: Attest build provenance
