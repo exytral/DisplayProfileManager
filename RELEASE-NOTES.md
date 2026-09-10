@@ -249,11 +249,11 @@ For a full technical breakdown, see [CHANGELOG.md](CHANGELOG.md).
 | File                                                   | Description                   |
 | ------------------------------------------------------ | ----------------------------- |
 | `DisplayProfileManager-{{VERSION}}-arm64-Portable.zip` | Portable — arm64              |
-| `DisplayProfileManager-{{VERSION}}-Setup-arm64.exe`    | Installer — arm64             |
+| `DisplayProfileManager-{{VERSION}}-arm64-Setup.exe`    | Installer — arm64             |
 | `DisplayProfileManager-{{VERSION}}-x64-Portable.zip`   | Portable — 64-bit             |
-| `DisplayProfileManager-{{VERSION}}-Setup-x64.exe`      | Installer — x64               |
+| `DisplayProfileManager-{{VERSION}}-x64-Setup.exe`      | Installer — x64               |
 | `DisplayProfileManager-{{VERSION}}-x86-Portable.zip`   | Portable — x86                |
-| `DisplayProfileManager-{{VERSION}}-Setup-x86.exe`      | Installer — x86               |
+| `DisplayProfileManager-{{VERSION}}-x86-Setup.exe`      | Installer — x86               |
 | `DPMShortcutBuilder.exe`                               | Shortcut Builder (standalone) |
 | `DPMShortcutBuilder.pyw`                               | Shortcut Builder (Python)     |
 | `DPMThemeBuilder.exe`                                  | Theme Builder (standalone)    |
