@@ -17,7 +17,7 @@ namespace DisplayProfileManager.Helpers
 
     public static class UpdateHelper
     {
-        private static readonly Logger logger = LoggerHelper.GetLogger();
+        private static readonly Logger _logger = LoggerHelper.GetLogger();
 
         private const string ReleasesApi = "https://api.github.com/repos/exytral/DisplayProfileManager/releases/latest";
         private const string ReleasesPage = "https://github.com/exytral/DisplayProfileManager/releases/latest";
@@ -42,7 +42,7 @@ namespace DisplayProfileManager.Helpers
 
                     if (string.IsNullOrWhiteSpace(tag))
                     {
-                        logger.Debug("Update check: response carried no tag_name");
+                        _logger.Debug("Update check: response carried no tag_name");
                         return null;
                     }
 
@@ -51,7 +51,7 @@ namespace DisplayProfileManager.Helpers
 
                     if (latest == null || current == null)
                     {
-                        logger.Debug($"Update check: could not compare '{tag}' against running version");
+                        _logger.Debug($"Update check: could not compare '{tag}' against running version");
                         return null;
                     }
 
@@ -66,16 +66,16 @@ namespace DisplayProfileManager.Helpers
                     };
 
                     if (isNewer && !clearedCooldown)
-                        logger.Info($"Update check: {latest} is available but still inside {ReleaseDaysCooldown}-day cooldown window");
+                        _logger.Info($"Update check: {latest} is available but still inside {ReleaseDaysCooldown}-day cooldown window");
                     else
-                        logger.Info($"Update check: running {current}, latest {latest}");
+                        _logger.Info($"Update check: running {current}, latest {latest}");
 
                     return result;
                 }
             }
             catch (Exception ex)
             {
-                logger.Debug(ex, "Update check failed");
+                _logger.Debug(ex, "Update check failed");
                 return null;
             }
         }

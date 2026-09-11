@@ -8,7 +8,7 @@ namespace DisplayProfileManager.Helpers
 {
     public class AudioHelper
     {
-        private static readonly Logger logger = LoggerHelper.GetLogger();
+        private static readonly Logger _logger = LoggerHelper.GetLogger();
         private static readonly object _lock = new object();
         private static readonly Dictionary<string, (string Name, DateTime Discovered)> _deviceCache = new Dictionary<string, (string Name, DateTime Discovered)>();
 
@@ -117,12 +117,8 @@ namespace DisplayProfileManager.Helpers
 
         #endregion
 
-        #region P/Invoke
-
         [DllImport("ole32.dll")]
         private static extern int PropVariantClear(ref PROPVARIANT pvar);
-
-        #endregion
 
         public enum DeviceType
         {
@@ -168,7 +164,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Warn(ex, "Failed to read device friendly name from property store");
+                _logger.Warn(ex, "Failed to read device friendly name from property store");
                 return null;
             }
             finally
@@ -227,7 +223,7 @@ namespace DisplayProfileManager.Helpers
                         }
                         catch (Exception ex)
                         {
-                            logger.Error(ex, "Error processing playback device");
+                            _logger.Error(ex, "Error processing playback device");
                         }
                         finally
                         {
@@ -239,7 +235,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "GetPlaybackDevices failed");
+                _logger.Error(ex, "GetPlaybackDevices failed");
             }
             finally
             {
@@ -277,7 +273,7 @@ namespace DisplayProfileManager.Helpers
                         }
                         catch (Exception ex)
                         {
-                            logger.Error(ex, "Error processing capture device");
+                            _logger.Error(ex, "Error processing capture device");
                         }
                         finally
                         {
@@ -289,7 +285,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "GetCaptureDevices failed");
+                _logger.Error(ex, "GetCaptureDevices failed");
             }
             finally
             {
@@ -318,7 +314,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "GetDefaultPlaybackDevice failed");
+                _logger.Error(ex, "GetDefaultPlaybackDevice failed");
                 return null;
             }
             finally
@@ -346,7 +342,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "GetDefaultCaptureDevice failed");
+                _logger.Error(ex, "GetDefaultCaptureDevice failed");
                 return null;
             }
             finally
@@ -377,7 +373,7 @@ namespace DisplayProfileManager.Helpers
 
                 if (hr1 != 0 || hr2 != 0 || hr3 != 0)
                 {
-                    logger.Warn($"SetDefaultEndpoint partial failure — HRESULT console={hr1:X} multimedia={hr2:X} comms={hr3:X}");
+                    _logger.Warn($"SetDefaultEndpoint partial failure — HRESULT console={hr1:X} multimedia={hr2:X} comms={hr3:X}");
 
                     return false;
                 }
@@ -386,7 +382,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Error(ex, $"SetDefaultEndpoint failed for {deviceId}");
+                _logger.Error(ex, $"SetDefaultEndpoint failed for {deviceId}");
                 return false;
             }
             finally
@@ -400,7 +396,7 @@ namespace DisplayProfileManager.Helpers
         {
             if (string.IsNullOrEmpty(deviceId))
             {
-                logger.Warn("SetDefaultPlaybackDevice called with null/empty ID");
+                _logger.Warn("SetDefaultPlaybackDevice called with null/empty ID");
                 return false;
             }
 
@@ -413,7 +409,7 @@ namespace DisplayProfileManager.Helpers
 
                 if (enumerator.GetDevice(deviceId, out device) != 0 || device == null)
                 {
-                    logger.Warn($"Playback device not found: {deviceId}");
+                    _logger.Warn($"Playback device not found: {deviceId}");
                     return false;
                 }
 
@@ -422,14 +418,14 @@ namespace DisplayProfileManager.Helpers
                 if (result)
                 {
                     device.GetId(out var id);
-                    logger.Info($"Set default playback device: {GetCachedName(id) ?? deviceId}");
+                    _logger.Info($"Set default playback device: {GetCachedName(id) ?? deviceId}");
                 }
 
                 return result;
             }
             catch (Exception ex)
             {
-                logger.Error(ex, $"SetDefaultPlaybackDevice failed: {deviceId}");
+                _logger.Error(ex, $"SetDefaultPlaybackDevice failed: {deviceId}");
                 return false;
             }
             finally
@@ -446,7 +442,7 @@ namespace DisplayProfileManager.Helpers
         {
             if (string.IsNullOrEmpty(deviceId))
             {
-                logger.Warn("SetDefaultCaptureDevice called with null/empty ID");
+                _logger.Warn("SetDefaultCaptureDevice called with null/empty ID");
                 return false;
             }
 
@@ -459,7 +455,7 @@ namespace DisplayProfileManager.Helpers
 
                 if (enumerator.GetDevice(deviceId, out device) != 0 || device == null)
                 {
-                    logger.Warn($"Capture device not found: {deviceId}");
+                    _logger.Warn($"Capture device not found: {deviceId}");
                     return false;
                 }
 
@@ -468,14 +464,14 @@ namespace DisplayProfileManager.Helpers
                 if (result)
                 {
                     device.GetId(out var id);
-                    logger.Info($"Set default capture device: {GetCachedName(id) ?? deviceId}");
+                    _logger.Info($"Set default capture device: {GetCachedName(id) ?? deviceId}");
                 }
 
                 return result;
             }
             catch (Exception ex)
             {
-                logger.Error(ex, $"SetDefaultCaptureDevice failed: {deviceId}");
+                _logger.Error(ex, $"SetDefaultCaptureDevice failed: {deviceId}");
                 return false;
             }
             finally
@@ -492,7 +488,7 @@ namespace DisplayProfileManager.Helpers
         {
             if (audioSettings == null)
             {
-                logger.Debug("No audio settings to apply");
+                _logger.Debug("No audio settings to apply");
                 return true;
             }
 
@@ -506,15 +502,15 @@ namespace DisplayProfileManager.Helpers
                     {
                         if (!SetDefaultPlaybackDevice(audioSettings.DefaultPlaybackDeviceId))
                         {
-                            logger.Warn($"Failed to set playback device: {audioSettings.PlaybackDeviceName}");
+                            _logger.Warn($"Failed to set playback device: {audioSettings.PlaybackDeviceName}");
                             allSucceeded = false;
                         }
                     }
                     else
-                        logger.Debug("Playback apply enabled but no device configured");
+                        _logger.Debug("Playback apply enabled but no device configured");
                 }
                 else
-                    logger.Debug("Playback device apply disabled");
+                    _logger.Debug("Playback device apply disabled");
 
                 if (audioSettings.ApplyCaptureDevice)
                 {
@@ -522,24 +518,24 @@ namespace DisplayProfileManager.Helpers
                     {
                         if (!SetDefaultCaptureDevice(audioSettings.DefaultCaptureDeviceId))
                         {
-                            logger.Warn($"Failed to set capture device: {audioSettings.CaptureDeviceName}");
+                            _logger.Warn($"Failed to set capture device: {audioSettings.CaptureDeviceName}");
                             allSucceeded = false;
                         }
                     }
                     else
-                        logger.Debug("Capture device apply enabled but no device configured");
+                        _logger.Debug("Capture device apply enabled but no device configured");
                 }
                 else
-                    logger.Debug("Capture device apply disabled");
+                    _logger.Debug("Capture device apply disabled");
 
                 if (!allSucceeded)
-                    logger.Warn("Some audio settings failed to apply");
+                    _logger.Warn("Some audio settings failed to apply");
 
                 return allSucceeded;
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error applying audio settings");
+                _logger.Error(ex, "Error applying audio settings");
                 return false;
             }
         }
@@ -585,7 +581,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "WMI Bluetooth name lookup failed");
+                _logger.Error(ex, "WMI Bluetooth name lookup failed");
             }
 
             return null;

@@ -10,7 +10,7 @@ namespace DisplayProfileManager.UI.Windows
 {
     public partial class MonitorIdentifyWindow : Window
     {
-        private static readonly Logger logger = LoggerHelper.GetLogger();
+        private static readonly Logger _logger = LoggerHelper.GetLogger();
 
         private DispatcherTimer _closeTimer;
         private double _targetLeft;
@@ -58,7 +58,7 @@ namespace DisplayProfileManager.UI.Windows
             IntPtr hwnd = helper.Handle;
 
             if (!SetWindowPos(hwnd, IntPtr.Zero, (int)_targetLeft, (int)_targetTop, 0, 0, SwpNosize | SwpNozorder | SwpNoactivate))
-                logger.Warn("Failed to position monitor identify window at Left:{Left}, Top:{Top}", _targetLeft, _targetTop);
+                _logger.Warn("Failed to position monitor identify window at Left:{Left}, Top:{Top}", _targetLeft, _targetTop);
 
             _closeTimer.Start();
         }

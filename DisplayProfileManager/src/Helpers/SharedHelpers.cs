@@ -11,7 +11,7 @@ namespace DisplayProfileManager.Helpers
 {
     public static class FileHelper
     {
-        private static readonly Logger logger = LoggerHelper.GetLogger();
+        private static readonly Logger _logger = LoggerHelper.GetLogger();
 
         public static void AtomicWrite(string path, string content)
         {
@@ -53,7 +53,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Error(ex, $"Atomic write failed for {Path.GetFileName(path)} -> existing file is unchanged");
+                _logger.Error(ex, $"Atomic write failed for {Path.GetFileName(path)} -> existing file is unchanged");
                 throw;
             }
             finally
@@ -76,7 +76,7 @@ namespace DisplayProfileManager.Helpers
 
                         File.Delete(file);
 
-                        logger.Warn($"Removed orphaned temp file: {Path.GetFileName(file)}");
+                        _logger.Warn($"Removed orphaned temp file: {Path.GetFileName(file)}");
                     }
                     catch { }
                 }

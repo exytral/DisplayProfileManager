@@ -179,6 +179,8 @@ jobs:
               Copy-Item -Path $runtimes -Destination $dest -Recurse -Force
             }
 
+            Copy-Item -Path "LICENSE", "THIRD-PARTY-LICENSES.md" -Destination $dest
+
             $outArch = $arch.ToLower()
             $zip = "dist/DisplayProfileManager-$version-$outArch-Portable.zip"
 
@@ -186,34 +188,175 @@ jobs:
           }
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          python-version: "3.x"
+          python-version: "3.13.15"
 
       - name: Install PyInstaller and dependencies
-        run: pip install pyinstaller requests
+        run: pip install -r DPMBuilder/requirements-build.txt
+
+      - name: Verify Builder dependencies
+        shell: pwsh
+        run: |
+          python -c "import sys; from importlib.metadata import version; import PyInstaller, pythoncom, win32com.client; assert sys.version_info[:3] == (3, 13, 15); assert PyInstaller.__version__ == '6.22.2'; assert version('pywin32') == '312'; assert version('pyinstaller-hooks-contrib') == '2026.7'; print('Builder dependency imports PASS')"
+          pip check
 
       - name: Build DPMShortcutBuilder executable
         shell: pwsh
         run: |
+          $env:PATH = "$env:pythonLocation;$env:pythonLocation\Scripts;$env:SystemRoot\System32;$env:SystemRoot"
           cd DPMBuilder
-          pyinstaller `
+          python -m PyInstaller `
             --onefile `
             --windowed `
             --icon="icon.ico" `
             --name="DPMShortcutBuilder" `
+            --exclude-module=win32ui `
             DPMShortcutBuilder.pyw
+
+      - name: Validate DPMShortcutBuilder bundle dependencies
+        shell: pwsh
+        run: |
+          $analysis = Get-Content "DPMBuilder/build/DPMShortcutBuilder/Analysis-00.toc" -Raw
+          $package = Get-Content "DPMBuilder/build/DPMShortcutBuilder/PKG-00.toc" -Raw
+
+          foreach ($required in @('win32com', 'pythoncom')) {
+            if ($analysis -notmatch $required) {
+              throw "DPMShortcutBuilder bundle is missing $required."
+            }
+          }
+
+          foreach ($required in @(
+            'pythoncom313.dll', 'pywintypes313.dll', 'tcl86t.dll', 'tk86t.dll',
+            'libcrypto-3.dll', 'libffi-8.dll', 'zlib1.dll', '_bz2.pyd', '_lzma.pyd', '_decimal.pyd',
+            'VCRUNTIME140.dll', 'VCRUNTIME140_1.dll'
+          )) {
+            if ($package -notmatch [regex]::Escape($required)) {
+              throw "DPMShortcutBuilder package is missing $required."
+            }
+          }
+
+          foreach ($forbidden in @('win32ui.pyd', 'mfc140u.dll', 'ImageMagick', 'Java_Temurin')) {
+            if ($analysis -match [regex]::Escape($forbidden) -or $package -match [regex]::Escape($forbidden)) {
+              throw "DPMShortcutBuilder contains unexpected dependency: $forbidden"
+            }
+          }
 
       - name: Build DPMThemeBuilder executable
         shell: pwsh
         run: |
+          $env:PATH = "$env:pythonLocation;$env:pythonLocation\Scripts;$env:SystemRoot\System32;$env:SystemRoot"
           cd DPMBuilder
-          pyinstaller `
+          python -m PyInstaller `
             --onefile `
             --windowed `
             --icon="icon.ico" `
             --name="DPMThemeBuilder" `
             DPMThemeBuilder.pyw
+
+      - name: Validate DPMThemeBuilder bundle dependencies
+        shell: pwsh
+        run: |
+          $analysis = Get-Content "DPMBuilder/build/DPMThemeBuilder/Analysis-00.toc" -Raw
+          $package = Get-Content "DPMBuilder/build/DPMThemeBuilder/PKG-00.toc" -Raw
+
+          foreach ($required in @(
+            'tcl86t.dll', 'tk86t.dll', 'libcrypto-3.dll', 'libssl-3.dll',
+            'libffi-8.dll', 'zlib1.dll', '_bz2.pyd', '_lzma.pyd', '_decimal.pyd', 'VCRUNTIME140.dll'
+          )) {
+            if ($package -notmatch [regex]::Escape($required)) {
+              throw "DPMThemeBuilder package is missing $required."
+            }
+          }
+
+          foreach ($forbidden in @('ImageMagick', 'Java_Temurin')) {
+            if ($analysis -match [regex]::Escape($forbidden) -or $package -match [regex]::Escape($forbidden)) {
+              throw "DPMThemeBuilder contains unexpected dependency: $forbidden"
+            }
+          }
+
+      - name: Validate Builder third-party licenses
+        shell: pwsh
+        run: |
+          $noticePath = "DPMBuilder/THIRD-PARTY-LICENSES.md"
+          if (-not (Test-Path $noticePath)) {
+            throw "Builder third-party license document is missing."
+          }
+
+          $notice = Get-Content -Raw $noticePath
+          foreach ($required in @(
+            "PYTHON SOFTWARE FOUNDATION LICENSE VERSION 2",
+            "bzip2/libbzip2 version 1.0.8",
+            "libffi - Copyright",
+            "Copyright (c) 2008-2024 Stefan Krah",
+            "Apache License",
+            "This software is copyrighted by the Regents of the University of",
+            "Apple Inc. and other parties.",
+            "XZ Utils Licensing",
+            "Jean-loup Gailly and Mark Adler",
+            "Bootloader Exception",
+            "PyInstaller Community Hooks — runtime hooks",
+            "Copyright (c) 2022, PyInstaller Development Team.",
+            "Copyright (c) 1996-2008, Greg Stein and Mark Hammond.",
+            "Copyright (c) 1994-2008, Mark Hammond",
+            "Microsoft Visual C++ Runtime"
+          )) {
+            if (-not $notice.Contains($required)) {
+              throw "Builder third-party license document is missing required notice text: $required"
+            }
+          }
+
+      - name: Package Builder archives
+        shell: pwsh
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          $env:VERSION = $env:VERSION.TrimStart('v')
+          $builders = @(
+            @{ Name = 'DPMShortcutBuilder'; Source = 'DPMBuilder/DPMShortcutBuilder.pyw' },
+            @{ Name = 'DPMThemeBuilder'; Source = 'DPMBuilder/DPMThemeBuilder.pyw' }
+          )
+
+          foreach ($builder in $builders) {
+            $name = $builder.Name
+            $stage = "dist/builders/$name"
+            $archive = "dist/builders/$name-$env:VERSION.zip"
+
+            Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $stage
+            New-Item -ItemType Directory -Force -Path $stage | Out-Null
+            Copy-Item "DPMBuilder/dist/$name.exe" -Destination $stage
+            Copy-Item $builder.Source -Destination $stage
+            Copy-Item "DPMBuilder/LICENSE" -Destination $stage
+            Copy-Item "DPMBuilder/THIRD-PARTY-LICENSES.md" -Destination $stage
+
+            Compress-Archive -Path "$stage/*" -DestinationPath $archive -Force
+            if (-not (Test-Path $archive)) {
+              throw "Builder archive was not created: $archive"
+            }
+
+            $zip = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $archive))
+            try {
+              $actualEntries = @($zip.Entries | ForEach-Object { $_.FullName } | Sort-Object)
+            }
+            finally {
+              $zip.Dispose()
+            }
+
+            $expectedEntries = @(
+              "$name.exe",
+              "$name.pyw",
+              "LICENSE",
+              "THIRD-PARTY-LICENSES.md"
+            ) | Sort-Object
+
+            if (Compare-Object $expectedEntries $actualEntries) {
+              Write-Host 'Expected archive entries:'
+              $expectedEntries
+              Write-Host 'Actual archive entries:'
+              $actualEntries
+              throw "Builder archive contents are incorrect: $archive"
+            }
+          }
 
       - name: Build installers
         shell: pwsh
@@ -264,6 +407,7 @@ jobs:
           subject-path: |
             dist/installers/*.exe
             dist/*.zip
+            dist/builders/*.zip
 
       - name: Parse Release File
         id: parse_release
@@ -332,10 +476,7 @@ jobs:
           files: |
             dist/installers/*.exe
             dist/*.zip
-            DPMBuilder/dist/DPMShortcutBuilder.exe
-            DPMBuilder/DPMShortcutBuilder.pyw
-            DPMBuilder/dist/DPMThemeBuilder.exe
-            DPMBuilder/DPMThemeBuilder.pyw
+            dist/builders/*.zip
 
       - name: Downgrade previous release
         shell: pwsh

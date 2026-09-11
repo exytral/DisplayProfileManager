@@ -1,4 +1,4 @@
-using DisplayProfileManager.Helpers;
+﻿using DisplayProfileManager.Helpers;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -25,18 +25,12 @@ namespace DisplayProfileManager.Core
         public int SchemaVersion { get; set; } = 0;
         [JsonProperty("displaySettings")]
         public List<DisplaySetting> DisplaySettings { get; set; } = new List<DisplaySetting>();
-        [JsonProperty("enableWallpaper")]
-        public bool EnableWallpaper { get; set; } = false;
         [JsonProperty("wallpaperSettings")]
         public WallpaperSettings WallpaperSettings { get; set; } = null;
-        [JsonProperty("enableAudio")]
-        public bool EnableAudio { get; set; } = false;
         [JsonProperty("audioSettings")]
         public AudioSetting AudioSettings { get; set; } = new AudioSetting();
-        [JsonProperty("enableScripts")]
-        public bool EnableScripts { get; set; } = false;
-        [JsonProperty("scripts")]
-        public List<Script> Scripts { get; set; } = new List<Script>();
+        [JsonProperty("scriptSettings")]
+        public ScriptSettings ScriptSettings { get; set; } = new ScriptSettings();
         [JsonProperty("hotkeyConfig")]
         public HotkeyConfig HotkeyConfig { get; set; } = new HotkeyConfig();
 
@@ -46,9 +40,41 @@ namespace DisplayProfileManager.Core
         {
             Name = name;
             Description = description;
+            SchemaVersion = ProfileManager.CurrentSchemaVersion;
         }
 
         public void UpdateLastModified() => LastModifiedDate = DateTime.Now;
+
+        internal Profile CreateWorkingCopy()
+        {
+            var clone = JsonConvert.DeserializeObject<Profile>(JsonConvert.SerializeObject(this));
+            if (clone == null)
+                throw new InvalidOperationException("Could not create profile working copy.");
+
+            int displayCount = Math.Min(DisplaySettings?.Count ?? 0, clone.DisplaySettings?.Count ?? 0);
+            for (int i = 0; i < displayCount; i++)
+            {
+                var source = DisplaySettings[i];
+                var target = clone.DisplaySettings[i];
+
+                target.AdapterLuid = source.AdapterLuid;
+                target.OriginalSettings = source.OriginalSettings;
+                target.OriginalPositionX = source.OriginalPositionX;
+                target.OriginalPositionY = source.OriginalPositionY;
+                target.OriginalSourceId = source.OriginalSourceId;
+                target.OriginalIsPrimary = source.OriginalIsPrimary;
+                target.OriginalWidth = source.OriginalWidth;
+                target.OriginalHeight = source.OriginalHeight;
+                target.OriginalFrequency = source.OriginalFrequency;
+                target.OriginalRotation = source.OriginalRotation;
+                target.OriginalDpiScaling = source.OriginalDpiScaling;
+                target.OriginalIsHdrEnabled = source.OriginalIsHdrEnabled;
+                target.OriginalIsAcmEnabled = source.OriginalIsAcmEnabled;
+                target.OriginalColorProfile = source.OriginalColorProfile;
+            }
+
+            return clone;
+        }
 
         public override string ToString() => Name;
     }
@@ -197,6 +223,8 @@ namespace DisplayProfileManager.Core
 
     public class AudioSetting
     {
+        [JsonProperty("enabled")]
+        public bool Enabled { get; set; } = false;
         [JsonProperty("defaultPlaybackDeviceId")]
         public string DefaultPlaybackDeviceId { get; set; } = string.Empty;
         [JsonProperty("defaultCaptureDeviceId")]

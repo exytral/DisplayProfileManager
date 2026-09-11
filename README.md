@@ -14,7 +14,7 @@ A lightweight Windows desktop application for managing display profiles — save
 
 ### 🖥️ Display Profiles
 
-- 🗂️ **Unlimited display profiles** — save, edit, and switch desktop presets
+- 🗂️ **Custom display profiles** — save, edit, and switch desktop presets
 - 📺 **Full per-monitor control** — configure enable/disable state, primary display, resolution, refresh rate, rotation, DPI, HDR/ACM, and color profile
 - 🪞 **Flexible monitor layouts** — extend or clone displays in any combination
 - 🛡️ **Apply failure recovery** — stop on display-configuration failure and safely roll back to the previous profile or a desktop snapshot
@@ -67,12 +67,13 @@ A lightweight Windows desktop application for managing display profiles — save
 
 ### Requirements
 
-- [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0)
-- Windows 10 version 1709+
+- **Windows:** A [Windows client release supported by .NET 10](https://learn.microsoft.com/en-us/dotnet/core/install/windows#supported-versions). Windows 10 support is limited to LTSC/Enterprise releases.
+- **Runtime:** [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0)
+- **HDR:** Windows 10 version 1709 or later provides the legacy Advanced Color API path
+- **ACM:** Windows 11 22H2 or later on supported displays
+- **Dedicated HDR/ACM APIs:** Windows 11 24H2 or later
 
-> HDR support requires Windows 10 version 1709+\
-> ACM support on supported displays requires Windows 11 22H2+\
-> Dedicated HDR/ACM API support requires Windows 11 24H2+
+> The feature-version floors above do not expand the base operating-system support established by the .NET 10 support matrix.
 
 ---
 
@@ -89,12 +90,13 @@ A lightweight Windows desktop application for managing display profiles — save
 
 ## 📝 License
 
-MIT + Commons Clause — see [LICENSE](LICENSE) for details. Third-party licenses: [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md).
+Display Profile Manager uses MIT + Commons Clause — see [LICENSE](LICENSE) for details. The Builder tools use the same terms with Builder-specific attribution in [DPMBuilder/LICENSE](DPMBuilder/LICENSE). Application third-party licenses: [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md). Builder third-party licenses: [DPMBuilder/THIRD-PARTY-LICENSES.md](DPMBuilder/THIRD-PARTY-LICENSES.md).
 
 ## 🙏 Acknowledgments
 
 - **[Newtonsoft.Json](https://www.newtonsoft.com/json)** (MIT) — JSON serialization
-- **[NLog](https://nlog-project.org/)** (BSD-3-Clause) — Logging
+- **[NLog](https://nlog-project.org/)** (BSD-3-Clause) — logging
+- **[System.Management](https://www.nuget.org/packages/System.Management/)** (MIT) — Windows system-management APIs
 
 ### 🤝 Contributors
 
@@ -124,7 +126,7 @@ See [AGENTS.md](./AGENTS.md) for architecture, display engine details, project s
 
 ### Prerequisites
 
-- Visual Studio 2022 or later
+- Visual Studio 2026 version 18.0 or later
 - .NET 10 SDK
 - Desktop development with C++ workload for the shell extension
 

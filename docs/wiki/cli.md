@@ -1,6 +1,6 @@
 # CLI Reference
 
-Display Profile Manager accepts command-line arguments for profile application, theme switching, and other application actions. Commands are forwarded to a running instance through named-pipe IPC when possible; otherwise supported commands run locally in a new process.
+Display Profile Manager accepts command-line arguments for profile application, theme switching, and other application actions. Normal startup first establishes single-instance authority. Additional invocations forward applicable commands to the authoritative instance; an invocation executes supported commands locally only when it owns that authority.
 
 > Looking to switch profiles automatically when launching a game or app? **[DPM Shortcut Builder](#dpm-shortcut-builder)** creates augmented shortcuts without manual scripting.
 
@@ -63,7 +63,7 @@ DisplayProfileManager.exe --tray
 
 ### `--exit`
 
-Gracefully exit the running DPM instance. When a running instance is available, the command is forwarded through IPC and the invoking process exits. When no running instance is available, the command exits without effect. Exact match only.
+Gracefully exit the running Display Profile Manager instance. When a running instance is available, the command is forwarded through IPC and the invoking process exits. When no running instance is available, the command exits without effect. Exact match only.
 
 ```text
 DisplayProfileManager.exe --exit
@@ -122,13 +122,14 @@ When several flags are combined:
 
 ## IPC behavior
 
-The application first attempts to forward commands to a running instance through `DPM_IpcPipe.{sessionId}`. When no running instance is available, supported commands fall back to local execution.
+Normal non-development startup acquires the session's single-instance mutex before deciding where a command may execute. If another process already owns that authority, the additional invocation forwards commands through `DPM_IpcPipe.{sessionId}` and never executes them locally merely because the pipe is still starting.
 
-- `--profile`, `--headless` — forward profile application to a running instance when available; otherwise, apply locally.
+For command-bearing secondary invocations, pipe connection waits for the authoritative process to finish initialization. If that process owns the mutex but its IPC endpoint does not become ready within the bounded wait, the secondary invocation exits with failure instead of applying a profile or theme independently. The primary exposes its IPC listener only after settings, profiles, themes, hotkeys, and profile-event wiring are initialized.
+
+- `--profile`, `--headless` — forward to an existing authoritative instance; otherwise, the invocation that owns authority applies locally.
 - `--headless` never creates the main window or tray icon.
-- `--theme "Theme"` — forward the named theme to a running instance when available; otherwise, apply it locally.
-- `--theme` with no name — refreshes the current theme when a running instance is available; otherwise, it does nothing.
-- `--refresh` — requires a running instance and does nothing when none is available.
+- `--theme "Theme"` — forwards to an existing authoritative instance; otherwise, the invocation that owns authority can persist the named theme locally.
+- `--theme` with no name and `--refresh` — require an already running authoritative instance.
 - `--exit` — requires a running instance; when none is available, the invoking process exits without starting the application.
 
 See [Precedence when flags are combined](#precedence-when-flags-are-combined) above for what happens when multiple flags are given at once.
@@ -207,9 +208,9 @@ Run it from a shortcut in `shell:startup` when automatic Big Picture Mode switch
 
 DPM Shortcut Builder (`DPMShortcutBuilder.pyw`) is a standalone Python tool for creating launch shortcuts that switch a display profile before starting an application and restore a selected profile on exit.
 
-**Requirements:** Python 3.8+ with Tkinter. `pywin32` is required for `.lnk` generation when using the Python version.
+**Requirements:** Python 3.10+ with Tkinter. `pywin32` is required for `.lnk` generation when using the Python version.
 
-> The standalone `DPMShortcutBuilder.exe` bundles its Python dependencies.
+> The release package contains `DPMShortcutBuilder.exe`, `DPMShortcutBuilder.pyw`, the Builder license, and Builder third-party notices. The executable bundles its Python dependencies and does not require a separate Python installation.
 
 ![Shortcut Builder](../img/shortcut-builder.png)
 

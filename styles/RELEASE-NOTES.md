@@ -26,6 +26,15 @@ A release section uses a second-level heading whose title begins with its litera
 
 Do not force every release into the same hierarchy. Small maintenance releases may use one section; larger releases may use several product-surface sections.
 
+### Release-size granularity
+
+Release-note depth should reflect what defines the release rather than a fixed bullet count.
+
+- Minor feature releases such as `2.x.0` may condense numerous supporting fixes into a broader refinement entry when those fixes are secondary to the release's main features.
+- Patch releases such as `2.x.y` may keep more individual user-visible correctness fixes because those fixes can be the primary substance of the release.
+- Do not over-condense a maintenance release merely to make it resemble a feature release.
+- The extra detail allowed for a maintenance release does not make implementation-only changes user-facing; internal schema mechanics, repository maintenance, and routine packaging still follow the normal omission rules.
+
 ### Current Release
 
 The current release contains three source blocks, in this order:
@@ -155,8 +164,12 @@ Usually omit:
 - minor cleanup
 - trivial UI adjustments
 - implementation-only details
+- transparent profile-schema or persistence-format migrations that require no user action and preserve existing behavior
+- repository, attribution, license-notice, or packaging bookkeeping that does not change how users install or use the application
 - routine maintenance that does not meaningfully affect users
 - repeated download tables and requirements from historical release sections
+
+Include a schema or compatibility item when users must take action, compatibility is intentionally changed, or the persisted-format change itself is meaningfully user-facing.
 
 Include a cleanup or maintenance item when it is unusually significant for the release or fixes an important user-visible problem. A release that includes a deliberate broad cleanup or refactor pass may retain a concise cleanup entry even when the individual cleanup changes are not user-facing features.
 

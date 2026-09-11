@@ -3,7 +3,7 @@ DPM Theme Builder
 Converts tinted-theming Base16 / Base24 YAML schemes to the WPF
 ResourceDictionary format used by Display Profile Manager.
 
-Requirements: Python 3.8+ with Tkinter (standard on Windows).
+Requirements: Python 3.10+ with Tkinter (standard on Windows).
   No third-party packages required.
   Optional: pip install pyyaml  — more robust YAML parsing.
 

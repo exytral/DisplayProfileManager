@@ -1,8 +1,8 @@
-using DisplayProfileManager.Core;
+﻿using DisplayProfileManager.Core;
 using DisplayProfileManager.Helpers;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
-using System.Linq;
+using System.Collections.Generic;
 
 namespace DisplayProfileManager.Tests.Tests
 {
@@ -47,12 +47,21 @@ namespace DisplayProfileManager.Tests.Tests
 
         [TestMethod]
         [TestCategory("Unit")]
+        public void Profile_NameConstructor_UsesCurrentSchemaVersion()
+        {
+            var profile = new Profile("Profile");
+
+            Assert.AreEqual(ProfileManager.CurrentSchemaVersion, profile.SchemaVersion);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
         public void UpdateLastModified_AdvancesLastModifiedDate()
         {
             var profile = new Profile("Profile");
-            var before = profile.LastModifiedDate;
+            var before = DateTime.Now.AddDays(-1);
+            profile.LastModifiedDate = before;
 
-            System.Threading.Thread.Sleep(10);
             profile.UpdateLastModified();
 
             Assert.IsTrue(profile.LastModifiedDate > before, "LastModifiedDate must advance after UpdateLastModified().");
@@ -65,7 +74,6 @@ namespace DisplayProfileManager.Tests.Tests
             var profile = new Profile("Profile");
             var created = profile.CreatedDate;
 
-            System.Threading.Thread.Sleep(10);
             profile.UpdateLastModified();
 
             Assert.AreEqual(created, profile.CreatedDate, "CreatedDate must not change on UpdateLastModified().");
@@ -92,39 +100,131 @@ namespace DisplayProfileManager.Tests.Tests
 
         [TestMethod]
         [TestCategory("Unit")]
-        public void Profile_DefaultConstructor_EnableWallpaperIsFalse()
+        public void Profile_DefaultConstructor_WallpaperSettingsIsNull()
         {
             var profile = new Profile();
 
-            Assert.IsFalse(profile.EnableWallpaper);
+            Assert.IsNull(profile.WallpaperSettings);
         }
 
         [TestMethod]
         [TestCategory("Unit")]
-        public void Profile_DefaultConstructor_HasEmptyAudioSettings()
+        public void Profile_DefaultConstructor_AudioSettingsAreDisabled()
         {
             var profile = new Profile();
 
-            Assert.IsFalse(profile.EnableAudio);
+            Assert.IsNotNull(profile.AudioSettings);
+            Assert.IsFalse(profile.AudioSettings.Enabled);
         }
 
         [TestMethod]
         [TestCategory("Unit")]
-        public void Profile_DefaultConstructor_EnableScriptsIsFalse()
+        public void Profile_DefaultConstructor_ScriptSettingsAreDisabledAndEmpty()
         {
             var profile = new Profile();
 
-            Assert.IsFalse(profile.EnableScripts);
+            Assert.IsNotNull(profile.ScriptSettings);
+            Assert.IsFalse(profile.ScriptSettings.Enabled);
+            Assert.IsNotNull(profile.ScriptSettings.Scripts);
+            Assert.AreEqual(0, profile.ScriptSettings.Scripts.Count);
         }
 
         [TestMethod]
         [TestCategory("Unit")]
-        public void Profile_DefaultConstructor_HasEmptyScripts()
+        public void CreateWorkingCopy_DetachesNestedPersistedState()
         {
-            var profile = new Profile();
+            var profile = new Profile("Original")
+            {
+                AudioSettings = new AudioSetting { Enabled = true, PlaybackDeviceName = "Speakers" },
+                ScriptSettings = new ScriptSettings
+                {
+                    Enabled = true,
+                    Scripts = new List<Script> { new Script { FileName = "before.cmd", Arguments = "one", IsEnabled = true } }
+                },
+                WallpaperSettings = new WallpaperSettings
+                {
+                    Enabled = true,
+                    SlideshowConfig = new SlideshowConfig { SourcePaths = new List<string> { @"C:\Before" } },
+                    PerMonitor = new Dictionary<string, MonitorWallpaper>
+                    {
+                        ["DISPLAY1"] = new MonitorWallpaper { Path = @"C:\before.png" }
+                    }
+                },
+                HotkeyConfig = new HotkeyConfig(System.Windows.Input.Key.F1, System.Windows.Input.ModifierKeys.Control, true)
+            };
+            profile.DisplaySettings.Add(new DisplaySetting
+            {
+                DeviceName = "DISPLAY1",
+                AvailableResolutions = new List<string> { "1920x1080" },
+                AvailableRefreshRates = new Dictionary<string, List<int>> { ["1920x1080"] = new List<int> { 60, 120 } },
+                AvailableDpiScaling = new List<uint> { 100, 125 }
+            });
 
-            Assert.IsNotNull(profile.Scripts);
-            Assert.AreEqual(0, profile.Scripts.Count);
+            var copy = profile.CreateWorkingCopy();
+            copy.Name = "Changed";
+            copy.AudioSettings.PlaybackDeviceName = "Changed";
+            copy.ScriptSettings.Scripts[0].FileName = "changed.cmd";
+            copy.WallpaperSettings.SlideshowConfig.SourcePaths[0] = @"C:\Changed";
+            copy.WallpaperSettings.PerMonitor["DISPLAY1"].Path = @"C:\changed.png";
+            copy.HotkeyConfig.Key = System.Windows.Input.Key.F2;
+            copy.DisplaySettings[0].AvailableResolutions[0] = "2560x1440";
+            copy.DisplaySettings[0].AvailableRefreshRates["1920x1080"][0] = 75;
+            copy.DisplaySettings[0].AvailableDpiScaling[0] = 150;
+
+            Assert.AreEqual("Original", profile.Name);
+            Assert.AreEqual("Speakers", profile.AudioSettings.PlaybackDeviceName);
+            Assert.AreEqual("before.cmd", profile.ScriptSettings.Scripts[0].FileName);
+            Assert.AreEqual(@"C:\Before", profile.WallpaperSettings.SlideshowConfig.SourcePaths[0]);
+            Assert.AreEqual(@"C:\before.png", profile.WallpaperSettings.PerMonitor["DISPLAY1"].Path);
+            Assert.AreEqual(System.Windows.Input.Key.F1, profile.HotkeyConfig.Key);
+            Assert.AreEqual("1920x1080", profile.DisplaySettings[0].AvailableResolutions[0]);
+            Assert.AreEqual(60, profile.DisplaySettings[0].AvailableRefreshRates["1920x1080"][0]);
+            Assert.AreEqual(100u, profile.DisplaySettings[0].AvailableDpiScaling[0]);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void CreateWorkingCopy_PreservesRuntimeCloneRestorationState()
+        {
+            var profile = new Profile("Clone");
+            profile.DisplaySettings.Add(new DisplaySetting
+            {
+                AdapterLuid = new DisplayConfigHelper.LUID { LowPart = 17, HighPart = 23 },
+                OriginalSettings = true,
+                OriginalPositionX = 10,
+                OriginalPositionY = 20,
+                OriginalSourceId = 4,
+                OriginalIsPrimary = true,
+                OriginalWidth = 3840,
+                OriginalHeight = 2160,
+                OriginalFrequency = 120,
+                OriginalRotation = 1,
+                OriginalDpiScaling = 150,
+                OriginalIsHdrEnabled = true,
+                OriginalIsAcmEnabled = false,
+                OriginalColorProfile = "before.icc"
+            });
+
+            var copy = profile.CreateWorkingCopy();
+            var source = profile.DisplaySettings[0];
+            var target = copy.DisplaySettings[0];
+
+            Assert.AreNotSame(source, target);
+            Assert.AreEqual(source.AdapterLuid.LowPart, target.AdapterLuid.LowPart);
+            Assert.AreEqual(source.AdapterLuid.HighPart, target.AdapterLuid.HighPart);
+            Assert.AreEqual(source.OriginalSettings, target.OriginalSettings);
+            Assert.AreEqual(source.OriginalPositionX, target.OriginalPositionX);
+            Assert.AreEqual(source.OriginalPositionY, target.OriginalPositionY);
+            Assert.AreEqual(source.OriginalSourceId, target.OriginalSourceId);
+            Assert.AreEqual(source.OriginalIsPrimary, target.OriginalIsPrimary);
+            Assert.AreEqual(source.OriginalWidth, target.OriginalWidth);
+            Assert.AreEqual(source.OriginalHeight, target.OriginalHeight);
+            Assert.AreEqual(source.OriginalFrequency, target.OriginalFrequency);
+            Assert.AreEqual(source.OriginalRotation, target.OriginalRotation);
+            Assert.AreEqual(source.OriginalDpiScaling, target.OriginalDpiScaling);
+            Assert.AreEqual(source.OriginalIsHdrEnabled, target.OriginalIsHdrEnabled);
+            Assert.AreEqual(source.OriginalIsAcmEnabled, target.OriginalIsAcmEnabled);
+            Assert.AreEqual(source.OriginalColorProfile, target.OriginalColorProfile);
         }
 
         [TestMethod]
@@ -399,55 +499,17 @@ namespace DisplayProfileManager.Tests.Tests
     }
 
     [TestClass]
-    public class ApplyProfileScriptLogicTests
+    public class ProfileScriptSettingsTests
     {
         [TestMethod]
         [TestCategory("Unit")]
-        public void EnableScriptsFalse_ScriptListIsPreserved()
+        public void ScriptSettingsDisabled_ScriptListIsPreserved()
         {
             var profile = new Profile("Test");
-            profile.Scripts.Add(new Script("script.ps1"));
-            profile.EnableScripts = false;
+            profile.ScriptSettings.Scripts.Add(new Script("script.ps1"));
+            profile.ScriptSettings.Enabled = false;
 
-            Assert.AreEqual(1, profile.Scripts.Count, "Scripts must remain stored when EnableScripts is false.");
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void EnableScriptsTrue_WithEmptyList_DoesNotExecute()
-        {
-            var profile = new Profile("Test");
-            profile.EnableScripts = true;
-
-            bool wouldExecute = profile.EnableScripts && profile.Scripts != null && profile.Scripts.Any();
-
-            Assert.IsFalse(wouldExecute, "No scripts must execute when the list is empty, even if EnableScripts is true.");
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void EnableScriptsFalse_WithScripts_DoesNotExecute()
-        {
-            var profile = new Profile("Test");
-            profile.Scripts.Add(new Script("script.ps1"));
-            profile.EnableScripts = false;
-
-            bool wouldExecute = profile.EnableScripts && profile.Scripts != null && profile.Scripts.Any();
-
-            Assert.IsFalse(wouldExecute, "Scripts must not execute when EnableScripts is false, regardless of list contents.");
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void EnableScriptsTrue_WithScripts_Executes()
-        {
-            var profile = new Profile("Test");
-            profile.Scripts.Add(new Script("script.ps1"));
-            profile.EnableScripts = true;
-
-            bool wouldExecute = profile.EnableScripts && profile.Scripts != null && profile.Scripts.Any();
-
-            Assert.IsTrue(wouldExecute);
+            Assert.AreEqual(1, profile.ScriptSettings.Scripts.Count, "Scripts must remain stored when the script subsystem is disabled.");
         }
     }
 }

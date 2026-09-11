@@ -23,6 +23,7 @@ Shared writing and formatting rules for project documentation. Document-specific
 - Use `DPM` only for established proper nouns such as DPM Theme Builder, DPM Shortcut Builder, and `DPM_IpcPipe`.
 - Use established application terminology consistently across documentation.
 - When application terminology differs intentionally from Windows terminology, make the distinction explicit.
+- Use `or later` for version and compatibility floors. Use `newer` for comparative prose, such as referring to a newer release.
 
 ## Documentation Boundaries
 

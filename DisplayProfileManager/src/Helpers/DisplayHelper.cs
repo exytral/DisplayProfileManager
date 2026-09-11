@@ -8,7 +8,7 @@ namespace DisplayProfileManager.Helpers
 {
     public class DisplayHelper
     {
-        private static readonly Logger logger = LoggerHelper.GetLogger();
+        private static readonly Logger _logger = LoggerHelper.GetLogger();
 
         #region P/Invoke
 
@@ -131,11 +131,7 @@ namespace DisplayProfileManager.Helpers
 
         #endregion
 
-        #region Constants
-
         private const int EnumCurrentSettings = -1;
-
-        #endregion
 
         #region Public Classes
 
@@ -204,7 +200,7 @@ namespace DisplayProfileManager.Helpers
                             DevMode = devMode
                         };
 
-                        logger.Debug($"Display[{deviceIndex}]: Device={displayDevice.DeviceName}, " + $"String={displayDevice.DeviceString}, DeviceID={displayDevice.DeviceID}, Primary={displayInfo.IsPrimary}");
+                        _logger.Debug($"Display[{deviceIndex}]: Device={displayDevice.DeviceName}, " + $"String={displayDevice.DeviceString}, DeviceID={displayDevice.DeviceID}, Primary={displayInfo.IsPrimary}");
                         displays.Add(displayInfo);
                     }
                 }

@@ -113,6 +113,8 @@ Source: "{#MyBuildFolder}\*.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#MyBuildFolder}\*.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#MyBuildFolder}\runtimes\*"; DestDir: "{app}\runtimes"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 Source: "{#MyBuildFolder}\NLog.config"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\THIRD-PARTY-LICENSES.md"; DestDir: "{app}"; Flags: ignoreversion
 
 ; ---- Shortcuts ----
 [Icons]
@@ -152,8 +154,8 @@ const
   DpmLifecycleMinor = 2;
   DpmLifecycleRevision = 0;
   DpmLifecycleBuild = 0;
-  DpmShutdownTimeoutMs = 1000;
-  DpmShutdownPollMs = 100;
+  DpmShutdownTimeoutMs = 5000;
+  DpmShutdownPollMs = 250;
 
 function ExecuteApplicationCommand(const Parameters: String; Wait: TExecWait; var ExitCode: Integer): Boolean;
 var
@@ -204,6 +206,42 @@ begin
      (Revision = DpmLifecycleRevision) and (Build >= DpmLifecycleBuild));
 end;
 
+function QueryInstalledDpmProcesses(var Processes: Variant): Boolean;
+var
+  WbemLocator, WmiService: Variant;
+  ExecutablePath: String;
+begin
+  Result := False;
+  Processes := Unassigned;
+  ExecutablePath := ExpandConstant('{app}\{#MyAppExeName}');
+  StringChangeEx(ExecutablePath, '\', '\\', True);
+
+  try
+    WbemLocator := CreateOleObject('WbemScripting.SWbemLocator');
+    WmiService := WbemLocator.ConnectServer('', 'root\CIMV2', '', '');
+    Processes := WmiService.ExecQuery(
+      'SELECT ProcessId FROM Win32_Process WHERE ExecutablePath="' + ExecutablePath + '"');
+    Result := True;
+  except
+    Log('Could not query installed Display Profile Manager process state; falling back to mutex state.');
+  end;
+
+  WmiService := Unassigned;
+  WbemLocator := Unassigned;
+end;
+
+function IsDpmProcessRunning: Boolean;
+var
+  Processes: Variant;
+begin
+  Result := CheckForMutexes(DpmMutexName);
+
+  if QueryInstalledDpmProcesses(Processes) then
+    Result := Processes.Count > 0;
+
+  Processes := Unassigned;
+end;
+
 function WaitForDpmToExit: Boolean;
 var
   ElapsedMs: Integer;
@@ -211,7 +249,7 @@ begin
   Result := True;
   ElapsedMs := 0;
 
-  while CheckForMutexes(DpmMutexName) do
+  while IsDpmProcessRunning do
   begin
     if ElapsedMs >= DpmShutdownTimeoutMs then
     begin
@@ -226,36 +264,42 @@ end;
 
 function ForceTerminateDpm: Boolean;
 var
-  ResultCode: Integer;
+  Processes: Variant;
+  Index, ProcessId, ResultCode: Integer;
 begin
-  if not CheckForMutexes(DpmMutexName) then
+  if not QueryInstalledDpmProcesses(Processes) then
   begin
+    Result := not CheckForMutexes(DpmMutexName);
+    Exit;
+  end;
+
+  if Processes.Count = 0 then
+  begin
+    Processes := Unassigned;
     Result := True;
     Exit;
   end;
 
-  Log('Display Profile Manager did not exit gracefully; forcing process termination.');
+  Log('Display Profile Manager did not exit gracefully; forcing installed process termination.');
 
-  if not Exec(
-    ExpandConstant('{sys}\taskkill.exe'),
-    '/F /IM "{#MyAppExeName}"',
-    '',
-    SW_HIDE,
-    ewWaitUntilTerminated,
-    ResultCode) then
+  for Index := 0 to Processes.Count - 1 do
   begin
-    Log('Failed to launch taskkill.exe.');
-    Result := False;
-    Exit;
+    ProcessId := Processes.ItemIndex(Index).ProcessId;
+
+    if not Exec(
+      ExpandConstant('{sys}\taskkill.exe'),
+      '/F /PID ' + IntToStr(ProcessId),
+      '',
+      SW_HIDE,
+      ewWaitUntilTerminated,
+      ResultCode) then
+      Log('Failed to launch taskkill.exe for process ' + IntToStr(ProcessId) + '.')
+    else if ResultCode <> 0 then
+      Log('taskkill.exe returned exit code ' + IntToStr(ResultCode) +
+        ' for process ' + IntToStr(ProcessId) + '.');
   end;
 
-  if ResultCode <> 0 then
-  begin
-    Log('taskkill.exe returned exit code ' + IntToStr(ResultCode) + '.');
-    Result := False;
-    Exit;
-  end;
-
+  Processes := Unassigned;
   Result := WaitForDpmToExit;
 
   if Result then
@@ -266,7 +310,7 @@ end;
 
 function ShouldForceTerminateDpm: Boolean;
 begin
-  Result := CheckForMutexes(DpmMutexName);
+  Result := IsDpmProcessRunning;
 
   if Result and InstalledDpmMeetsLifecycleVersion then
   begin
@@ -298,7 +342,7 @@ begin
   begin
     Log('Installed Display Profile Manager supports shell lifecycle commands.');
 
-    if not ExecuteApplicationCommand('--exit', ewNoWait, ExitCode) then
+    if not ExecuteApplicationCommand('--exit', ewWaitUntilTerminated, ExitCode) then
       Log('Could not launch --exit; continuing to shutdown verification.');
 
     if not WaitForDpmToExit then

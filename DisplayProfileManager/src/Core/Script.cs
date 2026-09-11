@@ -1,7 +1,16 @@
 ﻿using Newtonsoft.Json;
+using System.Collections.Generic;
 
 namespace DisplayProfileManager.Core
 {
+    public class ScriptSettings
+    {
+        [JsonProperty("enabled")]
+        public bool Enabled { get; set; } = false;
+        [JsonProperty("scripts")]
+        public List<Script> Scripts { get; set; } = new List<Script>();
+    }
+
     public class Script
     {
         [JsonProperty("fileName")]

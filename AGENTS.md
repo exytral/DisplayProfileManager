@@ -82,7 +82,7 @@ Logs are written to `%AppData%\DisplayProfileManager\Logs\DisplayProfileManager-
 
 ### Core Patterns
 
-- **Singletons**: `ProfileManager`, `SettingsManager`, and `ScriptManager` own global state with thread-safe double-check locking.
+- **Singletons**: `ProfileManager`, `SettingsManager`, and `ScriptManager` own process-global state. Their construction mechanisms differ; do not infer that mutable manager state or profile application is globally serialized.
 - **Async/Await**: File I/O and display apply operations are asynchronous.
 - **P/Invoke**: Windows Display Configuration, DPI, and audio APIs are wrapped by dedicated helper classes.
 - **MVVM**: ViewModels expose binding-friendly UI state.
@@ -104,19 +104,19 @@ The application has two primary runtime flows: startup and command handling, and
 
 #### Profile application flow
 
-- **ProfileManager** — thread-safe singleton for profile CRUD, loading, migration, and application. `ApplyProfileAsync(Profile, ApplySource)` coordinates the complete profile-application pipeline and carries its source and elapsed apply duration to the profile-applied event.
+- **ProfileManager** — process-global manager for profile CRUD, loading, migration, and application. `ApplyProfileAsync(Profile, ApplySource)` coordinates the complete profile-application pipeline and carries its source and elapsed apply duration to the profile-applied event.
 - **DisplayConfigHelper** — primary Windows Display Configuration API layer. Owns topology, defer/wait, layout, HDR/ACM, color-profile application, and live display identity resolution.
 - **DpiHelper** — applies system-wide DPI scaling after display layout and advanced color state are committed, using a live display identity resolved for the current topology.
 - **WallpaperHelper** — captures and reapplies Windows desktop wallpaper state, including per-monitor Solid Color, Picture, Slideshow, and Spotlight modes, and correlates current live monitor interfaces for `IDesktopWallpaper` calls.
 - **AudioHelper** — owns native playback/recording endpoint enumeration and switches configured defaults through WASAPI/COM integration.
-- **ScriptManager** — owns the sandboxed script store, script import and type conversion, and execution of enabled script entries after the display stages and other profile side effects complete.
+- **ScriptManager** — owns the application-managed Scripts folder, script import and type conversion, and execution of enabled script entries after the display stages and other profile side effects complete.
 - **ScriptHelper** (`Helpers/ScriptHelper.cs`) — provides process-launch support for the script types accepted by `ScriptManager`.
 
 ### Supporting Components
 
 #### Persistence and application state
 
-- **SettingsManager** — thread-safe singleton for persisted application settings, including themes, startup behavior, default and startup profiles, notifications, integration settings, update checking, and debug flags.
+- **SettingsManager** — process-global manager for persisted application settings, including themes, startup behavior, default and startup profiles, notifications, integration settings, update checking, and debug flags.
 - **ThemeHelper** — registers built-in and user themes, rescans the user theme folder, applies the selected theme, and exposes the live `AvailableThemes` collection to the UI.
 
 #### Display and audio helpers
@@ -151,10 +151,10 @@ DisplayProfileManager/
 │   ├── HotkeyConfig.cs                            Per-profile hotkey definition
 │   ├── IpcServer.cs                               Session-scoped named-pipe transport
 │   ├── Profile.cs                                 Profile model + DisplaySetting, AudioSetting, HotkeyConfig
-│   ├── ProfileManager.cs                          Thread-safe profile CRUD, migration, and application
+│   ├── ProfileManager.cs                          Profile CRUD, migration, and application
 │   ├── Script.cs                                  Script model with FileName, Arguments, IsEnabled, ToString()
-│   ├── ScriptManager.cs                           Thread-safe script storage, import, and execution
-│   └── SettingsManager.cs                         Thread-safe settings persistence
+│   ├── ScriptManager.cs                           Script storage, import, and execution
+│   └── SettingsManager.cs                         Settings persistence
 ├── Helpers/
 │   ├── AboutHelper.cs                             Version strings, settings path, Libraries and Contributors metadata
 │   ├── ApplicationIconHelper.cs                   Loads the executable application icon for WPF and tray use
@@ -202,7 +202,7 @@ DisplayProfileManager/
 - **.NET 10 (`net10.0-windows`)** — WPF through `UseWPF`; focused native Win32 interop is used where Windows APIs have no managed WPF equivalent.
 - **Newtonsoft.Json 13.0.4** — JSON serialization for profiles and settings.
 - **NLog 6.2.0** — application logging with daily file rotation.
-- **System.Management 10.0.11** — Windows system-management APIs used by the application.
+- **System.Management 10.0.12** — Windows system-management APIs used by the application.
 - **MSTest 4.3.3** — test framework metapackage for the unit-test project.
 - **PackageReference** — SDK-style project dependency management.
 
@@ -215,8 +215,8 @@ DisplayProfileManager/
 
 ### Platform Requirements
 
-- **Windows 10 version 1709+** is the documented minimum supported version.
-- **Windows 10 version 1709+** provides the Advanced Color APIs used for HDR support.
+- **Base Windows support** — follow Microsoft's current .NET 10 supported-Windows matrix. Windows 10 support is limited to LTSC/Enterprise releases; installer success on another Windows build does not establish product/runtime support.
+- **Windows 10 version 1709+** provides the legacy Advanced Color APIs used for HDR support. This is an API availability floor, not a broader base-OS support claim.
 - **Windows 11 22H2+** is required for ACM on supported displays.
 - **Windows 11 24H2+** provides the dedicated HDR and ACM APIs used by `SetHdrState` and `SetWcgState`; earlier supported systems use the legacy Advanced Color path.
 - **Privileges** — the application runs as a standard user (`asInvoker`). Administrator rights are required only when configuring Task Scheduler auto-start.
@@ -226,7 +226,7 @@ DisplayProfileManager/
 
 The application uses the Windows Display Configuration API (`SetDisplayConfig`) for atomic profile switching.
 
-1. **`ApplyDisplayTopology`** — performs a fresh `QueryDisplayConfig` to get the current live state, then enables/disables displays and sets clone-group topology via `SDC_TOPOLOGY_SUPPLIED` with a null mode array so Windows chooses modes. Clone groups must be set here because once the mode array is used for layout in the next step, clone groups cannot be changed without invalidating mode indices. The call is skipped when live topology already matches the profile. The query uses `QDC_VIRTUAL_MODE_AWARE`: `cloneGroupId` is packed into the source-info mode-index union, and Windows only reads it on paths whose driver advertises `SUPPORT_VIRTUAL_MODE`. On `ERROR_GEN_FAILURE` (31), the same paths are reissued with `SDC_USE_SUPPLIED_DISPLAY_CONFIG` and `SDC_SAVE_TO_DATABASE` replacing `SDC_TOPOLOGY_SUPPLIED`, with `SDC_ALLOW_PATH_ORDER_CHANGES` omitted. This provides a recovery path when the requested topology has no usable entry in Windows' display-configuration database. Best-mode logic fills the null mode array.
+1. **`ApplyDisplayTopology`** — performs a fresh `QueryDisplayConfig` to get the current live state, then enables/disables displays and sets clone-group topology via `SDC_TOPOLOGY_SUPPLIED` with a null mode array so Windows chooses modes. Clone groups must be set here because once the mode array is used for layout in the next step, clone groups cannot be changed without invalidating mode indices. The call is skipped when live topology already matches the profile. The query uses `QDC_VIRTUAL_MODE_AWARE`, but the source-info mode-index union is interpreted per path. Paths advertising `SUPPORT_VIRTUAL_MODE` use the packed clone-group/source-mode form; non-virtual paths keep the entire `modeInfoIdx` at `DISPLAYCONFIG_PATH_MODE_IDX_INVALID`, with desired clone membership tracked separately while source IDs are assigned. On `ERROR_GEN_FAILURE` (31), the same paths are reissued with `SDC_USE_SUPPLIED_DISPLAY_CONFIG` and `SDC_SAVE_TO_DATABASE` replacing `SDC_TOPOLOGY_SUPPLIED`, with `SDC_ALLOW_PATH_ORDER_CHANGES` omitted. This provides a recovery path when the requested topology has no usable entry in Windows' display-configuration database. Best-mode logic fills the null mode array.
 2. **`ApplyDisplayConfig`** — captures all-paths target presence once, builds a stabilization wait set from enabled displays present in that snapshot, defers that set before the normal layout attempt, and calls `ApplyDisplayLayout` with the full requested configuration. A layout-stage `ERROR_GEN_FAILURE` (31) causes the same wait set to be deferred again and the full layout retried once, after which advanced color state and color profiles are applied.
     - **`DeferDisplayLayoutAsync`** — waits every 250 ms for up to 10 seconds for the supplied displays to become active. `ApplyDisplayConfig` supplies the enabled displays that were present in the all-paths snapshot; displays absent from that snapshot do not enter the wait set. The timeout is a maximum, not a mandatory delay.
     - **`ApplyDisplayLayout`** — issues a fresh `QueryDisplayConfig` because raw IDs from the pre-topology snapshot are stale after topology changes, then applies position, resolution, refresh rate, rotation, and SourceId normalization through `SDC_USE_SUPPLIED_DISPLAY_CONFIG`. `QDC_VIRTUAL_REFRESH_RATE_AWARE` and `SDC_VIRTUAL_REFRESH_RATE_AWARE` are used only on Windows 11 and later; supported Windows 10 systems use the non-VRR-aware path. The call is skipped when all live layout checks already match. Rotation is skipped when `profile.Rotation == 0` (`Not Applied`).
@@ -263,7 +263,7 @@ The display recovery settings control what happens after a display stage fails.
 - Previous-profile rollback applies the entire profile pipeline, while snapshot rollback restores display state only.
 - Rollback reuses `ApplyProfileAsync` with a `_rollingBack` guard so a failed rollback reports the failure instead of recursively entering the abort/recovery path.
 
-A DPI failure is not an overall profile-apply failure. `ProfileApplyResult.Success` reflects the display stages; `DpiChanged` reports the DPI result separately while scripts and the remaining post-display stages can continue.
+Advanced Color, Color Profile, DPI, and Audio are non-blocking secondary stages. `ProfileApplyResult.Success` remains controlled by the display/layout stage. Secondary failures are represented separately and, on otherwise successful applies, summarized in application order for status and normal successful-apply notification presentation. They do not independently make the profile apply fail, trigger rollback, or create blocking error UI.
 
 ### Debug Flags
 
@@ -306,23 +306,20 @@ Rules:
 
 `Profile` top-level properties, in current declaration order:
 
-| Property            | Type                   | Default  | Description                                                                                                                                                    |
-| ------------------- | ---------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Id`                | `string` (GUID)        | new GUID | Unique identifier                                                                                                                                              |
-| `Name`              | `string`               | `""`     | Display name                                                                                                                                                   |
-| `Description`       | `string`               | `""`     | Optional description                                                                                                                                           |
-| `Icon`              | `string`               | `null`   | Bare custom icon filename relative to `%AppData%\DisplayProfileManager\Icons\`, or `null` for none                                                             |
-| `CreatedDate`       | `DateTime`             | now      | Creation timestamp                                                                                                                                             |
-| `LastModifiedDate`  | `DateTime`             | now      | Last save timestamp                                                                                                                                            |
-| `SchemaVersion`     | `int`                  | `0`      | Profile schema version. Profiles without this field, or with a malformed value, deserialize to `0` and trigger migration. Current version is `4`.              |
-| `DisplaySettings`   | `List<DisplaySetting>` | `[]`     | Per-monitor display configuration                                                                                                                              |
-| `EnableWallpaper`   | `bool`                 | `false`  | Whether the profile's stored wallpaper state is applied                                                                                                        |
-| `WallpaperSettings` | `WallpaperSettings`    | `null`   | Stored wallpaper state; see `WallpaperHelper.cs` for the mode-specific structures                                                                              |
-| `EnableAudio`       | `bool`                 | `false`  | Whether the profile's audio section is applied; `ApplyPlaybackDevice` and `ApplyCaptureDevice` on `AudioSetting` select which configured endpoints are changed |
-| `AudioSettings`     | `AudioSetting`         | default  | Playback and recording device configuration                                                                                                                    |
-| `EnableScripts`     | `bool`                 | `false`  | Whether the profile's scripts are executed                                                                                                                     |
-| `Scripts`           | `List<Script>`         | `[]`     | Script entries with file name, arguments, and per-script enable state                                                                                          |
-| `HotkeyConfig`      | `HotkeyConfig`         | default  | Global hotkey assigned to the profile                                                                                                                          |
+| Property            | Type                   | Default  | Description                                                                                                                                        |
+| ------------------- | ---------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Id`                | `string` (GUID)        | new GUID | Unique identifier                                                                                                                                  |
+| `Name`              | `string`               | `""`     | Display name                                                                                                                                       |
+| `Description`       | `string`               | `""`     | Optional description                                                                                                                               |
+| `Icon`              | `string`               | `null`   | Bare custom icon filename relative to `%AppData%\DisplayProfileManager\Icons\`, or `null` for none                                            |
+| `CreatedDate`       | `DateTime`             | now      | Creation timestamp                                                                                                                                 |
+| `LastModifiedDate`  | `DateTime`             | now      | Last save timestamp                                                                                                                                |
+| `SchemaVersion`     | `int`                  | `0`      | Profile schema version. Missing or malformed values recover to `0` and trigger migration. Current version is `5`.                                  |
+| `DisplaySettings`   | `List<DisplaySetting>` | `[]`     | Per-monitor display configuration                                                                                                                  |
+| `WallpaperSettings` | `WallpaperSettings`    | `null`   | Stored wallpaper state; its nested `Enabled` value controls whether the wallpaper stage applies                                                    |
+| `AudioSettings`     | `AudioSetting`         | default  | Playback/recording configuration; nested `Enabled` gates the audio stage and per-endpoint flags select which defaults are changed                  |
+| `ScriptSettings`    | `ScriptSettings`       | default  | Nested script enablement plus the stored `List<Script>` entries                                                                                    |
+| `HotkeyConfig`      | `HotkeyConfig`         | default  | Global hotkey assigned to the profile                                                                                                              |
 
 Each `DisplaySetting` entry, in current declaration order:
 
@@ -366,7 +363,7 @@ Each `DisplaySetting` entry, in current declaration order:
 | `IsAcmEnabled`                   | Desired ACM state; HDR forces ACM on during apply                                        |
 | `ColorProfile`                   | ICC/ICM filename from the system color store, or `null` for `Not Applied`                |
 
-**Clone** — see [Clone settings](https://claude.ai/chat/50f99ece-bfe1-4a0e-89e7-1339054aee4e#clone-settings) for the `[JsonIgnore]` `Original*` fields; those fields sit here in declaration order between Configuration and Native.
+**Clone** — see [Clone settings](#clone-settings) for the `[JsonIgnore]` `Original*` fields; those fields sit here in declaration order between Configuration and Native.
 
 **Native**
 
@@ -382,7 +379,7 @@ Each `DisplaySetting` entry, in current declaration order:
 | `AvailableRefreshRates` | Supported refresh rates grouped by resolution     |
 | `AvailableDpiScaling`   | Supported DPI scaling values                      |
 
-`AudioSetting` properties: `DefaultPlaybackDeviceId`, `DefaultCaptureDeviceId`, `PlaybackDeviceName`, `CaptureDeviceName`, `ApplyPlaybackDevice`, `ApplyCaptureDevice`. The `ApplyPlaybackDevice` and `ApplyCaptureDevice` flags select which configured endpoint is changed during apply independently of whether the endpoint is currently available.
+`AudioSetting` properties: `Enabled`, `DefaultPlaybackDeviceId`, `DefaultCaptureDeviceId`, `PlaybackDeviceName`, `CaptureDeviceName`, `ApplyPlaybackDevice`, `ApplyCaptureDevice`. The nested `Enabled` flag gates the audio stage. `ApplyPlaybackDevice` and `ApplyCaptureDevice` select which configured endpoint is changed independently of whether that endpoint is currently available. `ScriptSettings` similarly stores the section-level `Enabled` value together with its `Scripts` collection.
 
 ### Data Storage
 
@@ -459,7 +456,14 @@ These values are copied through `GetDisplaySettings()` so they survive the contr
 
 ### Schema Migration
 
-`ProfileManager.LoadProfilesAsync` compares each profile's `SchemaVersion` with `CurrentSchemaVersion` (`4`). Profiles below the current version are passed to `MigrateProfileAsync`. `SchemaVersion` defaults to `0` in `Profile.cs`, so profiles without the field are migrated automatically on load, and `LastModifiedDate` is preserved during the migration save.
+`ProfileManager.LoadProfilesAsync` compares each profile's `SchemaVersion` with `CurrentSchemaVersion` (`5`). Profiles below the current version are passed to `MigrateProfileAsync`. `SchemaVersion` defaults to `0` in `Profile.cs`, so profiles without the field are migrated automatically on load, and `LastModifiedDate` is preserved during the migration save.
+
+**Version 4 → 5**
+
+- Wallpaper, audio, and script section enablement is consolidated into the corresponding nested settings objects.
+- Legacy root `enableWallpaper`, `enableAudio`, `enableScripts`, and `scripts` members are accepted during deserialization for compatibility and removed before materializing the current model.
+- When both legacy root values and current nested values are present, the nested values win.
+- New saves emit only the normalized nested shape.
 
 **Version 3 → 4**
 
@@ -522,7 +526,7 @@ Migration blocks are described newest-first here but execute in ascending order.
 - `NativeWidth` / `NativeHeight` → `0`; migration and the apply-time deferred hardware self-healing pass backfill them when the display is available.
 - `ManufacturerName` / `ProductCodeID` → `""`; migration and the apply-time deferred hardware self-healing pass backfill them for display identity matching.
 - `ColorProfile` → `null`; `null` means `Not Applied` and is never auto-filled by migration or self-healing.
-- `ProfileManager.DeserializeProfile` tolerates malformed optional members (including retired legacy string-form `Scripts` entries, which are dropped rather than converted) by removing the offending token before `ToObject<Profile>` so the rest of the profile still loads; `displaySettings` and `id` are not recovered and remain strict.
+- `ProfileManager.DeserializeProfile` tolerates malformed optional members by removing the offending token before `ToObject<Profile>` so the rest of the profile still loads; malformed individual script entries are dropped without discarding valid siblings. Legacy root subsystem-enable/script members are normalized into the current nested shape before materialization; `displaySettings` and `id` remain strict.
 - `[JsonIgnore]` clone-state fields are not persisted and exist only during live clone editing.
 
 ## CLI
@@ -547,9 +551,9 @@ All flags accept any number of leading dashes or none at all — `--profile`, `-
 
 **Command ordering:** the table above lists flags in typical usage order, not resolution precedence. `--shell` and `--unshell` are handled first and terminate further command processing. `--exit` is handled next when neither shell action is present and terminates further command processing. `--refresh`, `--theme`, `--profile`, and `--headless` can be combined; `--refresh` and `--theme` are queued in command-line order, while `--profile` and `--headless` are resolved after them regardless of their position. Only one profile target is retained, with the last supplied `--profile` or `--headless` target replacing any earlier one. `--dev` and `--tray` are startup modifiers and can be combined with the other flags.
 
-**IPC:** Commands that can target a running instance are sent through `DPM_IpcPipe.{sessionId}` first. `IpcServer` owns the session-specific pipe transport; `App` interprets the command messages. `--profile` and `--headless` forward profile application to a running instance when available, otherwise apply locally; `--headless` exits without creating a window or tray icon. `--theme "Theme"` applies the named theme through the running instance when available, otherwise applies it locally. `--theme` with no name and `--refresh` require a running instance and do nothing when none is available. `--exit` requires a running instance; when none is available, the invoking process exits with status `2`.
+**IPC and instance authority:** Normal non-development startup decides single-instance authority through the session mutex before local profile/theme execution. A non-authoritative invocation forwards queued commands through `DPM_IpcPipe.{sessionId}` and never executes them locally merely because the pipe is not ready. Command-bearing secondaries wait up to the bounded IPC readiness timeout; if the authoritative process owns the mutex but its pipe never becomes ready, the secondary exits with status `1`. The authoritative process starts the pipe listener only after settings, profiles, themes, hotkeys, and profile-event wiring are initialized, so successful connection is the command-readiness boundary. `IpcServer` owns transport; `App` owns command interpretation. `--theme` with no name and `--refresh` require an already running authoritative instance, while a named theme or profile can execute locally only in the invocation that owns authority. `--exit` with no running instance exits with status `2`.
 
-**DPM Shortcut Builder** (`DPMShortcutBuilder.pyw`) — standalone Python tool included with the release. Creates game/app launch shortcuts that switch a display profile before launch and restore a selected profile on exit. Pre-start applications can run after profile switching but before the target launches, with a configurable delay up to 10 seconds. Shortcuts are sandboxed to `%AppData%\DisplayProfileManager\Shortcuts\<name>\`; each shortcut gets its own folder containing the generated `.ps1`, `.lnk`, and `.vbs`. Launcher integration guides cover Steam, Epic Games, GOG Galaxy, Heroic, Playnite, and Generic/Desktop shortcuts.
+**DPM Shortcut Builder** (`DPMShortcutBuilder.pyw`) — standalone Python tool included with the release. Creates game/app launch shortcuts that switch a display profile before launch and restore a selected profile on exit. Pre-start applications can run after profile switching but before the target launches, with a configurable delay up to 10 seconds. Generated shortcut files are stored under `%AppData%\DisplayProfileManager\Shortcuts\<name>\`; each shortcut gets its own folder containing the generated `.ps1`, `.lnk`, and `.vbs`. Launcher integration guides cover Steam, Epic Games, GOG Galaxy, Heroic, Playnite, and Generic/Desktop shortcuts.
 
 ## Themes and Visual State
 
@@ -610,7 +614,7 @@ When enabled:
 - Enabling update checking while the application is already running performs an immediate fresh check rather than waiting for the next startup.
 - An explicit re-check does not reuse the previous startup result, so the newer-release notification can appear again.
 - There is no standalone user-facing manual "Check for Updates" command.
-- DPM never downloads, writes, installs, or executes an update; it only checks release metadata.
+- The application never downloads, writes, installs, or executes an update; it only checks release metadata.
 - Update requests use a 10-second HTTP timeout. Network, rate-limit, DNS, and other operational failures are caught and logged at Debug without being surfaced to the user.
 
 ## UI Behavior Reference
@@ -643,7 +647,7 @@ When a profile is selected, the panel shows:
 - the primary display marker and clone-group indicators with member names.
 - **Display → Wallpaper → Audio → Scripts** sections, with enabled/disabled state reflected in their secondary text.
 - saved playback/capture endpoints, marked `(Unavailable)` when the configured endpoint is no longer enumerated. Profiles without a configured endpoint ID do not trigger endpoint enumeration.
-- `Scripts (Disabled)` when `EnableScripts` is off; otherwise, stored script file names are shown, with `(Not Found)` appended when a script file is missing.
+- `Scripts (Disabled)` when `ScriptSettings.Enabled` is off; otherwise, stored script file names are shown, with `(Not Found)` appended when a script file is missing.
 - hotkey combination and enabled/disabled state.
 - created and last-modified timestamps.
 
@@ -666,7 +670,7 @@ When a profile is selected, the panel shows:
 ### Settings Window
 
 - **Themes** — the theme dropdown uses `ThemeHelper.AvailableThemes` and changes the active theme when selected. Theme availability is refreshed when the Settings window opens, when the theme system changes, and when the dropdown is opened. Import and delete actions are available on the theme row.
-- **Start with Windows** — controls whether DPM starts with Windows and contains the Start in system tray option.
+- **Start with Windows** — controls whether Display Profile Manager starts with Windows and contains the Start in system tray option.
 - **Auto-start method** — selects Registry or Task Scheduler auto-start.
 - **App Startup** — contains the startup update-check option and startup-profile options.
 - **Closing the Application** — controls whether closing the application minimizes it to the system tray or exits the application, with an option to remember the choice.
@@ -772,11 +776,13 @@ DisplayProfileManager.Tests/
 │   └── DisplaySettingBuilder.cs                Builder for DisplaySetting test fixtures
 └── Tests/
     ├── CliParserTests.cs                       Flag normalization, prefix matching, and refresh/exit spelling
-    ├── CloneGroupTopologyTests.cs              Source-mode counts and topology building for clone vs. extended configs
     ├── CloneRestorationTests.cs                BreakCloneGroup restoration of saved attached-member state
+    ├── ColorProfileHelperTests.cs              ICC CICP HDR parsing
     ├── DisplayConfigInfoTests.cs               Default-construction invariants for DisplayConfigInfo
     ├── DisplayConfigNormalizationTests.cs      BuildSourceIdMap contiguous-renumbering behavior
     ├── DisplayConfigPathSourceInfoTests.cs     modeInfoIdx clone-group/source-mode-index bit packing
+    ├── DisplayConfigQueryRetryTests.cs         CCD size/query retry behavior across topology churn
+    ├── DisplayConfigVirtualModeTopologyTests.cs Production topology preparation for virtual/non-virtual source-info handling
     ├── DisplayGroupHelperTests.cs              Grouping display settings into UI clone/independent groups
     ├── DisplaySettingTests.cs                  CloneGroupId/IsPartOfCloneGroup and other field defaults
     ├── EdidDecodeTests.cs                      EDID manufacturer ID decoding
@@ -784,13 +790,15 @@ DisplayProfileManager.Tests/
     ├── HotkeyConfigTests.cs                    HotkeyConfig construction, validity, and equality
     ├── KeyConverterTests.cs                    WPF Key <-> virtual-key code conversion and modifier bit mapping
     ├── NaturalStringComparerTests.cs           Natural sort ordering for embedded numbers and copy suffixes
+    ├── ProfileApplyPresentationTests.cs        Secondary-failure warning aggregation, order, and presentation helpers
     ├── ProfileDeserializationRecoveryTests.cs  DeserializeProfile tolerance for malformed optional members
     ├── ProfileHardwareSelfHealingTests.cs      Deferred hardware self-healing detection and backfill
     ├── ProfileManagerTests.cs                  Profile CRUD, lookup, and manager-level behavior (largest suite)
+    ├── ProfileSchemaTests.cs                   Current profile schema and migration behavior
     ├── ProfileTests.cs                         Profile model construction and field defaults
-    ├── ScriptTests.cs                          Script model defaults and ToString formatting/quoting
+    ├── ScriptTests.cs                          Script model/string behavior and the production script-sandbox resolver
     ├── SettingsManagerTests.cs                 Tolerant settings deserialization and save guards
-    ├── UpdateHelperTests.cs                    Release-version parsing and comparison
+    ├── UpdateHelperTests.cs                    Release-version parsing, release-age cooldown behavior, and version-tag normalization
     └── WallpaperSettingTests.cs                Wallpaper position normalization and Slideshow config scope
 ```
 
@@ -826,10 +834,10 @@ Always use builders for fixture construction. Direct `new DisplaySetting { ... }
 - **Method naming** — use `Subject_Condition_ExpectedResult`.
 - **Method ordering** — simplest/happy-path cases first, edge cases next, invalid/error cases last.
 - **Test body** — use Arrange / Act / Assert with a blank line between phases.
-- **Scope** — unit tests only. Do not use file I/O, registry, P/Invoke, or live display hardware. Pure logic can be extracted into testable helpers when necessary.
+- **Scope** — unit tests should avoid filesystem I/O and other machine-specific dependencies when practical. Controlled filesystem access is acceptable when inherent to an existing production seam if the test remains deterministic, self-contained, and independent of pre-existing machine state; do not redesign production architecture solely to eliminate such access. Tests should not directly depend on registry access, P/Invoke, or live display hardware. Reflection and controlled in-memory singleton manipulation remain acceptable when required to isolate pure behavior.
 - **What to test** — non-obvious invariants and behavior with meaningful regression value. Do not test framework behavior or trivial getters.
 
-The current test suite contains **304 tests**.
+The current test suite contains **314 tests**.
 
 ## Adding a Contributor
 

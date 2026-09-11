@@ -32,6 +32,7 @@ private:
     UINT  _idCmdFirst;
 
     std::vector<ProfileEntry> _profiles;
+    std::vector<HBITMAP>      _menuBitmaps; // Shell does not own hbmpItem handles
     std::wstring              _currentProfileId;
     std::wstring              _exePath;   // Resolved path to DisplayProfileManager.exe
     std::wstring              _iconsDir;  // Profile icon sandbox under AppData

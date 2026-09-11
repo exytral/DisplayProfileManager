@@ -8,7 +8,7 @@ namespace DisplayProfileManager.Helpers
 {
     public class ScriptHelper
     {
-        private static readonly Logger logger = LoggerHelper.GetLogger();
+        private static readonly Logger _logger = LoggerHelper.GetLogger();
 
         public async Task ExecuteScriptAsync(string filePath, string cmdArgs = "")
         {
@@ -63,7 +63,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Error(ex, $"Script execution error: {filePath}");
+                _logger.Error(ex, $"Script execution error: {filePath}");
             }
         }
     }

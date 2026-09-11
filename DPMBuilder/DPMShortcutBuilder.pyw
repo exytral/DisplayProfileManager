@@ -6,9 +6,8 @@ automatic DPM display profile switching.
 Standalone — profile enumeration, shortcut CRUD, and the PS1 runtime template
 are all embedded directly; no sidecar files are required at runtime.
 
-Requirements: Python 3.8+ with Tkinter (standard on Windows).
-  No third-party packages required.
-  pywin32 is used for .lnk generation if available; omitted otherwise.
+Requirements: Python 3.10+ with Tkinter (standard on Windows).
+  pywin32 is required for .lnk generation when running from source.
 
 Run as .pyw to suppress the console window on Windows.
 """

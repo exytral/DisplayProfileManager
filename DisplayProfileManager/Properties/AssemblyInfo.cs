@@ -1,5 +1,6 @@
 ﻿using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Runtime.CompilerServices;
 using System.Runtime.Versioning;
 using System.Windows;
 
@@ -14,7 +15,7 @@ using System.Windows;
 [assembly: AssemblyCulture("")]
 
 // Platform
-[assembly: SupportedOSPlatform("windows10.0.17763.0")]
+[assembly: SupportedOSPlatform("windows")]
 
 // Interoperability & Styling
 [assembly: ComVisible(false)]
@@ -23,7 +24,9 @@ using System.Windows;
     ResourceDictionaryLocation.SourceAssembly
 )]
 
+[assembly: InternalsVisibleTo("DisplayProfileManager.Tests")]
+
 // Versioning
-[assembly: AssemblyVersion("2.2.0.0")]
-[assembly: AssemblyFileVersion("2.2.0.0")]
-[assembly: AssemblyInformationalVersion("2.2.0")]
+[assembly: AssemblyVersion("2.2.1.0")]
+[assembly: AssemblyFileVersion("2.2.1.0")]
+[assembly: AssemblyInformationalVersion("2.2.1")]

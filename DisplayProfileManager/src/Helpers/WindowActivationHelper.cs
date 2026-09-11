@@ -7,7 +7,7 @@ namespace DisplayProfileManager.Helpers
 {
     public static class WindowActivationHelper
     {
-        private static readonly Logger logger = LoggerHelper.GetLogger();
+        private static readonly Logger _logger = LoggerHelper.GetLogger();
 
         #region P/Invoke
 
@@ -58,12 +58,12 @@ namespace DisplayProfileManager.Helpers
                 }
                 catch (Exception eventEx)
                 {
-                    logger.Error(eventEx, "Error signaling show window event");
+                    _logger.Error(eventEx, "Error signaling show window event");
                 }
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error bringing existing instance to front");
+                _logger.Error(ex, "Error bringing existing instance to front");
             }
         }
 
@@ -96,7 +96,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error activating window");
+                _logger.Error(ex, "Error activating window");
             }
         }
 

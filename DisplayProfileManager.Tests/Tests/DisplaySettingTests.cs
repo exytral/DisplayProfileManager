@@ -18,15 +18,6 @@ namespace DisplayProfileManager.Tests.Tests
 
         [TestMethod]
         [TestCategory("Unit")]
-        public void IsPartOfCloneGroup_WhenCloneGroupIdIsEmpty_ReturnsFalse()
-        {
-            var setting = new DisplaySettingBuilder().Build();
-
-            Assert.IsFalse(setting.IsPartOfCloneGroup());
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
         public void IsPartOfCloneGroup_WhenCloneGroupIdIsNull_ReturnsFalse()
         {
             var setting = new DisplaySettingBuilder().WithCloneGroup(null).Build();

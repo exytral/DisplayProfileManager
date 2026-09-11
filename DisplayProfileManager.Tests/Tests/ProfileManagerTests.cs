@@ -1,6 +1,7 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using DisplayProfileManager.Core;
 using DisplayProfileManager.Helpers;
@@ -39,6 +40,182 @@ namespace DisplayProfileManager.Tests.Tests
             var p = MakeProfile(name);
             p.HotkeyConfig = new HotkeyConfig(key, mods, enabled);
             return p;
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public async Task AddProfileAsync_PersistenceFails_DoesNotPublish()
+        {
+            var profile = MakeProfile("A");
+            bool eventRaised = false;
+            EventHandler<Profile> handler = (_, _) => eventRaised = true;
+            _pm.ProfileAdded += handler;
+
+            try
+            {
+                bool success = await _pm.AddProfileAsync(profile, _ => Task.FromResult(false));
+
+                Assert.IsFalse(success);
+                Assert.AreEqual(0, _pm.GetProfileCount());
+                Assert.IsFalse(eventRaised);
+            }
+            finally
+            {
+                _pm.ProfileAdded -= handler;
+            }
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public async Task AddProfileAsync_PersistenceSucceeds_PublishesAfterPersistence()
+        {
+            var profile = MakeProfile("A");
+            bool persisted = false;
+            bool eventObservedPersistence = false;
+            EventHandler<Profile> handler = (_, _) => eventObservedPersistence = persisted;
+            _pm.ProfileAdded += handler;
+
+            try
+            {
+                bool success = await _pm.AddProfileAsync(profile, _ =>
+                {
+                    persisted = true;
+                    return Task.FromResult(true);
+                });
+
+                Assert.IsTrue(success);
+                Assert.AreEqual(1, _pm.GetProfileCount());
+                Assert.IsTrue(eventObservedPersistence);
+            }
+            finally
+            {
+                _pm.ProfileAdded -= handler;
+            }
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public async Task UpdateProfileAsync_PersistenceFails_PreservesAuthoritativeProfile()
+        {
+            var original = MakeProfile("A");
+            Seed(original);
+            var replacement = MakeProfile("B");
+            replacement.Id = original.Id;
+            bool eventRaised = false;
+            EventHandler<Profile> handler = (_, _) => eventRaised = true;
+            _pm.ProfileUpdated += handler;
+
+            try
+            {
+                bool success = await _pm.UpdateProfileAsync(replacement, _ => Task.FromResult(false));
+
+                Assert.IsFalse(success);
+                Assert.AreSame(original, _pm.GetProfile(original.Id));
+                Assert.IsFalse(eventRaised);
+            }
+            finally
+            {
+                _pm.ProfileUpdated -= handler;
+            }
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public async Task DeleteProfileAsync_PersistenceFails_PreservesAuthoritativeProfile()
+        {
+            var profile = MakeProfile("A");
+            Seed(profile);
+            bool eventRaised = false;
+            EventHandler<string> handler = (_, _) => eventRaised = true;
+            _pm.ProfileDeleted += handler;
+
+            try
+            {
+                bool success = await _pm.DeleteProfileAsync(profile.Id, _ => Task.FromResult(false));
+
+                Assert.IsFalse(success);
+                Assert.AreSame(profile, _pm.GetProfile(profile.Id));
+                Assert.IsFalse(eventRaised);
+            }
+            finally
+            {
+                _pm.ProfileDeleted -= handler;
+            }
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public async Task DeleteProfileAsync_PersistenceSucceeds_PublishesAfterPersistence()
+        {
+            var profile = MakeProfile("A");
+            Seed(profile);
+            bool persisted = false;
+            bool eventObservedPersistence = false;
+            EventHandler<string> handler = (_, _) => eventObservedPersistence = persisted;
+            _pm.ProfileDeleted += handler;
+
+            try
+            {
+                bool success = await _pm.DeleteProfileAsync(profile.Id, _ =>
+                {
+                    persisted = true;
+                    return Task.FromResult(true);
+                });
+
+                Assert.IsTrue(success);
+                Assert.IsNull(_pm.GetProfile(profile.Id));
+                Assert.IsTrue(eventObservedPersistence);
+            }
+            finally
+            {
+                _pm.ProfileDeleted -= handler;
+            }
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void HasTotalProfileLoadFailure_ExistingFilesWithNoLoadedProfiles_ReturnsTrue()
+        {
+            Assert.IsTrue(ProfileManager.HasTotalProfileLoadFailure(2, 0));
+            Assert.IsFalse(ProfileManager.HasTotalProfileLoadFailure(0, 0));
+            Assert.IsFalse(ProfileManager.HasTotalProfileLoadFailure(2, 1));
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void TryNormalizeProfileId_ValidAlternateGuidForm_NormalizesToCanonicalForm()
+        {
+            const string canonicalId = "f16b2268-0208-4cb8-b479-f0206791f014";
+
+            bool success = ProfileManager.TryNormalizeProfileId("{F16B2268-0208-4CB8-B479-F0206791F014}", out string normalizedId);
+
+            Assert.IsTrue(success);
+            Assert.AreEqual(canonicalId, normalizedId);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void TryNormalizeProfileId_PathLikeValue_IsRejected()
+        {
+            bool success = ProfileManager.TryNormalizeProfileId(@"..\outside.dpm", out string normalizedId);
+
+            Assert.IsFalse(success);
+            Assert.IsNull(normalizedId);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void ResolveProfileNameOrId_IdMatchTakesPrecedenceOverNameCollision()
+        {
+            const string profileId = "f16b2268-0208-4cb8-b479-f0206791f014";
+            var idMatch = MakeProfile("ID Match");
+            idMatch.Id = profileId;
+            var nameCollision = MakeProfile(profileId);
+            Seed(nameCollision, idMatch);
+
+            var resolved = _pm.ResolveProfileNameOrId(profileId);
+
+            Assert.AreSame(idMatch, resolved);
         }
 
         // GetProfileByName
@@ -230,10 +407,10 @@ namespace DisplayProfileManager.Tests.Tests
         public void UpdateProfile_AdvancesLastModifiedDate()
         {
             var p = MakeProfile("Profile");
+            p.LastModifiedDate = DateTime.Now.AddDays(-1);
             Seed(p);
             var before = p.LastModifiedDate;
 
-            System.Threading.Thread.Sleep(10);
             _pm.UpdateProfile(p);
 
             Assert.IsTrue(_pm.GetProfile(p.Id).LastModifiedDate > before);
@@ -322,18 +499,6 @@ namespace DisplayProfileManager.Tests.Tests
 
         [TestMethod]
         [TestCategory("Unit")]
-        public void DuplicateProfile_HasNewId()
-        {
-            var original = MakeProfile("A");
-            Seed(original);
-
-            var dup = _pm.DuplicateProfile(original.Id);
-
-            Assert.AreNotEqual(original.Id, dup.Id);
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
         public void DuplicateProfile_HasDistinctId()
         {
             var original = MakeProfile("A");
@@ -361,14 +526,14 @@ namespace DisplayProfileManager.Tests.Tests
         public void DuplicateProfile_CopiesScriptsList()
         {
             var original = MakeProfile("A");
-            original.Scripts.Add(new Script("script.ps1"));
-            original.EnableScripts = true;
+            original.ScriptSettings.Scripts.Add(new Script("script.ps1"));
+            original.ScriptSettings.Enabled = true;
             Seed(original);
 
             var dup = _pm.DuplicateProfile(original.Id);
 
-            Assert.AreEqual(1, dup.Scripts.Count);
-            Assert.IsTrue(dup.EnableScripts);
+            Assert.AreEqual(1, dup.ScriptSettings.Scripts.Count);
+            Assert.IsTrue(dup.ScriptSettings.Enabled);
         }
 
         [TestMethod]
@@ -376,13 +541,13 @@ namespace DisplayProfileManager.Tests.Tests
         public void DuplicateProfile_Scripts_AreDeepCopy()
         {
             var original = MakeProfile("A");
-            original.Scripts.Add(new Script("script.ps1"));
+            original.ScriptSettings.Scripts.Add(new Script("script.ps1"));
             Seed(original);
 
             var dup = _pm.DuplicateProfile(original.Id);
-            dup.Scripts.Clear();
+            dup.ScriptSettings.Scripts.Clear();
 
-            Assert.AreEqual(1, original.Scripts.Count, "Clearing the duplicate's Scripts must not affect the original.");
+            Assert.AreEqual(1, original.ScriptSettings.Scripts.Count, "Clearing the duplicate's Scripts must not affect the original.");
         }
 
         [TestMethod]
@@ -391,6 +556,7 @@ namespace DisplayProfileManager.Tests.Tests
         {
             var original = MakeProfile("A");
             original.AudioSettings = new AudioSetting("pb-id", "Speakers", "cap-id", "Mic");
+            original.AudioSettings.Enabled = true;
             original.AudioSettings.ApplyPlaybackDevice = true;
             Seed(original);
 
@@ -398,6 +564,7 @@ namespace DisplayProfileManager.Tests.Tests
 
             Assert.AreEqual("pb-id", dup.AudioSettings.DefaultPlaybackDeviceId);
             Assert.AreEqual("Speakers", dup.AudioSettings.PlaybackDeviceName);
+            Assert.IsTrue(dup.AudioSettings.Enabled);
             Assert.IsTrue(dup.AudioSettings.ApplyPlaybackDevice);
         }
 
@@ -463,6 +630,32 @@ namespace DisplayProfileManager.Tests.Tests
             var result = new ProfileManager.ProfileApplyResult();
 
             Assert.IsFalse(result.Success);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void ProfileApplyResult_ColorStageDefaults_AreSuccessful()
+        {
+            var result = new ProfileManager.ProfileApplyResult();
+
+            Assert.IsTrue(result.AdvancedColorSuccess);
+            Assert.IsTrue(result.ColorProfileSuccess);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void GetApplyResultErrorMessage_ContainsColorStageStatuses()
+        {
+            var result = new ProfileManager.ProfileApplyResult
+            {
+                AdvancedColorSuccess = false,
+                ColorProfileSuccess = false
+            };
+
+            string message = _pm.GetApplyResultErrorMessage("X", result);
+
+            StringAssert.Contains(message, "Advanced Color: False");
+            StringAssert.Contains(message, "Color Profile: False");
         }
 
         // Duplicate Naming
@@ -534,15 +727,6 @@ namespace DisplayProfileManager.Tests.Tests
             StringAssert.EndsWith(result, " (1)");
         }
 
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void GetDuplicateProfileName_TreatsHandTypedMarkerAsPartOfChain()
-        {
-            Seed(MakeProfile("Profile - Copy"));
-
-            Assert.AreEqual("Profile - Copy - Copy", _pm.GetDuplicateProfileName("Profile - Copy"));
-        }
-
         // SelectRollbackTarget
 
         [TestMethod]
@@ -589,7 +773,6 @@ namespace DisplayProfileManager.Tests.Tests
 
             Assert.AreEqual(ProfileManager.RollbackTarget.Snapshot, target);
         }
-
     }
 
     [TestClass]

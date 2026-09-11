@@ -20,7 +20,7 @@ namespace DisplayProfileManager.Helpers
 
     public class AutoStartHelper
     {
-        private static readonly Logger logger = LoggerHelper.GetLogger();
+        private static readonly Logger _logger = LoggerHelper.GetLogger();
 
         private const string RegistryKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
         private const string RegistryValueName = "DisplayProfileManager";
@@ -38,7 +38,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error reading auto-start state");
+                _logger.Error(ex, "Error reading auto-start state");
                 return false;
             }
         }
@@ -60,7 +60,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error enabling auto-start");
+                _logger.Error(ex, "Error enabling auto-start");
                 return AutoStartOperationResult.Failed;
             }
         }
@@ -93,7 +93,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error disabling auto-start");
+                _logger.Error(ex, "Error disabling auto-start");
                 return AutoStartOperationResult.Failed;
             }
         }
@@ -111,7 +111,7 @@ namespace DisplayProfileManager.Helpers
                         var value = key.GetValue(RegistryValueName);
                         bool isEnabled = value != null;
 
-                        logger.Debug($"Auto-start registry value {(isEnabled ? "found" : "not found")}");
+                        _logger.Debug($"Auto-start registry value {(isEnabled ? "found" : "not found")}");
 
                         return isEnabled;
                     }
@@ -121,7 +121,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error checking registry auto-start");
+                _logger.Error(ex, "Error checking registry auto-start");
                 return false;
             }
         }
@@ -133,13 +133,13 @@ namespace DisplayProfileManager.Helpers
                 var executablePath = GetExecutablePath();
                 if (string.IsNullOrEmpty(executablePath))
                 {
-                    logger.Error("Could not determine executable path");
+                    _logger.Error("Could not determine executable path");
                     return false;
                 }
 
                 if (!File.Exists(executablePath))
                 {
-                    logger.Error($"Executable path does not exist: {executablePath}");
+                    _logger.Error($"Executable path does not exist: {executablePath}");
                     return false;
                 }
 
@@ -150,19 +150,19 @@ namespace DisplayProfileManager.Helpers
                     {
                         key.SetValue(RegistryValueName, command, RegistryValueKind.String);
 
-                        logger.Info($"Successfully enabled registry auto-start: {command}");
+                        _logger.Info($"Successfully enabled registry auto-start: {command}");
                         return true;
                     }
                     else
                     {
-                        logger.Error("Could not open registry key for writing");
+                        _logger.Error("Could not open registry key for writing");
                         return false;
                     }
                 }
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error enabling registry auto-start");
+                _logger.Error(ex, "Error enabling registry auto-start");
                 return false;
             }
         }
@@ -179,7 +179,7 @@ namespace DisplayProfileManager.Helpers
                         if (value != null)
                         {
                             key.DeleteValue(RegistryValueName, false);
-                            logger.Info("Successfully disabled registry auto-start");
+                            _logger.Info("Successfully disabled registry auto-start");
                         }
 
                         return true;
@@ -190,7 +190,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error disabling registry auto-start");
+                _logger.Error(ex, "Error disabling registry auto-start");
                 return false;
             }
         }
@@ -218,7 +218,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Debug(ex, "Could not parse task XML -> treating auto-start as not enabled");
+                _logger.Debug(ex, "Could not parse task XML -> treating auto-start as not enabled");
                 return false;
             }
         }
@@ -240,19 +240,19 @@ namespace DisplayProfileManager.Helpers
                     }
                 })
                 {
-                    logger.Debug($"Querying: schtasks {process.StartInfo.Arguments}");
+                    _logger.Debug($"Querying: schtasks {process.StartInfo.Arguments}");
                     process.Start();
                     var output = process.StandardOutput.ReadToEnd();
                     process.WaitForExit();
 
                     bool isEnabled = process.ExitCode == 0 && IsTaskXmlEnabled(output);
-                    logger.Debug($"Task Scheduler auto-start {(isEnabled ? "found" : "not found")}");
+                    _logger.Debug($"Task Scheduler auto-start {(isEnabled ? "found" : "not found")}");
                     return isEnabled;
                 }
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error checking Task Scheduler auto-start");
+                _logger.Error(ex, "Error checking Task Scheduler auto-start");
                 return false;
             }
         }
@@ -264,13 +264,13 @@ namespace DisplayProfileManager.Helpers
                 var executablePath = GetExecutablePath();
                 if (string.IsNullOrEmpty(executablePath))
                 {
-                    logger.Error("Could not determine executable path");
+                    _logger.Error("Could not determine executable path");
                     return AutoStartOperationResult.Failed;
                 }
 
                 if (!File.Exists(executablePath))
                 {
-                    logger.Error($"Executable path does not exist: {executablePath}");
+                    _logger.Error($"Executable path does not exist: {executablePath}");
                     return AutoStartOperationResult.Failed;
                 }
 
@@ -293,14 +293,14 @@ namespace DisplayProfileManager.Helpers
                         }
                     })
                     {
-                        logger.Debug($"Elevating: schtasks {process.StartInfo.Arguments}");
+                        _logger.Debug($"Elevating: schtasks {process.StartInfo.Arguments}");
                         try
                         {
                             process.Start();
                         }
                         catch (Win32Exception ex) when (ex.NativeErrorCode == ErrorCanceled)
                         {
-                            logger.Info("Task Scheduler auto-start setup canceled");
+                            _logger.Info("Task Scheduler auto-start setup canceled");
                             return AutoStartOperationResult.Canceled;
                         }
 
@@ -308,12 +308,12 @@ namespace DisplayProfileManager.Helpers
 
                         if (process.ExitCode == 0)
                         {
-                            logger.Info("Successfully created Task Scheduler auto-start (elevated)");
+                            _logger.Info("Successfully created Task Scheduler auto-start (elevated)");
                             return AutoStartOperationResult.Success;
                         }
                         else
                         {
-                            logger.Error($"Failed to create Task Scheduler auto-start (elevated). Exit code: {process.ExitCode}");
+                            _logger.Error($"Failed to create Task Scheduler auto-start (elevated). Exit code: {process.ExitCode}");
                             return AutoStartOperationResult.Failed;
                         }
                     }
@@ -328,7 +328,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error enabling Task Scheduler auto-start");
+                _logger.Error(ex, "Error enabling Task Scheduler auto-start");
                 return AutoStartOperationResult.Failed;
             }
         }
@@ -350,14 +350,14 @@ namespace DisplayProfileManager.Helpers
                     }
                 })
                 {
-                    logger.Debug($"Elevating: schtasks {process.StartInfo.Arguments}");
+                    _logger.Debug($"Elevating: schtasks {process.StartInfo.Arguments}");
                     try
                     {
                         process.Start();
                     }
                     catch (Win32Exception ex) when (ex.NativeErrorCode == ErrorCanceled)
                     {
-                        logger.Info("Task Scheduler auto-start removal canceled");
+                        _logger.Info("Task Scheduler auto-start removal canceled");
                         return AutoStartOperationResult.Canceled;
                     }
 
@@ -365,19 +365,19 @@ namespace DisplayProfileManager.Helpers
 
                     if (process.ExitCode == 0)
                     {
-                        logger.Info("Successfully deleted Task Scheduler auto-start (elevated)");
+                        _logger.Info("Successfully deleted Task Scheduler auto-start (elevated)");
                         return AutoStartOperationResult.Success;
                     }
                     else
                     {
-                        logger.Error($"Failed to delete Task Scheduler auto-start (elevated). Exit code: {process.ExitCode}");
+                        _logger.Error($"Failed to delete Task Scheduler auto-start (elevated). Exit code: {process.ExitCode}");
                         return AutoStartOperationResult.Failed;
                     }
                 }
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error disabling Task Scheduler auto-start");
+                _logger.Error(ex, "Error disabling Task Scheduler auto-start");
                 return AutoStartOperationResult.Failed;
             }
         }
@@ -471,7 +471,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error getting executable path");
+                _logger.Error(ex, "Error getting executable path");
                 return string.Empty;
             }
         }
@@ -488,7 +488,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error checking admin status");
+                _logger.Error(ex, "Error checking admin status");
                 return false;
             }
         }

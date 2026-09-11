@@ -13,7 +13,7 @@ namespace DisplayProfileManager.Helpers
 {
     public static class ThemeHelper
     {
-        private static readonly Logger logger = LoggerHelper.GetLogger();
+        private static readonly Logger _logger = LoggerHelper.GetLogger();
 
         private static readonly Dictionary<string, ResourceDictionary> _themes = new Dictionary<string, ResourceDictionary>(StringComparer.OrdinalIgnoreCase);
         private static ResourceDictionary _baseTheme;
@@ -70,7 +70,7 @@ namespace DisplayProfileManager.Helpers
             string theme = settings.Theme;
             if (theme != "System" && !_themes.ContainsKey(theme))
             {
-                logger.Warn($"Saved theme '{theme}' not found, falling back to System");
+                _logger.Warn($"Saved theme '{theme}' not found, falling back to System");
                 theme = "System";
                 _ = SettingsManager.Instance.SetThemeAsync("System");
             }
@@ -98,23 +98,23 @@ namespace DisplayProfileManager.Helpers
                     string name = Path.GetFileNameWithoutExtension(file);
                     if (name == "System")
                     {
-                        logger.Warn($"Theme name 'System' is reserved, skipping: {file}");
+                        _logger.Warn($"Theme name 'System' is reserved, skipping: {file}");
                         continue;
                     }
 
                     var missingKeys = _requiredThemeKeys.Where(k => !dict.Contains(k)).ToList();
                     if (missingKeys.Any())
                     {
-                        logger.Warn($"Theme missing required keys ({string.Join(", ", missingKeys)}), skipping: {Path.GetFileName(file)}");
+                        _logger.Warn($"Theme missing required keys ({string.Join(", ", missingKeys)}), skipping: {Path.GetFileName(file)}");
                         continue;
                     }
 
                     _themes[name] = dict;
-                    logger.Info($"Loaded custom theme: {name}");
+                    _logger.Info($"Loaded custom theme: {name}");
                 }
                 catch (Exception ex)
                 {
-                    logger.Warn(ex, $"Failed to load theme file: {file}");
+                    _logger.Warn(ex, $"Failed to load theme file: {file}");
                 }
             }
         }
@@ -139,7 +139,7 @@ namespace DisplayProfileManager.Helpers
                     else
                     {
                         var fallback = IsSystemUsingDarkTheme() ? "Dark" : "Light";
-                        logger.Warn($"Theme '{theme}' not found -> falling back to {fallback}");
+                        _logger.Warn($"Theme '{theme}' not found -> falling back to {fallback}");
                         _currentColorTheme = _themes[fallback];
                     }
 
@@ -150,7 +150,7 @@ namespace DisplayProfileManager.Helpers
                     }
                     catch (Exception ex)
                     {
-                        logger.Error(ex, $"Theme '{resolvedTheme}' failed to merge -> falling back to Light");
+                        _logger.Error(ex, $"Theme '{resolvedTheme}' failed to merge -> falling back to Light");
                         _currentColorTheme = _themes["Light"];
                         appResources.MergedDictionaries.Add(_currentColorTheme);
                     }
@@ -159,7 +159,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error applying theme");
+                _logger.Error(ex, "Error applying theme");
             }
         }
 
@@ -176,14 +176,14 @@ namespace DisplayProfileManager.Helpers
                 }
                 catch
                 {
-                    logger.Warn($"Theme file failed to load as ResourceDictionary: {sourcePath}");
+                    _logger.Warn($"Theme file failed to load as ResourceDictionary: {sourcePath}");
                     return null;
                 }
 
                 var missingKeys = _requiredThemeKeys.Where(k => !dict.Contains(k)).ToList();
                 if (missingKeys.Any())
                 {
-                    logger.Warn($"Theme file missing required keys: {string.Join(", ", missingKeys)}");
+                    _logger.Warn($"Theme file missing required keys: {string.Join(", ", missingKeys)}");
                     return null;
                 }
 
@@ -199,7 +199,7 @@ namespace DisplayProfileManager.Helpers
 
                 if (name == "System")
                 {
-                    logger.Warn("Theme name 'System' is reserved");
+                    _logger.Warn("Theme name 'System' is reserved");
                     return null;
                 }
 
@@ -217,7 +217,7 @@ namespace DisplayProfileManager.Helpers
                 string importedName = Path.GetFileNameWithoutExtension(destPath);
                 _themes[importedName] = new ResourceDictionary { Source = new Uri(destPath, UriKind.Absolute) };
 
-                logger.Info($"Imported theme: {importedName}");
+                _logger.Info($"Imported theme: {importedName}");
                 ApplyTheme(importedName);
                 _ = SettingsManager.Instance.SetThemeAsync(importedName);
                 ThemeChanged?.Invoke(null, EventArgs.Empty);
@@ -226,7 +226,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Error(ex, $"Error importing theme: {sourcePath}");
+                _logger.Error(ex, $"Error importing theme: {sourcePath}");
                 return null;
             }
         }
@@ -235,7 +235,7 @@ namespace DisplayProfileManager.Helpers
         {
             if (!IsUserTheme(theme))
             {
-                logger.Warn($"Refusing to delete system '{theme}' theme file");
+                _logger.Warn($"Refusing to delete system '{theme}' theme file");
                 return false;
             }
 
@@ -260,13 +260,13 @@ namespace DisplayProfileManager.Helpers
                 await SettingsManager.Instance.SetThemeAsync(target);
                 ApplyTheme(target);
 
-                logger.Info($"Deleted theme: {theme}");
+                _logger.Info($"Deleted theme: {theme}");
                 ThemeChanged?.Invoke(null, EventArgs.Empty);
                 return true;
             }
             catch (Exception ex)
             {
-                logger.Error(ex, $"Error deleting theme: {theme}");
+                _logger.Error(ex, $"Error deleting theme: {theme}");
                 return false;
             }
         }
@@ -282,7 +282,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Debug(ex, "Could not derive accent foreground -> leaving theme value");
+                _logger.Debug(ex, "Could not derive accent foreground -> leaving theme value");
             }
         }
 
@@ -350,7 +350,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error reading system theme");
+                _logger.Error(ex, "Error reading system theme");
             }
 
             return false;

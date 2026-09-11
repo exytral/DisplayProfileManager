@@ -53,6 +53,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "DPMBuilder", "DPMBuilder", 
 	ProjectSection(SolutionItems) = preProject
 		DPMBuilder\DPMShortcutBuilder.pyw = DPMBuilder\DPMShortcutBuilder.pyw
 		DPMBuilder\DPMThemeBuilder.pyw = DPMBuilder\DPMThemeBuilder.pyw
+		DPMBuilder\LICENSE = DPMBuilder\LICENSE
+		DPMBuilder\requirements-build.txt = DPMBuilder\requirements-build.txt
+		DPMBuilder\THIRD-PARTY-LICENSES.md = DPMBuilder\THIRD-PARTY-LICENSES.md
 		DPMThemeBuilder\icon.ico = DPMThemeBuilder\icon.ico
 	EndProjectSection
 EndProject

@@ -1,21 +1,21 @@
 # Wiki Style
 
-The wiki documents current DPM behavior for users. It is intentionally lighter than the source and release-document styles: pages should be clear and consistent without forcing every page into a rigid template.
+The wiki documents current Display Profile Manager behavior for users. It is intentionally lighter than the source and release-document styles: pages should be clear and consistent without forcing every page into a rigid template.
 
 ## Purpose and scope
 
 - Describe current, supported behavior and practical usage.
-- Prefer information that helps a user understand what DPM does and how to use it.
+- Prefer information that helps a user understand what Display Profile Manager does and how to use it.
 - Keep implementation details only when they explain an observable behavior, limitation, compatibility boundary, or troubleshooting step.
 - Do not use the wiki as the historical record for release changes; use `CHANGELOG.md` for technical history and `RELEASE-NOTES.md` for release communication.
 
 ## Prose
 
 - Prefer direct, concise sentences and concrete verbs.
-- Use established DPM terminology and user-facing labels consistently.
+- Use established Display Profile Manager terminology and user-facing labels consistently.
 - Explain prerequisites, limitations, and consequences where they matter to successful use.
 - Avoid marketing language, filler, and claims that cannot be supported by the current implementation.
-- Write for a technically capable user without assuming familiarity with DPM internals.
+- Write for a technically capable user without assuming familiarity with Display Profile Manager internals.
 - Prefer examples that can be copied or followed directly.
 
 ## Structure

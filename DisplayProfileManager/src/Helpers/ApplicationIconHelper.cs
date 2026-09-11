@@ -7,7 +7,7 @@ namespace DisplayProfileManager.Helpers
 {
     internal static class ApplicationIconHelper
     {
-        private static readonly Logger logger = LoggerHelper.GetLogger();
+        private static readonly Logger _logger = LoggerHelper.GetLogger();
 
         public static Icon LoadIcon()
         {
@@ -25,7 +25,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Warn(ex, "Failed to load application icon from executable");
+                _logger.Warn(ex, "Failed to load application icon from executable");
             }
 
             return (Icon)SystemIcons.Application.Clone();

@@ -9,7 +9,7 @@ namespace DisplayProfileManager.Helpers
 {
     public static class ShellContextMenuHelper
     {
-        private static readonly Logger logger = LoggerHelper.GetLogger();
+        private static readonly Logger _logger = LoggerHelper.GetLogger();
 
         private const string ClsidString = "{58C9DBB4-174A-4BCA-88ED-54D760323400}";
         private const string DllName = "ShellExt.dll";
@@ -27,7 +27,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error checking shell extension registration");
+                _logger.Error(ex, "Error checking shell extension registration");
                 return false;
             }
         }
@@ -39,7 +39,7 @@ namespace DisplayProfileManager.Helpers
                 var dllPath = ResolveDllPath();
                 if (dllPath == null)
                 {
-                    logger.Error("ShellExt.dll not found alongside executable");
+                    _logger.Error("ShellExt.dll not found alongside executable");
                     return false;
                 }
 
@@ -57,12 +57,12 @@ namespace DisplayProfileManager.Helpers
                 using (var handlerKey = Registry.CurrentUser.CreateSubKey(HandlerKeyPath, writable: true))
                     handlerKey.SetValue(string.Empty, ClsidString, RegistryValueKind.String);
 
-                logger.Info("Registered DPM shell extension");
+                _logger.Info("Registered DPM shell extension");
                 return true;
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error registering shell extension");
+                _logger.Error(ex, "Error registering shell extension");
                 return false;
             }
         }
@@ -73,12 +73,12 @@ namespace DisplayProfileManager.Helpers
             {
                 Registry.CurrentUser.DeleteSubKeyTree(ClsidKeyPath, throwOnMissingSubKey: false);
                 Registry.CurrentUser.DeleteSubKeyTree(HandlerKeyPath, throwOnMissingSubKey: false);
-                logger.Info("Unregistered DPM shell extension");
+                _logger.Info("Unregistered DPM shell extension");
                 return true;
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error unregistering shell extension");
+                _logger.Error(ex, "Error unregistering shell extension");
                 return false;
             }
         }
@@ -106,7 +106,7 @@ namespace DisplayProfileManager.Helpers
                     }
                     catch (Exception ex)
                     {
-                        logger.Error(ex, "Error stopping Explorer");
+                        _logger.Error(ex, "Error stopping Explorer");
                         return false;
                     }
                     finally
@@ -123,12 +123,12 @@ namespace DisplayProfileManager.Helpers
                     UseShellExecute = true
                 });
 
-                logger.Info("Restarted Explorer");
+                _logger.Info("Restarted Explorer");
                 return true;
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error restarting Explorer");
+                _logger.Error(ex, "Error restarting Explorer");
                 return false;
             }
         }

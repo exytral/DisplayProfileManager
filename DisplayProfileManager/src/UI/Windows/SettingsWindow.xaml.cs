@@ -16,7 +16,7 @@ namespace DisplayProfileManager.UI.Windows
 {
     public partial class SettingsWindow : Window
     {
-        private static readonly Logger logger = LoggerHelper.GetLogger();
+        private static readonly Logger _logger = LoggerHelper.GetLogger();
         private readonly SettingsManager _settingsManager;
         private readonly ProfileManager _profileManager;
         private readonly AutoStartHelper _autoStartHelper;
@@ -118,7 +118,7 @@ namespace DisplayProfileManager.UI.Windows
                 StartWithWindowsCheckBox.IsChecked = liveAutoStart;
                 if (liveAutoStart != settings.StartWithWindows)
                 {
-                    logger.Info($"Auto-start setting was {settings.StartWithWindows} but system reports {liveAutoStart} -> trusting system");
+                    _logger.Info($"Auto-start setting was {settings.StartWithWindows} but system reports {liveAutoStart} -> trusting system");
                     _ = _settingsManager.SetStartWithWindowsStateOnlyAsync(liveAutoStart);
                 }
                 StartInSystemTrayCheckBox.IsEnabled = liveAutoStart;
@@ -534,7 +534,7 @@ namespace DisplayProfileManager.UI.Windows
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error loading startup profiles");
+                _logger.Error(ex, "Error loading startup profiles");
             }
         }
 
@@ -613,7 +613,7 @@ namespace DisplayProfileManager.UI.Windows
 
             if (enabled && !ShellExtensionDllExists(out string dllPath))
             {
-                logger.Warn($"Desktop context menu not enabled — ShellExt.dll missing from {dllPath}");
+                _logger.Warn($"Desktop context menu not enabled — ShellExt.dll missing from {dllPath}");
                 MessageBox.Show($"ShellExt.dll was not found next to the application.\n\nExpected at:\n{dllPath}\n\nThe desktop context menu cannot be enabled without it. Reinstalling restores the file.", "Desktop context menu unavailable", MessageBoxButton.OK, MessageBoxImage.Warning);
 
                 _isLoadingSettings = true;
@@ -625,7 +625,7 @@ namespace DisplayProfileManager.UI.Windows
             bool saved = await SettingsManager.Instance.SetDesktopContextMenuAsync(enabled);
             if (!saved)
             {
-                logger.Warn("Desktop context menu setting could not be saved -> leaving extension unregistered");
+                _logger.Warn("Desktop context menu setting could not be saved -> leaving extension unregistered");
                 _isLoadingSettings = true;
                 DesktopContextMenuCheckBox.IsChecked = !enabled;
                 _isLoadingSettings = false;
@@ -721,7 +721,7 @@ namespace DisplayProfileManager.UI.Windows
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error refreshing hotkey list");
+                _logger.Error(ex, "Error refreshing hotkey list");
             }
         }
 
@@ -744,7 +744,7 @@ namespace DisplayProfileManager.UI.Windows
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error opening URL: {Url}", e.Uri.AbsoluteUri);
+                _logger.Error(ex, "Error opening URL: {Url}", e.Uri.AbsoluteUri);
                 MessageBox.Show($"Could not open link: {e.Uri.AbsoluteUri}", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
@@ -783,6 +783,7 @@ namespace DisplayProfileManager.UI.Windows
                 {
                     new { Name = AboutHelper.Libraries.NewtonsoftName, Version = AboutHelper.Libraries.NewtonsoftVersion, License = AboutHelper.Libraries.NewtonsoftLicense, Url = AboutHelper.Libraries.NewtonsoftUrl, Description = "JSON serialization" },
                     new { Name = AboutHelper.Libraries.NLogName, Version = AboutHelper.Libraries.NLogVersion, License = AboutHelper.Libraries.NLogLicense, Url = AboutHelper.Libraries.NLogUrl, Description = "Logging framework" },
+                    new { Name = AboutHelper.Libraries.SystemManagementName, Version = AboutHelper.Libraries.SystemManagementVersion, License = AboutHelper.Libraries.SystemManagementLicense, Url = AboutHelper.Libraries.SystemManagementUrl, Description = "Windows system management" },
                 };
 
                 foreach (var library in libraries)
@@ -817,7 +818,7 @@ namespace DisplayProfileManager.UI.Windows
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error loading libraries");
+                _logger.Error(ex, "Error loading libraries");
             }
         }
 
@@ -971,7 +972,7 @@ namespace DisplayProfileManager.UI.Windows
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error loading contributors");
+                _logger.Error(ex, "Error loading contributors");
             }
         }
     }

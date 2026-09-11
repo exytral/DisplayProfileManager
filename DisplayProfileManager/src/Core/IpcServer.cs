@@ -59,13 +59,15 @@ namespace DisplayProfileManager.Core
             }, token);
         }
 
-        public static async Task<bool> SendAsync(string message)
+        public static Task<bool> SendAsync(string message) => SendAsync(message, 2000);
+
+        internal static async Task<bool> SendAsync(string message, int connectTimeoutMilliseconds)
         {
             NamedPipeClientStream client = null;
             try
             {
                 client = new NamedPipeClientStream(".", PipeName, PipeDirection.Out);
-                await client.ConnectAsync(2000);
+                await client.ConnectAsync(connectTimeoutMilliseconds);
 
                 using (var writer = new StreamWriter(client))
                 {

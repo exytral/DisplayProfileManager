@@ -16,6 +16,14 @@ DpmContextMenu::DpmContextMenu()
 
 DpmContextMenu::~DpmContextMenu()
 {
+    // Explorer borrows hbmpItem; keep bitmaps alive for this menu object's lifetime and release them here
+    for (HBITMAP hBmp : _menuBitmaps)
+    {
+        if (hBmp)
+            DeleteObject(hBmp);
+    }
+    _menuBitmaps.clear();
+
     InterlockedDecrement(&g_cDllRef);
 }
 
@@ -78,10 +86,12 @@ STDMETHODIMP DpmContextMenu::QueryContextMenu(HMENU hmenu, UINT indexMenu,
     if (uFlags & CMF_DEFAULTONLY)
         return MAKE_HRESULT(SEVERITY_SUCCESS, FACILITY_NULL, 0);
 
-    if (_profiles.empty())
+    if (_profiles.empty() || idCmdLast < idCmdFirst)
         return MAKE_HRESULT(SEVERITY_SUCCESS, FACILITY_NULL, 0);
 
     _idCmdFirst = idCmdFirst;
+    const UINT maxCommandOffset = idCmdLast - idCmdFirst;
+    UINT commandCount = 0;
 
     HMENU hSub = CreatePopupMenu();
     if (!hSub)
@@ -89,7 +99,7 @@ STDMETHODIMP DpmContextMenu::QueryContextMenu(HMENU hmenu, UINT indexMenu,
 
     int iconSize = GetSystemMetrics(SM_CXSMICON); // Match shell's menu icon size
 
-    for (UINT i = 0; i < static_cast<UINT>(_profiles.size()); ++i)
+    for (UINT i = 0; i < static_cast<UINT>(_profiles.size()) && i <= maxCommandOffset; ++i)
     {
         const auto& p = _profiles[i];
         bool isActive = (!_currentProfileId.empty() && p.id == _currentProfileId);
@@ -115,8 +125,11 @@ STDMETHODIMP DpmContextMenu::QueryContextMenu(HMENU hmenu, UINT indexMenu,
             hBmp = LoadProfileIconBitmap(p.icon, iconSize);
 
         mii.hbmpItem = hBmp; // nullptr leaves item without a profile icon
+        if (hBmp)
+            _menuBitmaps.push_back(hBmp);
 
         InsertMenuItemW(hSub, i, TRUE, &mii);
+        ++commandCount;
     }
 
     MENUITEMINFOW rootMii{};
@@ -125,11 +138,14 @@ STDMETHODIMP DpmContextMenu::QueryContextMenu(HMENU hmenu, UINT indexMenu,
     rootMii.fState = MFS_ENABLED;
     rootMii.hSubMenu = hSub;
     rootMii.dwTypeData = const_cast<LPWSTR>(L"Display Profiles");
-    rootMii.hbmpItem = LoadAppIconBitmap(iconSize);
+    HBITMAP rootBitmap = LoadAppIconBitmap(iconSize);
+    rootMii.hbmpItem = rootBitmap;
+    if (rootBitmap)
+        _menuBitmaps.push_back(rootBitmap);
 
     InsertMenuItemW(hmenu, indexMenu, TRUE, &rootMii);
 
-    return MAKE_HRESULT(SEVERITY_SUCCESS, FACILITY_NULL, static_cast<UINT>(_profiles.size()));
+    return MAKE_HRESULT(SEVERITY_SUCCESS, FACILITY_NULL, commandCount);
 }
 
 STDMETHODIMP DpmContextMenu::InvokeCommand(CMINVOKECOMMANDINFO* pici)
@@ -146,16 +162,16 @@ STDMETHODIMP DpmContextMenu::InvokeCommand(CMINVOKECOMMANDINFO* pici)
 
     const auto& profile = _profiles[idx];
 
-    // Escape quotes so profile name remains one command-line argument
-    std::wstring safeName = profile.name;
+    // Use persisted profile identity rather than a user-facing name
+    std::wstring safeId = profile.id;
     size_t pos = 0;
-    while ((pos = safeName.find(L'"', pos)) != std::wstring::npos)
+    while ((pos = safeId.find(L'"', pos)) != std::wstring::npos)
     {
-        safeName.replace(pos, 1, L"\\\"");
+        safeId.replace(pos, 1, L"\\\"");
         pos += 2;
     }
 
-    std::wstring args = L"--headless \"" + safeName + L"\"";
+    std::wstring args = L"--headless \"" + safeId + L"\"";
 
     SHELLEXECUTEINFOW sei{};
     sei.cbSize = sizeof(sei);
@@ -166,7 +182,15 @@ STDMETHODIMP DpmContextMenu::InvokeCommand(CMINVOKECOMMANDINFO* pici)
     sei.lpParameters = args.c_str();
     sei.nShow = SW_HIDE;
 
-    ShellExecuteExW(&sei);
+    if (!ShellExecuteExW(&sei))
+    {
+        DWORD error = GetLastError();
+        if (error == ERROR_SUCCESS)
+            error = ERROR_GEN_FAILURE;
+
+        return HRESULT_FROM_WIN32(error);
+    }
+
     if (sei.hProcess)
         CloseHandle(sei.hProcess);
 

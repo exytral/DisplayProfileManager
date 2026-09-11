@@ -65,8 +65,6 @@ The profile editor shows a wallpaper preview and provides mode-specific controls
 
 ## Audio
 
-## Audio
-
 When **Enable Audio** is active, the profile applies its configured playback and recording devices. Each playback or recording row has an **Apply** setting that controls whether that endpoint changes when the profile runs.
 
 The device dropdown menus enumerate currently available devices when opened. A saved device that is no longer available remains selected until another device is chosen, and is shown as **Unavailable** in the editor and Details panel. Closing the dropdown without selecting another device preserves the saved endpoint, which can still be saved with the profile.
@@ -75,7 +73,7 @@ The device dropdown menus enumerate currently available devices when opened. A s
 
 ## Scripts
 
-When **Enable Scripts** is active, the profile runs its enabled scripts after the display, wallpaper, and audio stages. Imported scripts are copied into the application's sandboxed scripts folder.
+When **Enable Scripts** is active, the profile runs its enabled scripts after the display, wallpaper, and audio stages. Imported scripts are copied into the application-managed Scripts folder.
 
 Each script has its own enable checkbox. Disabling a row keeps the script, its file, and its arguments in the profile but skips that script during apply.
 
@@ -93,7 +91,7 @@ Assign or clear a system-wide hotkey from a profile from the profile editor. Hot
 
 ## Profile icons
 
-Each profile can have a custom `.ico` icon. Imported icons are copied into the application's icon sandbox and can be selected from the profile editor.
+Each profile can have a custom `.ico` icon. Imported icons are copied into the application's Icons folder and can be selected from the profile editor.
 
 Click **"Clear"** to remove the icon assignment without deleting the underlying imported icon file.
 
@@ -127,5 +125,5 @@ The application uses stored target and EDID identity information when resolving 
 Profile files are stored at:
 
 ```text
-%AppData%\Roaming\DisplayProfileManager\Profiles\
+%AppData%\DisplayProfileManager\Profiles\
 ```

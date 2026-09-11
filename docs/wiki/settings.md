@@ -23,7 +23,7 @@ Enable **"Start with Windows"** to launch Display Profile Manager automatically 
 **Auto-Start Method** offers two modes:
 
 - **Standard (No admin required)** — uses the per-user Registry startup entry.
-- **Quick Launch (Requires admin for setup)** — uses Task Scheduler and requires administrator approval during setup.
+- **Quick Launch (One-time admin for setup)** — uses Task Scheduler and requires administrator approval during setup.
 
 When an elevated Task Scheduler operation is canceled, Settings restores the previous auto-start state and shows a warning. Other failures show an error and restore the previous state.
 
@@ -33,8 +33,8 @@ When an elevated Task Scheduler operation is canceled, Settings restores the pre
 
 Configure actions that occur when Display Profile Manager launches.
 
-- **Check for updates on startup** — off by default. When enabled, Display Profile Manager checks GitHub for a newer release immediately and at startup. Newer releases are shown in the status bar, About section, and Windows notifications after the seven-day age threshold.
-- **Startup Profile** — apply a selected profile when Display Profile Manager starts.
+- **Check for new versions on startup** — off by default. When enabled, Display Profile Manager checks GitHub for a newer release immediately and at startup. Newer releases are shown in the status bar, About section, and Windows notifications after the seven-day age threshold.
+- **Apply startup profile on launch** — apply a selected profile when Display Profile Manager starts.
 
 Update checking is not continuously polled. Display Profile Manager checks release metadata only; it does not download, install, or execute updates.
 
