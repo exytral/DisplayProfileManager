@@ -19,7 +19,7 @@ namespace DisplayProfileManager.UI.Windows
 {
     public partial class MainWindow : Window
     {
-        private static readonly Logger logger = LoggerHelper.GetLogger();
+        private static readonly Logger _logger = LoggerHelper.GetLogger();
 
         private ProfileManager _profileManager;
         private SettingsManager _settingsManager;
@@ -493,7 +493,7 @@ namespace DisplayProfileManager.UI.Windows
             DuplicateProfileButton.Visibility = Visibility.Visible;
 
             // Wallpaper Section
-            if (profile.EnableWallpaper && profile.WallpaperSettings != null)
+            if (profile.WallpaperSettings?.Enabled == true)
             {
                 var wallpaperHeader = new TextBlock
                 {
@@ -545,7 +545,7 @@ namespace DisplayProfileManager.UI.Windows
             {
                 var audioHeader = new TextBlock
                 {
-                    Text = profile.EnableAudio ? "Audio" : "Audio (Disabled)",
+                    Text = profile.AudioSettings.Enabled ? "Audio" : "Audio (Disabled)",
                     Style = (Style)FindResource("PrimaryTextBlockStyle"),
                     FontWeight = FontWeights.Medium,
                     Margin = new Thickness(0, 8, 0, 8)
@@ -597,11 +597,11 @@ namespace DisplayProfileManager.UI.Windows
             }
 
             // Script Section
-            if (profile.Scripts != null && profile.Scripts.Count > 0)
+            if (profile.ScriptSettings?.Scripts?.Count > 0)
             {
                 var scriptHeader = new TextBlock
                 {
-                    Text = profile.EnableScripts ? "Scripts" : "Scripts (Disabled)",
+                    Text = profile.ScriptSettings.Enabled ? "Scripts" : "Scripts (Disabled)",
                     Style = (Style)FindResource("PrimaryTextBlockStyle"),
                     FontWeight = FontWeights.Medium,
                     Margin = new Thickness(0, 8, 0, 8)
@@ -610,7 +610,7 @@ namespace DisplayProfileManager.UI.Windows
 
                 var scriptPanel = new StackPanel { Margin = new Thickness(0, 0, 0, 12) };
 
-                foreach (var script in profile.Scripts)
+                foreach (var script in profile.ScriptSettings.Scripts)
                 {
                     string displayText = script.ToString();
                     bool fileExists = false;
@@ -621,7 +621,7 @@ namespace DisplayProfileManager.UI.Windows
                     }
                     catch (Exception ex)
                     {
-                        logger.Error($"Error validating script path for {script.FileName}: {ex.Message}");
+                        _logger.Error($"Error validating script path for {script.FileName}: {ex.Message}");
                     }
 
                     var scriptItem = new TextBlock
@@ -631,7 +631,7 @@ namespace DisplayProfileManager.UI.Windows
                         Foreground = (SolidColorBrush)FindResource("SecondaryTextBrush"),
                         Margin = new Thickness(0, 0, 0, 2),
                         TextWrapping = TextWrapping.Wrap,
-                        Opacity = profile.EnableScripts && script.IsEnabled ? 1.0 : UiOpacity.Inactive
+                        Opacity = profile.ScriptSettings.Enabled && script.IsEnabled ? 1.0 : UiOpacity.Inactive
                     };
                     scriptItem.Inlines.Add(new System.Windows.Documents.Run(displayText));
                     if (!fileExists)
@@ -752,7 +752,7 @@ namespace DisplayProfileManager.UI.Windows
                 {
                     StatusTextBlock.Text = "Failed to apply profile";
                     string errorDetails = _profileManager.GetApplyResultErrorMessage(profile.Name, applyResult);
-                    logger.Warn(errorDetails);
+                    _logger.Warn(errorDetails);
                     MessageBox.Show(errorDetails, "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
                 else
@@ -760,17 +760,15 @@ namespace DisplayProfileManager.UI.Windows
                     string elapsed = $"{(applyWatch.Elapsed.TotalSeconds == 0 ? "0"
                         : $"{Math.Ceiling(applyWatch.Elapsed.TotalSeconds * 10) / 10:0.#}")} {(Math.Ceiling(applyWatch.Elapsed.TotalSeconds * 10) / 10 == 1 ? "second" : "seconds")}";
 
-                    // Report DPI failure separately when display configuration itself succeeded
-                    StatusTextBlock.Text = applyResult.DpiChanged
-                        ? $"'{profile.Name}' applied in {elapsed}"
-                        : $"'{profile.Name}' applied in {elapsed} — DPI failed to apply";
+                    string warningSummary = ProfileManager.GetApplyWarningSummary(applyResult);
+                    StatusTextBlock.Text = ProfileManager.AppendApplyWarnings($"'{profile.Name}' applied in {elapsed}", warningSummary);
                 }
             }
             catch (Exception ex)
             {
                 StatusTextBlock.Text = "Error applying profile";
                 MessageBox.Show($"Exception: Error applying profile: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                logger.Error(ex, "Exception while applying profile");
+                _logger.Error(ex, "Exception while applying profile");
             }
             finally
             {
@@ -1091,7 +1089,7 @@ namespace DisplayProfileManager.UI.Windows
             }
             catch (Exception ex)
             {
-                logger.Warn(ex, "Failed to load app icon");
+                _logger.Warn(ex, "Failed to load app icon");
             }
         }
 
@@ -1230,7 +1228,10 @@ namespace DisplayProfileManager.UI.Windows
                 }
 
                 if (!appliedFromThisWindow)
-                    StatusTextBlock.Text = $"'{e.Profile.Name}' {GetApplySource(e.Source)} in {(e.DurationMilliseconds / 1000.0):0.0} seconds";
+                {
+                    string status = $"'{e.Profile.Name}' {GetApplySource(e.Source)} in {(e.DurationMilliseconds / 1000.0):0.0} seconds";
+                    StatusTextBlock.Text = ProfileManager.AppendApplyWarnings(status, e.WarningSummary);
+                }
             });
         }
 

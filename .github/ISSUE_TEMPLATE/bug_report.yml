@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Before filing, please check [existing issues](../../issues) to see if this has already been reported.
+        Before filing, please check [existing issues](https://github.com/exytral/DisplayProfileManager/issues) to see if this has already been reported.
 
   - type: textarea
     id: description
@@ -39,7 +39,7 @@ body:
     id: log
     attributes:
       label: Application log
-      description: Attach the log file for the day the issue occurred. Logs are stored at `%AppData%\Roaming\DisplayProfileManager\Logs\`.
+      description: Attach the log file for the day the issue occurred. Logs are stored at `%AppData%\DisplayProfileManager\Logs\`.
       placeholder: "Attach the relevant daily log file."
     validations:
       required: true
@@ -48,7 +48,7 @@ body:
     id: profiles
     attributes:
       label: Profile files
-      description: Attach the destination `.dpm` profile. Also attach the source `.dpm` profile when a source profile applies. Profile files are stored at `%AppData%\Roaming\DisplayProfileManager\Profiles\`.
+      description: Attach the destination `.dpm` profile. Also attach the source `.dpm` profile when a source profile applies. Profile files are stored at `%AppData%\DisplayProfileManager\Profiles\`.
       placeholder: "Attach the requested .dpm files."
     validations:
       required: true

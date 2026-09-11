@@ -24,6 +24,35 @@ Switch profiles with global hotkeys, the system tray, or the desktop classic rig
 
 ---
 
+## 2.2.1 — Stability and correctness
+
+### 🛡️ Reliability
+
+- **Safer profile saves and editing** — profile changes are committed only after persistence succeeds, canceling or failing an edit no longer leaks partial working state, and default-profile references no longer advance ahead of the saved profile.
+- **Safer profile loading and imports** — a broken set of saved profiles no longer looks like an empty first-run folder, and imported profile IDs are normalized before they are used for storage.
+- **Safer settings reloads** — failed settings reloads cannot authorize saving fallback defaults, and legacy lowercase settings-file migration no longer mistakes the modern file for the old one on Windows.
+- **Single-instance command safety** — additional command-line invocations wait for the authoritative application instance to become ready rather than falling back to a second local apply while the first process is still starting. Graceful `--exit` now takes precedence over other combined CLI actions and can shut down a running development instance even though development mode bypasses the normal single-instance mutex.
+
+### 🖥️ Display and color
+
+- **Display-query retry** — display queries now recover from Windows topology changes that occur between buffer sizing and the actual query.
+- **Mixed virtual-mode topology handling** — clone/extend preparation now honors the source-info union format used by each individual display path, including mixed virtual and non-virtual paths.
+- **Apply-result reporting** — successful profile applies now report non-blocking Advanced Color, Color Profile, DPI, and Audio failures in status text and the normal apply notification instead of presenting those secondary stages as fully successful. Display/layout failures retain the existing failure and rollback behavior.
+- **ICC HDR detection** — valid CICP tags are detected correctly even when they are followed by other ICC tags.
+
+### ⚙️ Integration
+
+- **Global hotkey reloads** — refreshing profiles reconciles the registered hotkeys before refreshed profile state is published.
+- **Desktop context menu hardening** — Explorer command-ID bounds are respected, profile launches use stable profile IDs, failed launches are reported, and native menu bitmap resources are released correctly.
+- **Script path validation** — stored script paths are checked against the application-managed Scripts folder again at execution time before launch.
+
+### 📦 Packaging
+
+- **Upgrade shutdown handling** — upgrades now wait for the installed DPM process to finish exiting before replacing files, preventing the redundant automatic/force-close prompt that could appear after a graceful shutdown request.
+- **Standalone Builders** — DPM Shortcut Builder now includes the COM support required for `.lnk` creation, while both Builder downloads are versioned ZIPs containing the standalone executable, Python source, Builder license, and third-party notices.
+
+---
+
 ## 2.2.0 — Wallpaper, desktop context menu, HDR, display recovery & more
 
 ### 🖼️ Wallpaper
@@ -254,11 +283,15 @@ For a full technical breakdown, see [CHANGELOG.md](CHANGELOG.md).
 | `DisplayProfileManager-{{VERSION}}-x64-Setup.exe`      | Installer — x64               |
 | `DisplayProfileManager-{{VERSION}}-x86-Portable.zip`   | Portable — x86                |
 | `DisplayProfileManager-{{VERSION}}-x86-Setup.exe`      | Installer — x86               |
-| `DPMShortcutBuilder.exe`                               | Shortcut Builder (standalone) |
-| `DPMShortcutBuilder.pyw`                               | Shortcut Builder (Python)     |
-| `DPMThemeBuilder.exe`                                  | Theme Builder (standalone)    |
-| `DPMThemeBuilder.pyw`                                  | Theme Builder (Python)        |
+| `DPMShortcutBuilder-{{VERSION}}.zip`                   | Shortcut Builder package      |
+| `DPMThemeBuilder-{{VERSION}}.zip`                      | Theme Builder package         |
 
-**Requirements:** Windows 10 version 1709+ · [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0)
+### Requirements
 
-> ACM support on supported displays requires Windows 11 22H2+. Dedicated HDR/ACM API support requires Windows 11 24H2+.
+- **Windows:** A [Windows client release supported by .NET 10](https://learn.microsoft.com/en-us/dotnet/core/install/windows#supported-versions). Windows 10 support is limited to LTSC/Enterprise releases.
+- **Runtime:** [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0)
+- **HDR:** Windows 10 version 1709 or later provides the legacy Advanced Color API path
+- **ACM:** Windows 11 22H2 or later on supported displays
+- **Dedicated HDR/ACM APIs:** Windows 11 24H2 or later
+
+> The feature-version floors above do not expand the base operating-system support established by the .NET 10 support matrix.

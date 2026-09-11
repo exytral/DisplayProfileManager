@@ -1,0 +1,11 @@
+# Direct release-freeze inputs.
+PyInstaller==6.22.2
+pywin32==312
+
+# Pinned PyInstaller dependencies for reproducible Builder release freezes.
+altgraph==0.17.5
+packaging==26.3
+pefile==2024.8.26
+pyinstaller-hooks-contrib==2026.7
+pywin32-ctypes==0.2.3
+setuptools==84.0.0

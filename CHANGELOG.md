@@ -6,6 +6,64 @@ For user-facing release notes, see the [GitHub Releases](https://github.com/exyt
 
 ---
 
+<a id="2.2.1"></a>
+## [2.2.1] - 2026-09-11
+
+_[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManager/releases/tag/2.2.1)_
+
+### fix — profile persistence and editing
+
+- **Transactional profile mutations** — add/update operations persist the candidate before publishing it to the in-memory profile list, failed editor saves no longer leak working changes into the live profile, and default-profile references are updated only after the corresponding profile save succeeds.
+- **Profile-load failure boundary** — an empty Profiles directory can still create the initial Default profile, while a directory containing saved profiles that all fail to load now reports failure and preserves the previous authoritative in-memory profile list instead of silently replacing it.
+- **Imported profile identity** — imported profile IDs are validated as GUIDs and normalized to canonical `D` form before they can participate in profile file paths; invalid or colliding IDs receive a fresh GUID.
+- **Profile schema 5** — wallpaper, audio, and script section enablement is stored with the corresponding nested settings object. Legacy root enable/script members remain accepted during deserialization and migrate to the normalized shape, with current nested values taking precedence when both forms are present. Profiles created by DPM now start at the current schema version, while the parameterless constructor remains at `0` so schema-less legacy JSON still enters migration when loaded.
+
+### fix — settings and command authority
+
+- **Settings reload safety** — every settings reload revokes loaded-state authority before reading from disk, so a failed reload cannot subsequently save fallback defaults as though they were authoritative state.
+- **Legacy settings casing** — migration of the historical lowercase `settings.json` name now requires that exact casing, avoiding needless replacement of modern `Settings.json` on case-insensitive Windows filesystems.
+- **Single-instance command authority** — normal startup decides mutex ownership before local command execution. Secondary invocations wait for the primary IPC readiness boundary and fail rather than applying locally when the authoritative process exists but its pipe is not ready. `--exit` is resolved before other queued commands and always attempts the session IPC shutdown path, including when a development instance is running without the normal single-instance mutex.
+- **Hotkey reload reconciliation** — successful authoritative profile reloads reconcile process-owned global hotkey registrations before refreshed profile state is observed by UI consumers.
+
+### fix — display and color handling
+
+- **Display-query topology races** — CCD buffer-size/query sequences retry when the topology changes between sizing and `QueryDisplayConfig`, avoiding deterministic failures from stale allocation sizes.
+- **Virtual-mode source union** — topology preparation interprets the source-info mode-index union per path. Virtual-aware paths use the packed clone-group form while non-virtual paths retain the required all-invalid mode index without losing semantic clone grouping.
+- **Advanced color result propagation** — HDR/ACM and color-profile stage failures remain represented in the profile-apply result instead of being overwritten by later successful work.
+- **Secondary apply reporting** — successful applies summarize non-blocking Advanced Color, Color Profile, DPI, and Audio failures in application order through status text and normal successful-apply notifications. Display/layout failure remains the profile success and rollback boundary; secondary-stage failures do not independently fail or roll back the profile or create a blocking popup.
+- **ICC CICP parsing** — HDR profile detection preserves the size of the discovered CICP tag when later unrelated ICC tags are scanned, allowing valid non-final CICP entries to be parsed correctly.
+
+### fix — scripts and shell integration
+
+- **Script path confinement** — persisted script filenames are resolved under the application-managed Scripts folder at execution time and lexical path escapes are rejected before launch.
+- **Shell menu resource ownership** — native menu bitmaps are released when their menu lifetime ends instead of leaking GDI bitmap handles across repeated Explorer menu opens.
+- **Shell command dispatch** — the extension respects the command-ID range provided by Explorer, launches profiles by stable persisted ID rather than display name, and propagates `ShellExecuteExW` launch failure.
+
+### fix — packaging and attribution
+
+- **Installer shutdown verification** — upgrades wait for the installed `DisplayProfileManager.exe` process to terminate before file replacement rather than treating early `DPM_Mutex` release as complete shutdown. The installer checks the exact `{app}` executable path, waits up to five seconds for graceful `--exit`, and scopes forced fallback to matching process IDs; 2.2.1 also retains the mutex until application exit cleanup completes.
+- **Shortcut Builder dependencies** — frozen Shortcut Builder output verifies the `win32com`/`pythoncom` modules required for `.lnk` creation, excludes unused Pythonwin UI support, and no longer installs the unused `requests` dependency. Builder source requirements now reflect the Python 3.10+ syntax actually used.
+- **Runtime dependency attribution** — `System.Management` is included in About/library attribution alongside the other externally packaged runtime dependencies.
+- **Builder release archives** — DPM Shortcut Builder and DPM Theme Builder are published as versioned ZIPs containing the frozen executable, corresponding `.pyw` source, Builder license, and Builder third-party license document so redistribution terms remain with each downloadable tool.
+- **Redistributed licenses** — installer and portable packages include the project and application third-party license documents. Builder archives include the checked-in notice covering CPython and its bundled native dependencies, PyInstaller, embedded PyInstaller Community Hooks runtime hooks, pywin32, and the redistributed Microsoft Visual C++ Runtime category.
+
+### build — platform and dependencies
+
+- **Windows platform metadata** — the assembly support annotation now declares Windows without a hardcoded OS build, leaving the base operating-system floor to the .NET 10 support matrix and feature-specific API gates.
+- **System.Management update** — `System.Management` moves from 10.0.11 to 10.0.12.
+- **Builder freeze environment** — release builds pin CPython 3.13.15 and the Python package set used by PyInstaller 6.22.2 and `pywin32` 312, constrain native dependency discovery to the selected Python and Windows system paths, and validate the frozen native payload so unrelated hosted-runner libraries cannot enter Builder artifacts.
+
+### test — stabilization coverage
+
+- **Regression suite** — focused pure unit coverage was added for profile transactionality, editor isolation, default-reference sequencing, script path validation, hotkey reload reconciliation, CCD query retries, virtual-mode topology preparation, profile schema 5, current-schema profile creation, schema-less upstream-profile compatibility, ICC parsing, settings casing/state, profile load/import boundaries, ID-first profile resolution, and secondary apply-result presentation. The current suite contains 314 tests.
+- **Inherited test audit** — reviewed the pre-2.2.1 test suite and removed 30 redundant, framework-only, historical API-shape, or self-contained simulation cases that did not meaningfully constrain DPM behavior. Existing production-behavior coverage was retained, with newer production-seam tests covering the relevant topology contracts.
+
+### misc — contribution policy
+
+- **Contribution and pull-request guidance** — add `CONTRIBUTING.md` and a pull-request template covering focused changes, relevant validation, changelog/release-note responsibilities, compact review records, and factual disclosure of material AI assistance while leaving contributors responsible for submitted work and reported validation.
+
+---
+
 <a id="2.2.0"></a>
 ## [2.2.0] - 2026-09-10
 
@@ -69,10 +127,10 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 
 - **DPI scaling validation** — unreadable scaling ranges no longer report false success, unsupported in-range values snap to the nearest supported step, and write results are logged.
 - **DPI scaling targeting** — scaling is resolved against the live display immediately before application when live display configuration is available, dropping reliance on stale device-name match.
-- **Topology recovery for `ERROR_GEN_FAILURE` (31)** — `SDC_TOPOLOGY_SUPPLIED` failures now retry with `SDC_USE_SUPPLIED_DISPLAY_CONFIG | SDC_SAVE_TO_DATABASE`; `SDC_ALLOW_PATH_ORDER_CHANGES` is omitted from retry while `SDC_VIRTUAL_MODE_AWARE` is retained. Recovers display topologies that Windows has not yet committed to the display configuration database, including cases where changing display identity or EDID causes previously unseen topology to be rejected by the normal database-backed path.
+- **Topology recovery for `ERROR_GEN_FAILURE` (31)** — `SDC_TOPOLOGY_SUPPLIED` failures now retry with `SDC_USE_SUPPLIED_DISPLAY_CONFIG | SDC_SAVE_TO_DATABASE`; `SDC_ALLOW_PATH_ORDER_CHANGES` is omitted from retry while `SDC_VIRTUAL_MODE_AWARE` is retained. This recovers display topologies that Windows has not yet committed to the display configuration database, including cases where changing display identity or EDID causes previously unseen topology to be rejected by the normal database-backed path.
 - **Presence-aware display handling** — `QDC_ALL_PATHS` membership classifies which enabled profile displays are present for stabilization without using transient `targetAvailable` as a presence gate, while `QDC_ONLY_ACTIVE_PATHS` is used by the wait itself to observe active displays. Displays absent from the all-paths snapshot are excluded from the wait without creating separate disconnected-display result state; present displays that are temporarily absent from the active query remain eligible for later polling.
 - **Deep-sleep layout recovery** — `ApplyDisplayConfig` captures all-paths target presence once, excludes absent displays from the stabilization wait set, defers present displays before the normal `ApplyDisplayLayout`, and preserves the full requested configuration as the layout payload. Layout-stage `ERROR_GEN_FAILURE` (31) invokes the same defer set again and retries the full layout once, allowing transient post-topology states to settle before the second submission.
-- **`VerifyDisplayConfiguration` retired** — the post-failure verifier checked only the coarse live topology state, confirming the expected display enablement and clone-group SourceId sharing. Did not verify requested position, resolution, refresh rate, or other settings, so it could convert a failed layout `SetDisplayConfig` into apparent success. Verifier was removed so failed layout submission remains a failure and follows the normal error and recovery path.
+- **`VerifyDisplayConfiguration` retired** — the post-failure verifier checked only the coarse live topology state, confirming the expected display enablement and clone-group SourceId sharing. It did not verify requested position, resolution, refresh rate, or other settings, so it could convert a failed layout `SetDisplayConfig` into apparent success. Verifier was removed so failed layout submission remains a failure and follows the normal error and recovery path.
 - **Live-path selection** — `ApplyDisplayLayout` now prefers the active path when `QDC_ALL_PATHS` returns inactive alternates, and mutation path records which entry was live before clearing `Active`. Prevents layout, resolution, rotation, and subsequent live-display lookups from targeting an inactive route.
 
 ### fix — UI
@@ -83,7 +141,7 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 - **Profile list and apply state** — external applies and profile edits preserve selection and external applies report their source and elapsed duration in status text and notifications.
 - **Tray menu icon rendering** — inactive profile icons are rendered at the native small-menu size with preserved transparency, avoiding oversized icons and opaque backgrounds in the native popup menu. Tray icon updates now resolve from the active profile when another profile is edited or added.
 - **Presentation and sorting** — empty descriptions collapse, accent-button foregrounds derive from the system accent luminance, CLI/shell applies report success or failure, combo-box dropdown height is constrained, and names use `StrCmpLogicalW`.
-- **Settings initialization** — persisted control state initialized before the window is shown, while loaded-time work reconciles live runtime state. Auto-start reconciliation immediately updates dependent tray-start and auto-start-mode controls when live system state differs from persisted state, while preserving their stored values.
+- **Settings initialization** — persisted control state is initialized before the window is shown, while loaded-time work reconciles live runtime state. Auto-start reconciliation immediately updates dependent tray-start and auto-start-mode controls when live system state differs from persisted state, while preserving their stored values.
 - **Auto-start state handling** — auto-start operations distinguish `Success`, `Canceled`, and `Failed`; canceled elevated Task Scheduler operations restore prior logical and UI state and show a warning, while other failures remain errors. Persistence failures restore in-memory settings and attempt external rollback, with rollback failure logged explicitly.
 - **Disabled display color-profile state** — selecting a color profile on a disabled display no longer restores full opacity; color-profile control remains visually inactive until the display is enabled.
 - **Unavailable audio devices** — saved playback or capture device that is no longer present is preserved as an unavailable selection rather than silently falling back to another device, remains saveable with its stored ID and name intact, and is shown as unavailable in the editor and Details panel.
@@ -94,7 +152,7 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 - **Duplicate naming** — copies use ` - Copy` / ` - Copy (n)` naming with 60-character truncation, while import collisions retain numeric naming.
 - **Profile deserialization recovery** — malformed optional profile members now fall back individually instead of discarding the entire profile. `scripts` entries that cannot deserialize, including retired legacy string-form entries, are dropped individually; `audioSettings`, `wallpaperSettings`, `hotkeyConfig`, enable flags, and descriptive metadata recover to their property defaults. `displaySettings` and `id` remain strict. Malformed `schemaVersion` now recovers to `0`, allowing the existing migration path to handle the profile instead of treating the schema value as an independent fatal field.
 - **Deferred hardware self-healing** — schema migration still runs once and advances profiles even when displays are unavailable. `NativeWidth`/`NativeHeight` values of `0` and empty EDID identity fields are treated as deferred hardware sentinels; when the applied profile later sees the same `TargetId` live, missing values are repaired on the applied profile and on other loaded profiles sharing that target. No persistent pending-repair queue or ordinary profile/reload scanner is used. `ColorProfile == null` remains an explicit `Not Applied` value and is never treated as missing migration data.
-- **Legacy script converter retired** — `ScriptListConverter` no longer part of profile deserialization. Legacy string-form script entries are discarded rather than promoted, while current object-form entries continue to deserialize normally.
+- **Legacy script converter retired** — `ScriptListConverter` is no longer part of profile deserialization. Legacy string-form script entries are discarded rather than promoted, while current object-form entries continue to deserialize normally.
 - **Atomic profile writes** — `.dpm` writes use unique temporary filenames so concurrent or interrupted writes cannot collide with one another.
 
 ### fix — auto-start
@@ -150,7 +208,7 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 
 ### build — dependencies
 
-- **NLog update** — NLog moves from 6.1.4 to 6.2.0.
+- **NLog update** — NLog moves from 6.1.3 to 6.2.0.
 
 ### test — MSTest v4
 
@@ -172,7 +230,7 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 
 ### fix — DPM Shortcut Builder
 
-- **Pipe communications removed from generated shortcut script** — `Invoke-DpmApply` previously attempted IPC pipe apply before falling back to `--headless`. Pipe server is receive-only (`PipeDirection.In`); pipe path returned success on message delivery, not on apply completion, meaning the target could launch before display settling finished. `Get-ActiveProfileId` had the same issue — `QUERY_ACTIVE` branch could never receive a response. Both functions now use `--headless` exclusively, which blocks until apply completes and surfaces a real exit code. `$pipeName` removed from generated header.
+- **Pipe communications removed from generated shortcut script** — `Invoke-DpmApply` previously attempted IPC pipe apply before falling back to `--headless`. Pipe server is receive-only (`PipeDirection.In`); pipe path returned success on message delivery, not on apply completion, meaning the target could launch before display settling finished. `Get-ActiveProfileId` had the same issue — `QUERY_ACTIVE` branch could never receive a response. Both functions now use `--headless` exclusively, which blocks until apply completes and surfaces a real exit code. `$pipeName` was removed from the generated header.
 
 ---
 
@@ -183,7 +241,7 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 
 ### feat — DPM Shortcut Builder
 
-- **DPM Shortcut Builder** (`DPMShortcutBuilder.pyw`) — new standalone Python tool for creating game/app launch shortcuts. Select target application, assign display profile to switch to before launch, and profile to restore on exit. Pre-start applications (or any script type application supports) can be queued to run after profile switching and before target launches, each with optional kill-on-exit and configurable delay. Shortcuts are sandboxed to `%AppData%\DisplayProfileManager\Shortcuts\<name>\` as a `.ps1` + `.lnk` + `.vbs` set. Launcher integration panel provides ready-to-paste launch options for Steam, Epic Games, GOG Galaxy, Heroic, Playnite, and Generic / Desktop shortcuts. Export copies `.lnk` to any location while keeping sandbox files in place.
+- **DPM Shortcut Builder** — `DPMShortcutBuilder.pyw` is a new standalone Python tool for creating game/app launch shortcuts. Select a target application, assign a display profile to switch to before launch, and a profile to restore on exit. Pre-start applications (or any supported script type) can be queued to run after profile switching and before the target launches, each with optional kill-on-exit and configurable delay. Shortcuts are sandboxed to `%AppData%\DisplayProfileManager\Shortcuts\<name>\` as a `.ps1` + `.lnk` + `.vbs` set. The launcher integration panel provides ready-to-paste launch options for Steam, Epic Games, GOG Galaxy, Heroic, Playnite, and Generic / Desktop shortcuts. Export copies `.lnk` to any location while keeping sandbox files in place.
 - **DPMBuilder folder** — `DPMThemeBuilder/` renamed to `DPMBuilder/`.
 
 ### fix — profile editor
@@ -213,14 +271,14 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 
 - **`ColorProfile` field on `DisplaySetting`** — nullable `string`; `null` = not applied; any other value = bare ICC/ICM filename from system color store. `[JsonIgnore]` `AdapterLuid` on `DisplaySetting` is populated at apply time from live config and is not stored.
 - **`IsAcmEnabled` field on `DisplaySetting`** — bool, default `false`. Independent of `ColorProfile`. ACM forced on at apply time when `IsHdrEnabled` is true, regardless of this flag.
-- **`ColorProfileHelper`** (`Helpers/ColorProfileHelper.cs`) — P/Invoke wrapper for `mscms.dll`. `GetSystemColorDirectory` resolves the system color profile directory. `GetInstalledColorProfilesFiltered(hdrOnly)` enumerates installed `.icc`/`.icm` files; when `hdrOnly = true`, restricts to profiles containing an MHC2 tag or a CICP tag with transfer function 16 (PQ) or 18 (HLG). `GetDisplayDefaultColorProfile` reads the current per-display OS association (user scope first, system scope fallback). `ApplyColorProfile` sets default via `ColorProfileSetDisplayDefaultAssociation`, enabling per-user scope if not already active.
-- **`ApplyColorProfiles`** in `DisplayConfigHelper` — called inside `ApplyDisplayConfig` after `ApplyAdvancedColorState`. Builds transient `DisplaySetting` from live config to supply the correct `AdapterLuid` and `SourceId` for the P/Invoke call.
+- **`ColorProfileHelper`** — `Helpers/ColorProfileHelper.cs` is a P/Invoke wrapper for `mscms.dll`. `GetSystemColorDirectory` resolves the system color profile directory. `GetInstalledColorProfilesFiltered(hdrOnly)` enumerates installed `.icc`/`.icm` files; when `hdrOnly = true`, restricts to profiles containing an MHC2 tag or a CICP tag with transfer function 16 (PQ) or 18 (HLG). `GetDisplayDefaultColorProfile` reads the current per-display OS association (user scope first, system scope fallback). `ApplyColorProfile` sets default via `ColorProfileSetDisplayDefaultAssociation`, enabling per-user scope if not already active.
+- **`ApplyColorProfiles`** — `DisplayConfigHelper` calls it inside `ApplyDisplayConfig` after `ApplyAdvancedColorState`. Builds transient `DisplaySetting` from live config to supply the correct `AdapterLuid` and `SourceId` for the P/Invoke call.
 - **Color profile combobox** — rightmost column of `DisplaySettingControl` settings row. Dropdown: Not Applied, then installed profiles (HDR-only set when HDR is active, full set otherwise). Profiles no longer installed on system appear as `(not found)` placeholders to preserve stored value.
 - **Native resolution marker** — resolution dropdown appends `★` to native EDID entry. Refresh rate dropdown appends `★` to peak rate.
 
 ### feat — advanced color state
 
-- **`ApplyAdvancedColorState`** replaces `ApplyHdrSettings` in `DisplayConfigHelper`. Handles HDR and ACM in single pass per display. HDR forces ACM on; ACM is independently toggleable otherwise.
+- **`ApplyAdvancedColorState`** — replaces `ApplyHdrSettings` in `DisplayConfigHelper`. Handles HDR and ACM in single pass per display. HDR forces ACM on; ACM is independently toggleable otherwise.
 - **`DisplayConfigColorIntent` enum** — `Off`, `Acm`, `Hdr`; used by `SetAdvancedColorState` to route to the correct API path.
 - **`SetAdvancedColorState(LUID, uint, DisplayConfigColorIntent)`** — unified toggle using legacy `DISPLAYCONFIG_DEVICE_INFO_SET_ADVANCED_COLOR_STATE` path. For `Acm` intent, resets to `Off` first so Windows selects ACM rather than HDR on dual-capable displays.
 - **`SetHdrState`** — on Windows 11 24H2+, uses `DisplayConfigSetHdrState` (type 16 in `DisplayConfigDeviceInfoType`); falls back to `SetAdvancedColorState` on earlier builds.
@@ -230,7 +288,7 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 
 ### feat — script class
 
-- **`Script` model** (`Core/Script.cs`) — `Profile.Scripts` migrated from `List<string>` to `List<Script>`. Each script carries `FileName`, `Arguments`, and `IsEnabled`.
+- **`Script` model** — `Core/Script.cs` introduces the typed script model, and `Profile.Scripts` moves from `List<string>` to `List<Script>`. Each script carries `FileName`, `Arguments`, and `IsEnabled`.
 - ~~**`ScriptListConverter`** — custom `JsonConverter` on `Profile.Scripts` handles backward-compatible deserialization: string entries (schema <3) are parsed via `ScriptHelper.ParseScriptString` and promoted to `Script` objects; object entries deserialize normally.~~ *Retired in [2.2.0](#2.2.0).*
 - **`ScriptListEntry`** — strongly typed UI class replacing `dynamic`/`ExpandoObject` in `ProfileEditWindow`. Carries `FilePath`, `FileName`, `Arguments`, `IsEnabled`, `IsDeleted`. Eliminates `Items.Refresh()` calls for property changes.
 
@@ -257,7 +315,7 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 
 ### fix — IPC
 
-- **Named pipe listener** (`App.xaml.cs`) — `NamedPipeServerStream` is now created once before the listen loop and reset via `Disconnect()` after each connection rather than disposed and recreated per iteration. Recreating per iteration caused `ERROR_PIPE_BUSY` between connections, filling log files with error spam.
+- **Named pipe listener** — in `App.xaml.cs`, `NamedPipeServerStream` is now created once before the listen loop and reset via `Disconnect()` after each connection rather than disposed and recreated per iteration. Recreating per iteration caused `ERROR_PIPE_BUSY` between connections, filling log files with error spam.
 
 ### fix — auto-start
 
@@ -265,7 +323,7 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 
 ### refactor — script manager
 
-- **`ExecuteScript(Script)`** replaces string-based overload.
+- **`ExecuteScript(Script)`** — replaces the string-based overload.
 - **`AddScript`, `RemoveScript`, `SortScripts` removed** — callers operate directly on `List<Script>`.
 - **`FormatCommand` removed** — display formatting delegated to `Script.ToString()`.
 
@@ -284,13 +342,13 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 
 ### refactor — P/Invoke
 
-- **All P/Invoke struct, enum, and constant names** were converted from `SCREAMING_SNAKE_CASE` to `PascalCase`.
+- **P/Invoke naming** — all P/Invoke struct, enum, and constant names were converted from `SCREAMING_SNAKE_CASE` to `PascalCase`.
 
 ### test — unit tests
 
 - **Test suite — 173 tests** — reduced from the 212-test suite in [2.0.2](#2.0.2) through removal of obsolete clone-validation and dead-method coverage, elimination of duplicate profile-manager tests, and cleanup of one unused `GetHashCode` test, while adding coverage for new `Script` model and color-profile/ACM defaults.
 
-### misc
+### misc — application and tooling
 
 - **`DisplayGroupHelper.cs` wired up** — `ProfileEditWindow` nested helper is removed and `DisplayGroupHelper.GroupDisplaysForUI` is called directly from both `ProfileEditWindow.LoadDisplaySettings` and `MainWindow.UpdateProfileDetails`. Details panel now renders clone groups correctly with "Clone Group" indicator and multi-member device-name stacking.
 - **Refresh button reliability** — button is disabled before `LoadProfilesAsync` begins and re-enabled in `finally`, preventing duplicate default-profile generation on rapid clicks.
@@ -350,11 +408,11 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 - **Clear All Scripts button** — added alongside Import in Scripts section header. Marks all scripts `IsDeleted = true` in one click; individual restore still works per-row through toggle delete button.
 - **Profile editor placement** — `Window_Loaded` sizes and positions the editor over the main window at open time.
 
-### misc
+### misc — application
 
 - **Profile list item gap removed** — `ListBoxItem` margin reduced from `0,1` to `0`, eliminating a 2px gap that caused jitter when the Apply button appeared and the description text reflowed.
 - **Profile name length limit** — `MaxLength` increased from `50` to `60`, leaving headroom below known tray notification title limit.
-- **Refresh removed from tray**.
+- **Tray refresh removed** — the tray menu no longer exposes Refresh.
 - **Contributor links** — contributor entries in Settings → About include descriptive linked labels for contribution or project provenance.
 - **Dependency updates** — NLog updated to 6.1.3; Newtonsoft.Json updated to 13.0.4.
 - **General refinement** — various code cleanup, bug fixes, UI refinements, and optimizations.
@@ -407,7 +465,7 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 - **Atomic saves** — `SaveProfileAsync` and `SaveSettingsAsync` write to temporary sibling, then replace destination atomically via `File.Replace` (NTFS-atomic), closing a zero-byte corruption path left by the truncate-then-write behavior. *Hardened in [2.2.0](#2.2.0) with unique temporary filenames, flush-before-replace, transient replacement retries, and cleanup.*
 - **Synchronous settings save on exit** — `OnExit` uses `.GetAwaiter().GetResult()` instead of `Task.Run(...).Wait(2s)`, closing a silent data-loss path where slow disks could exceed the timeout and abandon the save.
 - **Hotkey counter clamp** — `_profileEditWindowCount` uses `Math.Max(0, count - 1)` and checks `== 0`, preventing permanent hotkey deactivation if `ProfileEditWindow` constructor fails after `Window_Loaded`.
-- **Async void hardening** — `ShowNotification`/`ShowBalloonTip` calls in async-void handlers, wrapped in nested `try/catch` blocks, to prevent process crashes if the tray icon is disposed during shutdown.
+- **Async void hardening** — `ShowNotification`/`ShowBalloonTip` calls in async-void handlers are wrapped in nested `try/catch` blocks to prevent process crashes if the tray icon is disposed during shutdown.
 - **Audio load canceled on editor close** — `LoadAudioDevices` uses `CancellationTokenSource`, canceled in `OnClosed`, preventing orphaned `Task.Run` continuations from running after the editor is disposed.
 
 ### fix — display
@@ -432,7 +490,7 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 
 ### refactor — profile editor
 
-- **Display loading and audio loading paths reduced** — ~~`LoadDisplaySettings` fetches WMI monitor IDs once per editor open instead of once per display control~~, with one additional display-config query when native dimensions need backfilling. Audio discovery moves off UI thread to avoid blocking editor startup. *WMI calls retired in [2.2.0](#2.2.0).*
+- **Display loading and audio loading paths reduced** — ~~`LoadDisplaySettings` fetches WMI monitor IDs once per editor open instead of once per display control, with one additional display-config query when native dimensions need backfilling.~~ Audio discovery moves off the UI thread to avoid blocking editor startup. *WMI calls retired in [2.2.0](#2.2.0).*
 
 ### refactor — tests
 
@@ -493,7 +551,7 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 - **`ScriptManager` singleton** — owns sandboxed scripts folder at `%AppData%\DisplayProfileManager\Scripts\`, script import, and execution.
 - **`.exe` imports** — create `.lnk` shortcuts via late-bound Windows Script Host (`WScript.Shell`) to avoid COM reference requirement. *Nonfunctional, resolved in [2.0.1](#2.0.1).*
 - **Script runners** — `.ps1` files via `powershell.exe -ExecutionPolicy Bypass`, `.bat` via `cmd.exe`, `.py` via `python.exe`, `.lnk` via shell execute.
-- **Per-profile script enable/disable** — `EnableScripts` determine whether scripts run; stored scripts remain in the profile when execution is disabled.
+- **Per-profile script enable/disable** — `EnableScripts` determines whether scripts run; stored scripts remain in the profile when execution is disabled.
 - **Scripts panel in profile editor** — lists all scripts with file-exists validation; missing scripts are flagged in orange. Add and edit custom launch arguments.
 
 ### feat — UI
@@ -507,14 +565,14 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 - **Description capped at 3 display lines** — truncated with `CharacterEllipsis` in Profile list. Uncapped descriptions previously allowed profile list items to expand arbitrarily.
 - **Custom scrollbar style** — thin overlay-style thumb, click-to-jump via `PART_PageUp`/`PART_PageDown` repeat buttons, with separate vertical/horizontal templates; arrow buttons removed.
 - **Horizontal scroll removed from profile list** — replaced with text wrapping by disabling horizontal scrollbar.
-- **Shift+scroll horizontal scrolling** registered globally on all `ScrollViewer`s
+- **Shift+scroll horizontal scrolling** — registered globally on all `ScrollViewer`s.
 - **Inner `ScrollViewer` scroll bubbling** — nested viewers bubble mouse-wheel events to the outer surface; relevant handler divides delta by 3 for smoother scrolling.
-- **Profile apply success popup removed** — successful applies are silent; only failures produce a `MessageBox`. *Reworked in [2.2.0](#2.2.0) to always send notification.*
+- **Profile apply success popup removed** — successful applies are silent; only failures produce a `MessageBox`. *Reworked in [2.2.0](#2.2.0) to use tray notifications when notifications are enabled.*
 
 ### fix — display engine
 
 - **Complete display engine rewrite** — `ApplyDisplayTopology` + `DeferDisplayLayoutAsync` + `ApplyDisplayLayout` + `ApplyDisplayConfig` replace earlier application path with separate topology and layout stages. Topology and layout are applied atomically within their respective phases, rather than through multiple post-call corrections.
-- **`DeferDisplayLayoutAsync` replaces staged application mode** — previous staged mode configured currently active displays, applied an arbitrary delay, then configured all display settings. Delay used `Thread.Sleep` occurred between active and inactive display configuration steps, rather than after inactive display wake. `DeferDisplayLayoutAsync` instead polls actual live display state every 250 ms (up to 10 seconds) and proceeds when applicable displays report ready.
+- **`DeferDisplayLayoutAsync` replaces staged application mode** — previous staged mode configured currently active displays, applied an arbitrary delay, then configured all display settings. The delay implemented with `Thread.Sleep` occurred between active and inactive display configuration steps, rather than after inactive display wake. `DeferDisplayLayoutAsync` instead polls actual live display state every 250 ms (up to 10 seconds) and proceeds when applicable displays report ready.
 - **SourceId normalization** — saved profiles can contain disabled displays, leaving remaining active displays with non-contiguous `SourceId` values such as `0, 2, 4`; `SetDisplayConfig` rejects such gaps. Active displays now receive contiguous source IDs through `BuildSourceIdMap` before submission. Single-display configurations had previously worked by coincidence because they were always assigned `SourceId 0`.
 - **`ApplyHdrSettings` uses live `RawTargetId`** — stored profile `TargetId` values are lower-16-bit base IDs, while `DisplayConfigSetDeviceInfo` requires session-specific raw target ID. Fresh post-topology `GetDisplayConfigs` query matches by base `TargetId` and supplies live `RawTargetId`; `ApplyDisplayLayout` follows the same pattern because pre-topology raw identities are stale after `SetDisplayConfig`.
 - **Redundancy checks** — topology, layout, and HDR application compare current live state first and skip corresponding call when no change is needed.
@@ -542,7 +600,7 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 - **Test suite — 200 tests** — expanded from the 41-test baseline in [v1.4.0](#v1.4.0) alongside display-engine rewrite, adding regression coverage for hotkey configuration, profile model, display settings, LUID parsing, SourceId normalization, clone topology, and in-memory profile-manager operations.
 - **Existing tests updated for rewritten display engine** — clone-group topology, clone-group validation, and `DISPLAYCONFIG_PATH_SOURCE_INFO` bit-encoding coverage were updated to reflect new API boundaries: `EnableDisplays` consolidation into `ApplyDisplayTopology`, `ValidateCloneGroups` moving from `ProfileManager` to `DisplayConfigHelper`, and removal of `SourceModeInfoIdx` and `CloneGroupId` from the P/Invoke struct.
 
-### misc
+### misc — application and tooling
 
 - **Reset Settings button removed** — existing function only disabled auto-start; deleting `Settings.json` provides a full reset and regeneration when needed.
 - **Open folder** — uses `UseShellExecute = true` so custom file explorers and shell extensions are respected, rather than hardcoding `explorer.exe`.
@@ -595,14 +653,14 @@ _[PR #14](https://github.com/zac15987/DisplayProfileManager/pull/14) by [jonatha
 
 ### feat — clone groups
 
-- **Initial clone/mirror display support**.
+- **Initial clone/mirror display support** — introduced clone-group topology handling.
 - **`CloneGroupId` encoding** — stored in lower 16 bits of `modeInfoIdx`, with `SourceModeInfoIdx` in upper 16 bits.
 - **`ResetModeAndSetCloneGroup()`** — invalidates source-mode index while setting clone group, as required for `SDC_TOPOLOGY_SUPPLIED`.
 - **`DISPLAYCONFIG_PATH_SOURCE_MODE_IDX_INVALID` constant added** — required by clone-topology construction.
 - **Clone group detection in `GetCurrentDisplaySettingsAsync`** — groups displays by `DeviceName + SourceId` and assigns `CloneGroupId` strings.
 - **Phase 1 / Phase 2 apply pattern** — topology is submitted first with `SDC_TOPOLOGY_SUPPLIED` and null modes, followed by the full configuration with `SDC_USE_SUPPLIED_DISPLAY_CONFIG` and modes.
 
-> **Note:** clone creation only succeeded when the primary display was part of a group because source-mode consumption iterated per display instead of per `SourceId`. `SourceModeInfoIdx` could overwrite the entire `modeInfoIdx` field, and HDR used wrong target-ID form. Partially addressed in [v1.4.0](#v1.4.0) and later display-engine rewrites; base `TargetId`/live `RawTargetId` distinction was ultimately resolved in [2.0.0](#2.0.0).
+> **Note:** clone creation only succeeded when the primary display was part of a group because source-mode consumption iterated per display instead of per `SourceId`. `SourceModeInfoIdx` could overwrite the entire `modeInfoIdx` field, and HDR used the wrong target-ID form. Partially addressed in [v1.4.0](#v1.4.0) and later display-engine rewrites; base `TargetId`/live `RawTargetId` distinction was ultimately resolved in [2.0.0](#2.0.0).
 
 ---
 
@@ -636,15 +694,15 @@ _[zac15987/DisplayProfileManager](https://github.com/zac15987/DisplayProfileMana
 - **Monitor identification overlay** — numbered overlays appear on each display for three seconds, triggered from the profile editor.
 - **Profile duplication support in UI** — duplicate copies the profile and opens the new profile in the editor.
 - **Dual auto-start modes** — Registry requires no administrator privileges; Task Scheduler provides a faster-starting administrative alternative after setup.
-- **NLog 6.0.4 integration** — daily rotation and logging replace `Debug.WriteLine` calls. *`NLog.config` used `maxArchiveDays="30"` instead of `maxArchiveFiles="30"`; only capping the archive subfolder and left daily log files in the root accumulating indefinitely. Resolved in [2.0.2](#2.0.2).*
+- **NLog 6.0.4 integration** — daily rotation and logging replace `Debug.WriteLine` calls. *`NLog.config` used `maxArchiveFiles="30"`; that setting capped only the archive subfolder and left daily log files in the root accumulating indefinitely. Replaced with `maxArchiveDays="30"` in [2.0.2](#2.0.2).*
 - **Monitor capabilities stored in profiles** — resolutions, refresh rates, and DPI of detached monitors remain editable.
 - **Per-device audio apply flags** — `ApplyPlaybackDevice` and `ApplyCaptureDevice` can be toggled independently.
 - **Third-party library attribution** — attribution is added to the settings window.
 
 ### fix — display
 
-- **EDID matching skips monitors with serial `0`**
-- **Undefined monitors skip inactive entries during positioning**.
+- **EDID serial filtering** — monitors reporting serial `0` are skipped during EDID matching.
+- **Undefined monitor positioning** — inactive entries are skipped when positioning undefined monitors.
 - **Refresh rate dropdown fallback** — falls back to current rate when `GetAvailableRefreshRates` returns empty.
 - **`SetWindowPos` for monitor-identification overlay positioning** — fixes WPF coordinate errors on secondary monitors with different DPI.
 
@@ -656,7 +714,7 @@ _[zac15987/DisplayProfileManager](https://github.com/zac15987/DisplayProfileMana
 - **Extensive cleanup** — obsolete WMI correlation, Levenshtein matching, registry fallbacks, and unused P/Invoke declarations are removed.
 - ~~**`InitializeAudio()` called at application startup** — created a long-lived `CoreAudioController` that subscribed to WASAPI `IMMNotificationClient` for the session lifetime, generating sustained cross-process RPC traffic and kernel paged-pool token allocations while idle.~~ *Reworked in [2.0.2](#2.0.2).*
 
-> **Note:** automatic topology-failure rollback was retired for two independent reasons. Topology path was substantially rewritten in [v1.3.5](#v1.3.5), [2.0.0](#2.0.0), and [2.2.0](#2.2.0), making the original failure case substantially less representative. Separately, old rollback covered only the topology-stage `SetDisplayConfig` call and never protected the later layout-stage calls, so layout failures could still surface without restoring the previous display state.
+> **Note:** automatic topology-failure rollback was retired for two independent reasons. The topology path was substantially rewritten in [v1.3.5](#v1.3.5), [2.0.0](#2.0.0), and [2.2.0](#2.2.0), making the original failure case substantially less representative. Separately, the old rollback covered only the topology-stage `SetDisplayConfig` call and never protected the later layout-stage calls, so layout failures could still surface without restoring the previous display state.
 
 ---
 
@@ -676,27 +734,27 @@ _[zac15987/DisplayProfileManager](https://github.com/zac15987/DisplayProfileMana
 - **Initial support for audio device switching per profile** — playback and capture device selection through AudioSwitcher, including Bluetooth devices. *Rewritten as direct COM-based audio handling in [2.0.3](#2.0.3).*
 - **`AudioController` re-initialization** — refreshes device list.
 
-### feat — misc
+### feat — application and packaging
 
 - **`AboutHelper`** — centralizes version and settings-path management and adds community acknowledgments in Settings.
 - **Semantic versioning with beta tag support** — via `AssemblyInformationalVersion`.
 - **Inno Setup installer** — x64, x86, and ARM64.
 - **Window resizing enabled** — available across application windows.
-- **Settings accessible from tray icon**.
+- **Tray settings access** — Settings can be opened from the tray icon.
 
 ### fix — audio
 
 - **Bluetooth device naming** — fixes invalid WMI queries and cross-device name contamination through stricter filtering, GUID and MAC-based validation, and dual-layer caching.
 
-### fix — misc
+### fix — application
 
 - **Hotkey conflict detection uses `Key != None`** — accurate validation.
 - **Single instance reliably restores foreground window** — uses thread input attachment and a dual activation strategy.
 
-### refactor
+### refactor — application
 
-- ~~**Global hotkey toggle**~~ removed — each profile controls its own hotkey active state.
-- ~~**Automatic update checking removed**~~ *rebuilt in [2.2.0](#2.2.0).*
+- **Global hotkey toggle removed** — each profile controls its own hotkey active state.
+- **Automatic update checking removed** — startup no longer performs automatic update checks. *Rebuilt in [2.2.0](#2.2.0).*
 - **Version read from assembly** — no longer stored in settings.
 
 ---
@@ -706,7 +764,7 @@ _[zac15987/DisplayProfileManager](https://github.com/zac15987/DisplayProfileMana
 
 _[zac15987/DisplayProfileManager](https://github.com/zac15987/DisplayProfileManager/releases/tag/v1.0.0)_
 
-### feat
+### feat — application
 
 - **Multi-monitor display profile management** — resolution, refresh rate, and DPI per display.
 - **System tray integration** — dynamic context menu for quick profile switching.
@@ -714,15 +772,15 @@ _[zac15987/DisplayProfileManager](https://github.com/zac15987/DisplayProfileMana
 - **Profile management** — add, edit, duplicate, delete, and ~~export~~ profiles. *Export was removed in [2.0.0](#2.0.0).*
 - **Light, Dark, and System themes** — WPF `ResourceDictionary` based, with dynamic switching and Windows theme detection. *Theme framework was substantially rewritten in [2.0.0](#2.0.0).*
 - **Monitor-specific resolution and refresh-rate detection** — editor shows only supported values.
-- **Readable monitor names via WMI**.
-- **Primary display management**.
+- **Readable monitor names** — WMI provides human-readable monitor names.
+- **Primary display management** — profiles can select a primary display.
 - **Auto-start with Windows** — Registry-based.
 - **`--tray` CLI flag** — start minimized to system tray.
 - **Close confirmation dialog** — with "Remember my choice".
 - **Windows 11 Snap Layouts support** — via `WM_NCHITTEST`.
 - **Custom native-style window chrome** — across all windows.
 - **Single instance enforcement** — via a named mutex.
-- ~~**Print Screen detection for profile switching**~~ *removed in [v1.1.0](#v1.1.0).*
+- **Print Screen detection for profile switching** — included in the initial release. *Removed in [v1.1.0](#v1.1.0).*
 - **Per-monitor DPI awareness (V2)** — declared in manifest.
 
 > **Note:** display topology and mode application initially used legacy `ChangeDisplaySettings` API. Display-state reads moved to `QueryDisplayConfig` in [v1.2.0](#v1.2.0), and display mode application was later rebuilt around `SetDisplayConfig`. GDI remained where CCD had no equivalent: `EnumDisplaySettings` enumerates supported resolutions and refresh rates, while `EnumDisplayDevices` supplies device names and interface paths used by other subsystems. Both call types remain in use.

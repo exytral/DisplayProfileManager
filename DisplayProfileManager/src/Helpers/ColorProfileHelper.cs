@@ -10,7 +10,7 @@ namespace DisplayProfileManager.Helpers
 {
     public static class ColorProfileHelper
     {
-        private static readonly Logger logger = LoggerHelper.GetLogger();
+        private static readonly Logger _logger = LoggerHelper.GetLogger();
 
         #region P/Invoke
 
@@ -149,7 +149,7 @@ namespace DisplayProfileManager.Helpers
 
                 if (!File.Exists(fullPath))
                 {
-                    logger.Warn($"Color profile '{filename}' not found in {colorDir} — skipping");
+                    _logger.Warn($"Color profile '{filename}' not found in {colorDir} — skipping");
                     return false;
                 }
 
@@ -160,12 +160,12 @@ namespace DisplayProfileManager.Helpers
                     WcsGetUsePerUserProfiles(registryKey, DeviceClassFlags.Monitor, out usePerUser);
                     if (!usePerUser)
                     {
-                        logger.Debug($"ColorProfileSetDisplayDefaultAssociation: device='{deviceName}' profile='{filename}'");
+                        _logger.Debug($"ColorProfileSetDisplayDefaultAssociation: device='{deviceName}' profile='{filename}'");
                         WcsSetUsePerUserProfiles(registryKey, DeviceClassFlags.Monitor, true);
                     }
                 }
 
-                logger.Debug($"ColorProfileSetDisplayDefaultAssociation: device='{deviceName}' profile='{filename}'");
+                _logger.Debug($"ColorProfileSetDisplayDefaultAssociation: device='{deviceName}' profile='{filename}'");
 
                 int result = ColorProfileSetDisplayDefaultAssociation(
                     WcsProfileManagementScope.CurrentUser,
@@ -176,16 +176,16 @@ namespace DisplayProfileManager.Helpers
                     sourceId);
                 if (result == 0)
                 {
-                    logger.Info($"Set color profile '{filename}' on {deviceName}");
+                    _logger.Info($"Set color profile '{filename}' on {deviceName}");
                     return true;
                 }
 
-                logger.Error($"ColorProfileSetDisplayDefaultAssociation failed for {deviceName}: error {result}");
+                _logger.Error($"ColorProfileSetDisplayDefaultAssociation failed for {deviceName}: error {result}");
                 return false;
             }
             catch (Exception ex)
             {
-                logger.Error(ex, $"Error applying color profile '{filename}' to {deviceName}");
+                _logger.Error(ex, $"Error applying color profile '{filename}' to {deviceName}");
                 return false;
             }
         }
@@ -223,7 +223,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Failed to enumerate system color profiles");
+                _logger.Error(ex, "Failed to enumerate system color profiles");
                 return Array.Empty<string>();
             }
         }
@@ -233,23 +233,30 @@ namespace DisplayProfileManager.Helpers
             try
             {
                 using (var fs = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, bufferSize: 512, useAsync: false))
-                using (var br = new BinaryReader(fs))
-                {
-                    if (fs.Length < 132)
-                    {
-                        return false;
-                    }
+                    return IccProfileIsHdr(fs);
+            }
+            catch
+            {
+                return false;
+            }
+        }
 
-                    br.ReadBytes(128);
+        internal static bool IccProfileIsHdr(Stream stream)
+        {
+            if (stream == null || !stream.CanRead || !stream.CanSeek)
+                return false;
+
+            try
+            {
+                using (var br = new BinaryReader(stream, System.Text.Encoding.UTF8, leaveOpen: true))
+                {
+                    if (stream.Length < 132)
+                        return false;
+
+                    stream.Seek(128, SeekOrigin.Begin);
                     uint tagCount = ReadBigEndianUInt32(br);
-                    if (tagCount > 1000)
-                    {
+                    if (tagCount > 1000 || stream.Length < 132 + (tagCount * 12L))
                         return false;
-                    }
-                    if (fs.Length < 132 + (tagCount * 12L))
-                    {
-                        return false;
-                    }
 
                     const uint SIG_CICP = 0x63696370;
                     const uint SIG_MHC2 = 0x4D484332;
@@ -261,16 +268,18 @@ namespace DisplayProfileManager.Helpers
                         uint size = ReadBigEndianUInt32(br);
 
                         if (sig == SIG_MHC2)
-                        {
                             return true;
-                        }
+
                         if (sig == SIG_CICP)
-                            cicpOffset = offset; cicpSize = size;
+                        {
+                            cicpOffset = offset;
+                            cicpSize = size;
+                        }
                     }
 
                     if (cicpOffset.HasValue && cicpSize >= 12)
                     {
-                        fs.Seek(cicpOffset.Value + 8, SeekOrigin.Begin);
+                        stream.Seek(cicpOffset.Value + 8, SeekOrigin.Begin);
                         br.ReadByte();
                         byte transferFunction = br.ReadByte();
 
@@ -323,7 +332,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Warn(ex, $"Failed to get display default color profile for adapter {adapterId.LowPart}");
+                _logger.Warn(ex, $"Failed to get display default color profile for adapter {adapterId.LowPart}");
                 return null;
             }
         }

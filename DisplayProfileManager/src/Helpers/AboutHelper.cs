@@ -46,6 +46,11 @@ namespace DisplayProfileManager.Helpers
             public const string NLogLicense = "BSD-3-Clause";
             public const string NLogUrl = "https://nlog-project.org/";
 
+            public const string SystemManagementName = "System.Management";
+            public static string SystemManagementVersion => GetLoadedVersion(SystemManagementName);
+            public const string SystemManagementLicense = "MIT";
+            public const string SystemManagementUrl = "https://github.com/dotnet/runtime";
+
             private static string GetLoadedVersion(string assemblyName)
             {
                 try

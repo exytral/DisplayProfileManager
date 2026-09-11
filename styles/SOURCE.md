@@ -8,8 +8,10 @@ Canonical source-code style reference for the project. These rules describe recu
 - Keep simple types and small files compact.
 - Group related members or declarations when the relationship is meaningful and recurring.
 - Keep declarations close to the members that implement or expose the same responsibility.
+- Keep a local declaration adjacent to the statement or block that directly consumes it. Use a blank line when the following code begins a distinct conceptual step, not merely because a declaration precedes control flow.
 - Treat technical declaration groups, responsibility groups, and access-oriented groups as distinct structural purposes.
 - Structural markers should reduce navigation cost rather than add ceremony.
+- Prefer compact readable source over wrapping simple constructs to an arbitrary column width; there is no project-wide hard line-length limit.
 - Existing variation is evidence rather than an automatic defect. Mechanical normalization belongs to the final conformance pass.
 - Generated source is a separate ownership category and is not evidence for hand-maintained source style.
 - Supporting formats should use their native organizational mechanisms rather than being forced into C# conventions.
@@ -29,6 +31,7 @@ Canonical source-code style reference for the project. These rules describe recu
 - Test builders use conceptual property order and place `Build()` last.
 - Native source uses responsibility-oriented declaration and implementation order.
 - Python tooling uses semantic module organization.
+- Closely parallel files should use equivalent member, method, and responsibility ordering when they implement the same structure; differences should reflect real responsibility differences rather than incidental drift.
 
 ### Authoritative ordering within a stated structure
 
@@ -41,13 +44,17 @@ When a table or ordered list intentionally represents a specific structure:
 
 This does not establish universal source-member ordering. Logical capability lists, examples, inventories, and domain groupings may use an order chosen for clarity.
 
-## Control Flow and Braces
+## Control Flow, Signatures, and Braces
 
 - `try`, `catch`, and `finally` always use braces.
 - Single-statement conditional and loop bodies may remain unbraced when the body is simple and the surrounding structure remains clear.
 - A trivial early `return`, `break`, or `continue` may remain unbraced and may share the line with its controlling condition when that compact form is consistent with the surrounding method.
 - A conditional branch whose return expresses a meaningful branch result uses braces rather than the compact early-escape form.
 - Multi-statement conditional and loop bodies use braces.
+- Keep simple `if`, `else if`, `for`, `foreach`, and `while` headers on one line when they remain readily readable.
+- Break a control-flow header only when the condition is genuinely long or complex and the stacked form makes its logical structure easier to scan. Do not split routine loop initializer/condition/increment syntax across lines merely for width.
+- Keep short method, constructor, local-function, and delegate signatures on one line when they remain readily readable. Use multiline parameter lists when a long signature materially benefits from vertical structure; when multiline, keep the parameter layout deliberate and consistent.
+- Keep compact expression-bodied members on one line when the declaration and expression remain readily readable. Do not split solely at `=>` to satisfy an arbitrary width.
 - Returns that conclude meaningful work or establish the method's resulting value remain visually separated from preceding work according to the local method structure.
 - The distinction between an early escape and a meaningful return is semantic and follows the established style of the surrounding file or type rather than the returned value itself.
 
@@ -72,8 +79,9 @@ This does not establish universal source-member ordering. Logical capability lis
 - Small or straightforward types should generally remain unsectioned.
 - Larger classes may use regions for clearly separable responsibilities, lifecycle or API groupings, technical declarations, or other boundaries that materially improve navigation.
 - Region names should describe the actual structural purpose.
+- Equivalent sibling files should use the same region names and ordering when they expose the same responsibilities; do not standardize files whose responsibilities genuinely differ.
 - Do not introduce a region solely because another class uses the same name.
-- Do not create empty, one-member, or purely cosmetic regions.
+- Do not create empty or purely cosmetic regions. Avoid one-member regions unless the member completes a meaningful parallel or technical declaration structure that improves navigation.
 - A private helper may remain outside an access-oriented region when adjacency is clearer.
 - Technical interop declarations may be grouped separately from runtime operations when that materially reduces navigation cost.
 - Technical interop groups may be organized by mechanism or by coherent native subsystem.
@@ -96,7 +104,10 @@ No universal region template is required.
 - Prefer no comment when names and structure are sufficient.
 - Use comments for rationale, invariants, compatibility, ownership, sequencing, or context that cannot be inferred reliably from source.
 - Keep comments concise and direct.
-- Prefer single-line comments for local annotations.
+- Prefer one `//` line for one local thought when it fits readably. Do not wrap a short annotation into consecutive comment lines merely for width.
+- Use multiple comment lines only when the explanation is genuinely multi-part or long enough that vertical structure improves comprehension.
+- Short local comments, structural markers, and ownership annotations normally omit terminal punctuation. Use sentence punctuation when a longer or multi-sentence explanation benefits from it.
+- Inline trailing comments should be terse and normally omit terminal punctuation.
 - Avoid comments that merely restate a name, call, condition, or obvious assignment.
 - Structural comments are appropriate when they materially improve navigation through dense declarations, methods, resources, configuration, or generated/template boundaries.
 - Short category markers may label dense declaration groups when the category is meaningful and stable.
@@ -105,6 +116,7 @@ No universal region template is required.
 - Do not repeat the same constraint in multiple nearby comments.
 - Comments should not address the reader directly.
 - Comments that merely duplicate adjacent logging or status text should generally be removed.
+- Equivalent structural comments in parallel source or XAML files should use the same wording and placement when they identify the same responsibility.
 - Generated-source ownership notices remain structural metadata.
 
 ## Logging
@@ -113,6 +125,7 @@ No universal region template is required.
 - Use `LoggerHelper.GetLogger()`.
 - Keep logging close to the operation or decision it describes.
 - Prefer concise developer-facing messages with useful context.
+- Single-clause diagnostic/status messages normally omit a terminal period. Keep sentence punctuation when the message contains multiple sentences or otherwise reads as deliberate sentence-form output.
 - Use the appropriate log level.
 - Do not add comments merely to repeat a log message.
 
@@ -175,6 +188,7 @@ WPF windows and controls follow responsibility-oriented source principles while 
 - Group resources by functional UI role rather than alphabetically.
 - Organize the visual tree by layout and user-facing responsibility.
 - Use short structural comments for substantial visual sections.
+- Equivalent visual sections in parallel XAML files should use the same structural comment wording and placement unless the structures materially differ.
 - Keep repeated controls and nested templates ordered according to visual or component hierarchy.
 - Event-handler attributes remain with the control declaration they serve.
 - Preserve intentional local overrides of shared styles.
@@ -208,6 +222,7 @@ Related dictionaries should preserve this category order where the same resource
 - `Unit` is the only project-wide category currently established.
 - There is no project-wide parameterized or data-driven convention.
 - Related test classes may share a source file when they form a coherent subject family.
+- Test files and fixtures should use durable subject names. Avoid tying a general schema or migration fixture to one current schema number when the file is expected to accumulate later-version coverage; prefer a general schema/migration subject and order cases by behavioral progression.
 - Test methods are ordered by responsibility and behavioral progression rather than alphabetically.
 - The dominant naming pattern is `Subject_Condition_ExpectedResult`.
 - Very small tests may use shorter names where the containing class supplies an unambiguous subject.
@@ -215,7 +230,8 @@ Related dictionaries should preserve this category order where the same resource
 - Reusable fixture builders normally appear before the tests that use them.
 - Builders are top-level `internal sealed` types, keep the subject-under-construction field near the top, expose fluent configuration methods, and place `Build()` last.
 - Builder method order is conceptual rather than alphabetical.
-- Unit tests do not use file I/O, registry access, P/Invoke, or live display hardware.
+- Unit tests should avoid filesystem I/O and other machine-specific dependencies when practical. Controlled filesystem access is acceptable when inherent to an existing production seam, provided the test remains deterministic, self-contained, and does not depend on pre-existing machine state. Do not redesign production architecture solely to eliminate such access.
+- Unit tests should not directly depend on registry access, P/Invoke, or live display hardware.
 - Reflection and controlled in-memory singleton manipulation are acceptable when required to isolate pure behavior.
 - Test comments should explain regression intent or unusual platform behavior rather than restate assertions.
 

@@ -154,10 +154,10 @@ namespace DisplayProfileManager.Core
 
             EnsureAppDataFolderExists();
 
-            string legacyPath = Path.Combine(_appDataFolder, "settings.json");
-            if (File.Exists(legacyPath) && Path.GetFileName(legacyPath) != "Settings.json")
+            try
             {
-                try
+                string legacyPath = FindLegacySettingsPath(Directory.GetFiles(_appDataFolder, "settings.json"));
+                if (!string.IsNullOrEmpty(legacyPath))
                 {
                     string tempPath = _settingsFilePath + ".tmp";
                     File.Move(legacyPath, tempPath);
@@ -167,14 +167,27 @@ namespace DisplayProfileManager.Core
 
                     File.Move(tempPath, _settingsFilePath);
                 }
-                catch (Exception) { }
             }
+            catch (Exception) { }
         }
 
         private void EnsureAppDataFolderExists()
         {
             if (!Directory.Exists(_appDataFolder))
                 Directory.CreateDirectory(_appDataFolder);
+        }
+
+        internal static string FindLegacySettingsPath(IEnumerable<string> candidates)
+        {
+            if (candidates == null) return null;
+
+            foreach (var candidate in candidates)
+            {
+                if (string.Equals(Path.GetFileName(candidate), "settings.json", StringComparison.Ordinal))
+                    return candidate;
+            }
+
+            return null;
         }
 
         #endregion
@@ -198,6 +211,8 @@ namespace DisplayProfileManager.Core
 
         public async Task<bool> LoadSettingsAsync()
         {
+            _settingsLoaded = false;
+
             try
             {
                 FileHelper.CleanupOrphanedTemps(
@@ -307,10 +322,18 @@ namespace DisplayProfileManager.Core
             return await SaveSettingsAsync();
         }
 
-        public async Task<bool> SetDefaultProfileIdAsync(string profileId)
+        public Task<bool> SetDefaultProfileIdAsync(string profileId) => SetDefaultProfileIdAsync(profileId, SaveSettingsAsync);
+
+        internal async Task<bool> SetDefaultProfileIdAsync(string profileId, Func<Task<bool>> saveSettings)
         {
+            string previousProfileId = _settings.DefaultProfileId;
             _settings.DefaultProfileId = profileId ?? string.Empty;
-            return await SaveSettingsAsync();
+
+            if (await saveSettings())
+                return true;
+
+            _settings.DefaultProfileId = previousProfileId;
+            return false;
         }
 
         #endregion
@@ -614,8 +637,6 @@ namespace DisplayProfileManager.Core
 
         #endregion
 
-        #region Generic Access
-
         public T GetSetting<T>(string propertyName, T defaultValue = default)
         {
             try
@@ -637,6 +658,5 @@ namespace DisplayProfileManager.Core
             }
         }
 
-        #endregion
     }
 }

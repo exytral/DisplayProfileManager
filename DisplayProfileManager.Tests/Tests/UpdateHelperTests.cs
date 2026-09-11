@@ -63,38 +63,6 @@ namespace DisplayProfileManager.Tests.Tests
             Assert.IsNull(version);
         }
 
-        // Version comparison (as used to decide UpdateAvailable)
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void Version_NewerRelease_ComparesGreaterThanCurrent()
-        {
-            var latest = UpdateHelper.ParseVersion("1.2.3.4");
-            var current = UpdateHelper.ParseVersion("1.2.3");
-
-            Assert.IsTrue(latest > current);
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void Version_SameRelease_IsNotNewerThanCurrent()
-        {
-            var latest = UpdateHelper.ParseVersion("1.2.3");
-            var current = UpdateHelper.ParseVersion("1.2.3");
-
-            Assert.IsFalse(latest > current);
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void Version_OlderRelease_IsNotNewerThanCurrent()
-        {
-            var latest = UpdateHelper.ParseVersion("1.2.3");
-            var current = UpdateHelper.ParseVersion("1.2.3.4");
-
-            Assert.IsFalse(latest > current);
-        }
-
         // IsPastCooldown
 
         [TestMethod]

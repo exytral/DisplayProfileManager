@@ -22,7 +22,7 @@ namespace DisplayProfileManager.UI
     public sealed class TrayIcon : IDisposable
     {
         #region Core
-        private static readonly Logger logger = LoggerHelper.GetLogger();
+        private static readonly Logger _logger = LoggerHelper.GetLogger();
 
         private readonly ProfileManager _profileManager;
         private readonly HwndSource _hwndSource;
@@ -304,7 +304,7 @@ namespace DisplayProfileManager.UI
             }
             catch (Exception ex)
             {
-                logger.Warn(ex, "Failed to update tray icon");
+                _logger.Warn(ex, "Failed to update tray icon");
 
                 if (icon != null && !ReferenceEquals(icon, _defaultIcon) && !ReferenceEquals(icon, _currentIcon))
                     icon.Dispose();
@@ -326,7 +326,7 @@ namespace DisplayProfileManager.UI
             var data = CreateNotifyIconData(NifIcon);
             data.hIcon = _currentIcon.Handle;
             if (!Shell_NotifyIcon(NimModify, ref data))
-                logger.Warn("Failed to update tray icon");
+                _logger.Warn("Failed to update tray icon");
         }
 
         private void UpdateTrayIconTooltip()
@@ -341,7 +341,7 @@ namespace DisplayProfileManager.UI
             data.szTip = tooltip;
 
             if (_iconAdded && !Shell_NotifyIcon(NimModify, ref data))
-                logger.Warn("Failed to update tray tooltip");
+                _logger.Warn("Failed to update tray tooltip");
         }
 
         private static string BuildTooltip(string profileName)
@@ -373,12 +373,12 @@ namespace DisplayProfileManager.UI
 
             if (!Shell_NotifyIcon(NimAdd, ref data))
             {
-                logger.Warn("Failed to add tray icon");
+                _logger.Warn("Failed to add tray icon");
                 return;
             }
 
             if (!Shell_NotifyIcon(NimSetVersion, ref data))
-                logger.Warn("Failed to set tray icon notification version");
+                _logger.Warn("Failed to set tray icon notification version");
 
             _iconAdded = true;
         }
@@ -390,7 +390,7 @@ namespace DisplayProfileManager.UI
             var data = CreateNotifyIconData(0);
 
             if (!Shell_NotifyIcon(NimDelete, ref data))
-                logger.Warn("Failed to remove tray icon");
+                _logger.Warn("Failed to remove tray icon");
 
             _iconAdded = false;
         }
@@ -567,20 +567,20 @@ namespace DisplayProfileManager.UI
         {
             try
             {
-                logger.Info($"Applying profile '{profile.Name}' from TrayIcon");
+                _logger.Info($"Applying profile '{profile.Name}' from TrayIcon");
 
                 var applyResult = await _profileManager.ApplyProfileAsync(profile, ProfileManager.ApplySource.Tray);
                 if (!applyResult.Success)
                 {
                     string errorDetails = _profileManager.GetApplyResultErrorMessage(profile.Name, applyResult);
 
-                    logger.Warn(errorDetails);
+                    _logger.Warn(errorDetails);
                     ShowNotification("Apply failed", errorDetails, TrayNotificationIcon.Error);
                 }
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error applying profile from tray");
+                _logger.Error(ex, "Error applying profile from tray");
                 try
                 {
                     ShowNotification("Apply failed", "Error applying profile", TrayNotificationIcon.Error);
@@ -604,7 +604,7 @@ namespace DisplayProfileManager.UI
             };
 
             if (!Shell_NotifyIcon(NimModify, ref data))
-                logger.Warn("Failed to display tray notification");
+                _logger.Warn("Failed to display tray notification");
         }
 
         private void OnProfilesLoaded(object sender, EventArgs e) => UpdateTrayIconTooltip();
@@ -631,14 +631,14 @@ namespace DisplayProfileManager.UI
         {
             if (unchecked((uint)msg) == _taskbarCreatedMessage)
             {
-                logger.Info($"TaskbarCreated received; invalidating tray icon registration (visible={_visible})");
+                _logger.Info($"TaskbarCreated received; invalidating tray icon registration (visible={_visible})");
                 _iconAdded = false;
 
                 if (_visible)
                 {
                     AddNotifyIcon();
                     if (_iconAdded)
-                        logger.Info("Tray icon re-registered after TaskbarCreated");
+                        _logger.Info("Tray icon re-registered after TaskbarCreated");
                 }
 
                 handled = true;
@@ -678,7 +678,7 @@ namespace DisplayProfileManager.UI
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error opening notification link");
+                _logger.Error(ex, "Error opening notification link");
             }
             finally
             {

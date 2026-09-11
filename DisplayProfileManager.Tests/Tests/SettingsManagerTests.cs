@@ -1,4 +1,5 @@
-using System.Reflection;
+﻿using System.Reflection;
+using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using DisplayProfileManager.Core;
 
@@ -64,6 +65,26 @@ namespace DisplayProfileManager.Tests.Tests
 
         [TestMethod]
         [TestCategory("Unit")]
+        public void FindLegacySettingsPath_ModernCasingOnly_DoesNotSelectModernFile()
+        {
+            string result = SettingsManager.FindLegacySettingsPath([@"C:\Config\Settings.json"]);
+
+            Assert.IsNull(result);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void FindLegacySettingsPath_ExactLegacyCasing_SelectsLegacyFile()
+        {
+            const string legacyPath = @"C:\Config\settings.json";
+
+            string result = SettingsManager.FindLegacySettingsPath([@"C:\Config\Settings.json", legacyPath]);
+
+            Assert.AreEqual(legacyPath, result);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
         public void SaveSettingsAsync_WhenSettingsNotLoaded_RefusesToSave()
         {
             var sm = SettingsManager.Instance;
@@ -84,5 +105,47 @@ namespace DisplayProfileManager.Tests.Tests
                 loadedField.SetValue(sm, originalValue);
             }
         }
+        [TestMethod]
+        [TestCategory("Unit")]
+        public async Task SetDefaultProfileIdAsync_SaveFails_RestoresPreviousInMemoryValue()
+        {
+            var sm = SettingsManager.Instance;
+            string previous = sm.Settings.DefaultProfileId;
+            sm.Settings.DefaultProfileId = "previous-profile";
+
+            try
+            {
+                bool result = await sm.SetDefaultProfileIdAsync("new-profile", () => Task.FromResult(false));
+
+                Assert.IsFalse(result);
+                Assert.AreEqual("previous-profile", sm.Settings.DefaultProfileId);
+            }
+            finally
+            {
+                sm.Settings.DefaultProfileId = previous;
+            }
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public async Task SetDefaultProfileIdAsync_SaveSucceeds_KeepsNewInMemoryValue()
+        {
+            var sm = SettingsManager.Instance;
+            string previous = sm.Settings.DefaultProfileId;
+            sm.Settings.DefaultProfileId = "previous-profile";
+
+            try
+            {
+                bool result = await sm.SetDefaultProfileIdAsync("new-profile", () => Task.FromResult(true));
+
+                Assert.IsTrue(result);
+                Assert.AreEqual("new-profile", sm.Settings.DefaultProfileId);
+            }
+            finally
+            {
+                sm.Settings.DefaultProfileId = previous;
+            }
+        }
+
     }
 }

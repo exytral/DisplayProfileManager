@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using DisplayProfileManager.Core;
 using DisplayProfileManager.Helpers;
 using DisplayProfileManager.Tests.Helpers;
 
@@ -199,120 +198,6 @@ namespace DisplayProfileManager.Tests.Tests
                 .ToList();
 
             Assert.AreEqual(normalized.Count, normalized.Distinct().Count(), "All normalized SourceIds submitted to SetDisplayConfig must be unique.");
-        }
-    }
-
-    [TestClass]
-    public class SourceIdNormalizationTests
-    {
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void Profile_WithGapInSourceIds_RequiresNormalization()
-        {
-            var settings = new List<DisplaySetting>
-            {
-                new DisplaySettingBuilder().WithSourceId(0).Build(),
-                new DisplaySettingBuilder().WithSourceId(2).Build(),
-            };
-
-            var ids = settings.Where(s => s.IsEnabled).Select(s => s.SourceId).OrderBy(x => x).ToList();
-
-            Assert.AreEqual(0u, ids[0]);
-            Assert.AreEqual(2u, ids[1]);
-            Assert.AreNotEqual((uint)(ids.Count - 1), ids.Last(), "Non-contiguous SourceIds must be normalized before passing to SetDisplayConfig.");
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void Profile_WithContiguousSourceIds_DoesNotRequireNormalization()
-        {
-            var settings = new List<DisplaySetting>
-            {
-                new DisplaySettingBuilder().WithSourceId(0).Build(),
-                new DisplaySettingBuilder().WithSourceId(1).Build(),
-            };
-
-            var ids = settings.Where(s => s.IsEnabled).Select(s => s.SourceId).OrderBy(x => x).ToList();
-
-            for (int i = 0; i < ids.Count; i++)
-                Assert.AreEqual((uint)i, ids[i], $"SourceId[{i}] is already {i} — no normalization needed.");
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void CloneGroupDetection_GroupsBySourceId()
-        {
-            var configs = new List<DisplayConfigHelper.DisplayConfigInfo>
-            {
-                new DisplayConfigInfoBuilder().WithSourceId(0).WithTargetId(0).Build(),
-                new DisplayConfigInfoBuilder().WithSourceId(0).WithTargetId(1).Build(),
-                new DisplayConfigInfoBuilder().WithSourceId(1).WithTargetId(2).Build(),
-            };
-
-            var cloneGroups = configs
-                .GroupBy(dc => dc.SourceId)
-                .Where(g => g.Count() > 1)
-                .ToList();
-
-            Assert.AreEqual(1, cloneGroups.Count, "One clone group must be detected.");
-            Assert.AreEqual(0u, cloneGroups[0].Key, "Clone group must have SourceId=0.");
-            Assert.AreEqual(2, cloneGroups[0].Count(), "Clone group must have 2 members.");
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void CloneGroupDetection_ExtendedDisplays_ProduceNoGroups()
-        {
-            var configs = new List<DisplayConfigHelper.DisplayConfigInfo>
-            {
-                new DisplayConfigInfoBuilder().WithSourceId(0).Build(),
-                new DisplayConfigInfoBuilder().WithSourceId(1).Build(),
-                new DisplayConfigInfoBuilder().WithSourceId(2).Build(),
-            };
-
-            var cloneGroups = configs.GroupBy(dc => dc.SourceId).Where(g => g.Count() > 1).ToList();
-
-            Assert.AreEqual(0, cloneGroups.Count, "Fully extended configuration must produce no clone groups.");
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void DpiDeduplication_CloneGroupMembers_YieldsOneEntryPerDevice()
-        {
-            var s1a = new DisplaySettingBuilder().WithCloneGroup("c").Build();
-            s1a.DeviceName = "\\\\.\\DISPLAY1";
-            var s1b = new DisplaySettingBuilder().WithCloneGroup("c").Build();
-            s1b.DeviceName = "\\\\.\\DISPLAY1";
-            var s2 = new DisplaySettingBuilder().Build();
-            s2.DeviceName = "\\\\.\\DISPLAY2";
-
-            var deduped = new List<DisplaySetting> { s1a, s1b, s2 }
-                .Where(s => s.IsEnabled)
-                .GroupBy(s => s.DeviceName)
-                .Select(g => g.First())
-                .ToList();
-
-            Assert.AreEqual(2, deduped.Count, "Two unique DeviceNames must produce 2 DPI entries, not one per clone member.");
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void DpiDeduplication_DisabledDisplays_AreExcluded()
-        {
-            var enabled = new DisplaySettingBuilder().Build();
-            enabled.DeviceName = "\\\\.\\DISPLAY1";
-            var disabled = new DisplaySettingBuilder().Build();
-            disabled.DeviceName = "\\\\.\\DISPLAY2";
-            disabled.IsEnabled = false;
-
-            var forDpi = new List<DisplaySetting> { enabled, disabled }
-                .Where(s => s.IsEnabled)
-                .GroupBy(s => s.DeviceName)
-                .Select(g => g.First())
-                .ToList();
-
-            Assert.AreEqual(1, forDpi.Count);
-            Assert.AreEqual("\\\\.\\DISPLAY1", forDpi[0].DeviceName);
         }
     }
 }

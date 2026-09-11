@@ -1,4 +1,4 @@
-using DisplayProfileManager.Core;
+﻿using DisplayProfileManager.Core;
 using DisplayProfileManager.Helpers;
 using NLog;
 using System;
@@ -22,7 +22,7 @@ namespace DisplayProfileManager.UI.Windows
 
     public partial class ProfileEditWindow : Window
     {
-        private static readonly Logger logger = LoggerHelper.GetLogger();
+        private static readonly Logger _logger = LoggerHelper.GetLogger();
 
         private ProfileManager _profileManager;
         private Profile _profile;
@@ -46,7 +46,7 @@ namespace DisplayProfileManager.UI.Windows
             _profileManager = ProfileManager.Instance;
             _displayControls = new List<DisplaySettingControl>();
             _isEditMode = profileToEdit != null;
-            _profile = profileToEdit ?? new Profile();
+            _profile = profileToEdit?.CreateWorkingCopy() ?? new Profile(string.Empty);
 
             _playbackDevices = new ObservableCollection<AudioHelper.AudioDeviceInfo>();
             _captureDevices = new ObservableCollection<AudioHelper.AudioDeviceInfo>();
@@ -74,7 +74,7 @@ namespace DisplayProfileManager.UI.Windows
             try
             {
                 _profile.WallpaperSettings = WallpaperHelper.Capture();
-                _profile.EnableWallpaper = false;
+                _profile.WallpaperSettings.Enabled = false;
 
                 _suppressWallpaperEvents = true;
                 EnableWallpaperCheckBox.IsChecked = false;
@@ -85,7 +85,7 @@ namespace DisplayProfileManager.UI.Windows
             }
             catch (Exception ex)
             {
-                logger.Warn(ex, "Could not prefill new profile from current desktop");
+                _logger.Warn(ex, "Could not prefill new profile from current desktop");
             }
         }
 
@@ -97,17 +97,17 @@ namespace DisplayProfileManager.UI.Windows
                 var currentSettings = await _profileManager.GetCurrentDisplaySettingsAsync();
                 if (currentSettings.Count == 0)
                 {
-                    logger.Warn("Prefill found no displays -> leaving editor empty");
+                    _logger.Warn("Prefill found no displays -> leaving editor empty");
                     return;
                 }
 
                 LoadDisplaySettings(currentSettings);
                 prefillWatch.Stop();
-                logger.Info($"Prefilled {TextHelper.Plural(currentSettings.Count, "display")} in {prefillWatch.ElapsedMilliseconds} ms");
+                _logger.Info($"Prefilled {TextHelper.Plural(currentSettings.Count, "display")} in {prefillWatch.ElapsedMilliseconds} ms");
             }
             catch (Exception ex)
             {
-                logger.Warn(ex, "Could not prefill display settings for a new profile");
+                _logger.Warn(ex, "Could not prefill display settings for a new profile");
             }
         }
 
@@ -171,12 +171,12 @@ namespace DisplayProfileManager.UI.Windows
 
             if (cloneGroupCount > 0)
             {
-                logger.Info($"Loaded {TextHelper.Plural(settings.Count, "display")} with " + $"{TextHelper.Plural(cloneGroupCount, "clone group")} " + $"({cloneGroupDisplayCount} displays in clone groups)");
+                _logger.Info($"Loaded {TextHelper.Plural(settings.Count, "display")} with " + $"{TextHelper.Plural(cloneGroupCount, "clone group")} " + $"({cloneGroupDisplayCount} displays in clone groups)");
                 StatusTextBlock.Text = $"Loaded {TextHelper.Plural(settings.Count, "display")} " + $"({TextHelper.Plural(cloneGroupCount, "clone group")} with " + $"{cloneGroupDisplayCount} displays)";
             }
             else
             {
-                logger.Info($"Loaded {TextHelper.Plural(settings.Count, "display")}");
+                _logger.Info($"Loaded {TextHelper.Plural(settings.Count, "display")}");
                 StatusTextBlock.Text = $"Loaded {TextHelper.Plural(settings.Count, "display")}";
             }
         }
@@ -208,7 +208,7 @@ namespace DisplayProfileManager.UI.Windows
             _suppressAudioSelection = true;
             try
             {
-                EnableAudioCheckBox.IsChecked = _profile.EnableAudio;
+                EnableAudioCheckBox.IsChecked = _profile.AudioSettings?.Enabled == true;
             }
             finally
             {
@@ -217,21 +217,21 @@ namespace DisplayProfileManager.UI.Windows
 
             _ = LoadAudioDevices();
 
-            EnableWallpaperCheckBox.IsChecked = _profile.EnableWallpaper;
+            EnableWallpaperCheckBox.IsChecked = _profile.WallpaperSettings?.Enabled == true;
             PopulateWallpaperOptions();
             UpdateWallpaperModeIndicator();
 
-            EnableScriptsCheckBox.IsChecked = _profile.EnableScripts;
+            EnableScriptsCheckBox.IsChecked = _profile.ScriptSettings?.Enabled == true;
             UpdateClearIconButtonState();
             UpdateClearHotkeyButtonState();
 
             _scriptList.Clear();
-            if (_profile.Scripts != null)
+            if (_profile.ScriptSettings?.Scripts != null)
             {
                 string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
                 string scriptsFolder = System.IO.Path.Combine(appDataPath, "DisplayProfileManager", "Scripts");
 
-                foreach (var script in _profile.Scripts)
+                foreach (var script in _profile.ScriptSettings.Scripts)
                 {
                     string fullPath = System.IO.Path.IsPathRooted(script.FileName)
                         ? script.FileName
@@ -265,7 +265,7 @@ namespace DisplayProfileManager.UI.Windows
 
                 var currentSettings = await _profileManager.GetCurrentDisplaySettingsAsync();
                 LoadDisplaySettings(currentSettings);
-                logger.Info($"Load: {currentSettings.Count} physical displays loaded, " + $"{_displayControls.Count} controls created");
+                _logger.Info($"Load: {currentSettings.Count} physical displays loaded, " + $"{_displayControls.Count} controls created");
             }
             catch (Exception ex)
             {
@@ -356,7 +356,7 @@ namespace DisplayProfileManager.UI.Windows
                 foreach (var window in identifyWindows)
                 {
                     window.Show();
-                    logger.Debug("Showing identify window for monitor {Index} at position Left:{Left}, Top:{Top}", window.MonitorIndex, window.Left, window.Top);
+                    _logger.Debug("Showing identify window for monitor {Index} at position Left:{Left}, Top:{Top}", window.MonitorIndex, window.Left, window.Top);
                 }
 
                 StatusTextBlock.Text = $"Showing identifiers on {TextHelper.Plural(identifyWindows.Count, "monitor")}";
@@ -394,10 +394,7 @@ namespace DisplayProfileManager.UI.Windows
                 _profile.HotkeyConfig.IsEnabled = (EnableHotkeyCheckBox.IsChecked ?? false) && hotkeyAssigned;
 
                 bool wasDefault = _profileManager.GetDefaultProfile()?.Id == _profile.Id;
-                if (DefaultProfileCheckBox.IsChecked == true && !wasDefault)
-                    await _profileManager.SetDefaultProfileAsync(_profile.Id);
-                else if (DefaultProfileCheckBox.IsChecked == false && wasDefault)
-                    await _profileManager.SetDefaultProfileAsync(null);
+                bool shouldBeDefault = DefaultProfileCheckBox.IsChecked == true;
 
                 // Displays
                 _profile.DisplaySettings.Clear();
@@ -409,8 +406,8 @@ namespace DisplayProfileManager.UI.Windows
                 }
 
                 // Wallpaper
-                _profile.EnableWallpaper = EnableWallpaperCheckBox.IsChecked ?? false;
-                if (_profile.EnableWallpaper)
+                bool wallpaperEnabled = EnableWallpaperCheckBox.IsChecked ?? false;
+                if (wallpaperEnabled)
                 {
                     try
                     {
@@ -418,22 +415,25 @@ namespace DisplayProfileManager.UI.Windows
                             _profile.WallpaperSettings = WallpaperHelper.Capture();
 
                         ApplyWallpaperOptionsToSnapshot();
+                        _profile.WallpaperSettings.Enabled = true;
                     }
                     catch (Exception ex)
                     {
-                        logger.Error(ex, "Error capturing wallpaper");
+                        _logger.Error(ex, "Error capturing wallpaper");
                         StatusTextBlock.Text = "Error capturing wallpaper — profile saved without it";
                         _profile.WallpaperSettings = null;
-                        _profile.EnableWallpaper = false;
                     }
                 }
+                else if (_profile.WallpaperSettings != null)
+                    _profile.WallpaperSettings.Enabled = false;
+
                 UpdateWallpaperModeIndicator();
 
                 // Audio
                 if (_profile.AudioSettings == null) _profile.AudioSettings = new AudioSetting();
                 _profile.AudioSettings.ApplyPlaybackDevice = ApplyOutputDeviceCheckBox.IsChecked ?? false;
                 _profile.AudioSettings.ApplyCaptureDevice = ApplyInputDeviceCheckBox.IsChecked ?? false;
-                _profile.EnableAudio = (EnableAudioCheckBox.IsChecked ?? false)
+                _profile.AudioSettings.Enabled = (EnableAudioCheckBox.IsChecked ?? false)
                     && (_profile.AudioSettings.ApplyPlaybackDevice || _profile.AudioSettings.ApplyCaptureDevice);
 
                 if (OutputDeviceComboBox.SelectedItem is AudioHelper.AudioDeviceInfo selectedOutput)
@@ -455,7 +455,10 @@ namespace DisplayProfileManager.UI.Windows
                 if (!System.IO.Directory.Exists(scriptsFolder))
                     System.IO.Directory.CreateDirectory(scriptsFolder);
 
-                _profile.Scripts = _scriptList
+                if (_profile.ScriptSettings == null)
+                    _profile.ScriptSettings = new ScriptSettings();
+
+                _profile.ScriptSettings.Scripts = _scriptList
                     .Where(s => !s.IsDeleted && !string.IsNullOrWhiteSpace(s.FilePath))
                     .Select(s => new Script
                     {
@@ -465,11 +468,28 @@ namespace DisplayProfileManager.UI.Windows
                     })
                     .ToList();
 
-                _profile.EnableScripts = (EnableScriptsCheckBox.IsChecked ?? false) && _profile.Scripts.Any(s => s.IsEnabled);
+                _profile.ScriptSettings.Enabled = (EnableScriptsCheckBox.IsChecked ?? false)
+                    && _profile.ScriptSettings.Scripts.Any(s => s.IsEnabled);
 
                 bool success = _isEditMode ? await _profileManager.UpdateProfileAsync(_profile) : await _profileManager.AddProfileAsync(_profile);
                 if (success)
                 {
+                    bool defaultUpdated = true;
+                    if (shouldBeDefault && !wasDefault)
+                        defaultUpdated = await _profileManager.SetDefaultProfileAsync(_profile.Id);
+                    else if (!shouldBeDefault && wasDefault)
+                        defaultUpdated = await _profileManager.SetDefaultProfileAsync(null);
+
+                    if (!defaultUpdated)
+                    {
+                        StatusTextBlock.Text = "Profile saved, but failed to update default profile";
+                        MessageBox.Show(
+                            "The profile was saved, but the default profile setting could not be updated.",
+                            "Profile Saved",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Warning);
+                    }
+
                     DialogResult = true;
                     Close();
                 }
@@ -570,11 +590,11 @@ namespace DisplayProfileManager.UI.Windows
             {
                 var app = Application.Current as App;
                 app?.DisableProfileHotkeys();
-                logger.Debug("Disabled profile hotkeys for ProfileEditWindow");
+                _logger.Debug("Disabled profile hotkeys for ProfileEditWindow");
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error disabling profile hotkeys");
+                _logger.Error(ex, "Error disabling profile hotkeys");
             }
         }
 
@@ -901,11 +921,11 @@ namespace DisplayProfileManager.UI.Windows
             }
             catch (OperationCanceledException)
             {
-                logger.Debug("Audio device load canceled.");
+                _logger.Debug("Audio device load canceled.");
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error loading audio devices");
+                _logger.Error(ex, "Error loading audio devices");
                 StatusTextBlock.Text = "Could not load audio devices";
             }
             finally
@@ -953,7 +973,7 @@ namespace DisplayProfileManager.UI.Windows
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error refreshing audio devices");
+                _logger.Error(ex, "Error refreshing audio devices");
                 StatusTextBlock.Text = "Error refreshing audio devices";
             }
         }
@@ -963,7 +983,7 @@ namespace DisplayProfileManager.UI.Windows
             try
             {
                 _profile.WallpaperSettings = WallpaperHelper.Capture();
-                _profile.EnableWallpaper = true;
+                _profile.WallpaperSettings.Enabled = true;
                 EnableWallpaperCheckBox.IsChecked = true;
                 PopulateWallpaperOptions();
                 UpdateWallpaperModeIndicator();
@@ -971,12 +991,12 @@ namespace DisplayProfileManager.UI.Windows
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error capturing wallpaper");
+                _logger.Error(ex, "Error capturing wallpaper");
                 StatusTextBlock.Text = "Error capturing wallpaper";
             }
         }
 
-        private static readonly uint[] SlideshowIntervals = { 60, 600, 1800, 3600, 21600, 86400 };
+        private static readonly uint[] _slideshowIntervals = { 60, 600, 1800, 3600, 21600, 86400 };
 
         private bool _suppressWallpaperEvents;
         private List<uint> _intervalOptions = new List<uint>();
@@ -997,7 +1017,7 @@ namespace DisplayProfileManager.UI.Windows
 
                 WallpaperFitmentComboBox.ItemsSource = WallpaperHelper.AllPositions.Select(p => new FitmentOption(char.ToUpper(p[0]) + p.Substring(1), backgroundBrush)).ToList();
 
-                var intervals = SlideshowIntervals.ToList();
+                var intervals = _slideshowIntervals.ToList();
                 var captured = snapshot?.SlideshowConfig?.IntervalSeconds ?? 1800;
                 if (!intervals.Contains(captured)) intervals.Add(captured);
                 intervals.Sort();
@@ -1060,7 +1080,7 @@ namespace DisplayProfileManager.UI.Windows
             }
             catch (Exception ex)
             {
-                logger.Debug(ex, "Wallpaper preview could not be decoded");
+                _logger.Debug(ex, "Wallpaper preview could not be decoded");
             }
         }
 
@@ -1149,7 +1169,7 @@ namespace DisplayProfileManager.UI.Windows
                 }
                 catch (Exception ex)
                 {
-                    logger.Warn(ex, "Wallpaper capture on enable failed");
+                    _logger.Warn(ex, "Wallpaper capture on enable failed");
                 }
             }
 
@@ -1166,7 +1186,7 @@ namespace DisplayProfileManager.UI.Windows
             if (!NativeColorDialogHelper.TryChooseColor(new WindowInteropHelper(this).Handle, initialColor, out uint selectedColor)) return;
 
             snapshot.SolidColorArgb = selectedColor;
-            logger.Debug($"Background color set to COLORREF 0x{snapshot.SolidColorArgb:X6}");
+            _logger.Debug($"Background color set to COLORREF 0x{snapshot.SolidColorArgb:X6}");
             PopulateWallpaperOptions();
             UpdateWallpaperPreview();
             StatusTextBlock.Text = "Background color set";
@@ -1510,11 +1530,11 @@ namespace DisplayProfileManager.UI.Windows
             {
                 var app = Application.Current as App;
                 app?.EnableProfileHotkeys();
-                logger.Debug("Re-enabled profile hotkeys after ProfileEditWindow closed");
+                _logger.Debug("Re-enabled profile hotkeys after ProfileEditWindow closed");
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error re-enabling profile hotkeys");
+                _logger.Error(ex, "Error re-enabling profile hotkeys");
             }
 
             base.OnClosed(e);

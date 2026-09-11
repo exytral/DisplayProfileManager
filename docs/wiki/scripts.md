@@ -9,13 +9,14 @@ A profile can run scripts after the display, wallpaper, and audio stages have co
 | Type          | How it runs                                                                     |
 | ------------- | ------------------------------------------------------------------------------- |
 | `.exe`        | Converted to a `.lnk` shortcut on import and launched through the Windows Shell |
+| `.lnk`        | Launched through the Windows Shell                                               |
 | `.ps1`        | PowerShell with `-ExecutionPolicy Bypass`                                       |
 | `.bat`/`.cmd` | `cmd.exe /c`                                                                    |
 | `.vbs`/`.js`  | `cscript.exe /nologo`                                                           |
 | `.py`         | `python.exe` from `PATH`                                                        |
 | `.ahk`        | `autohotkey.exe` from `PATH`                                                    |
 
-Imported `.exe` files are converted to `.lnk` shortcuts in the scripts sandbox. The shortcut is stored in the profile and used for execution.
+Imported `.exe` files are converted to `.lnk` shortcuts in the application-managed Scripts folder. The shortcut is stored in the profile and used for execution.
 
 Python and AutoHotkey must be installed and available on `PATH`. Launch failures are logged when the required interpreter cannot be started.
 
@@ -23,15 +24,15 @@ Python and AutoHotkey must be installed and available on `PATH`. Launch failures
 
 ## Scripts folder
 
-All imported scripts are sandboxed to:
+Imported scripts are stored under:
 
 ```text
-%AppData%\Roaming\DisplayProfileManager\Scripts\
+%AppData%\DisplayProfileManager\Scripts\
 ```
 
-Imported files are copied into this folder. References to files outside the sandbox are not supported.
+Imported files are copied into this folder. Persisted script paths are confined lexically to this folder at execution time. This is a path-safety boundary, not an operating-system security sandbox.
 
-Deleting a file directly from the sandbox does not automatically remove script entries from profiles that reference it.
+Deleting a file directly from the Scripts folder does not automatically remove script entries from profiles that reference it.
 
 ---
 

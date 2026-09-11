@@ -14,7 +14,7 @@ namespace DisplayProfileManager.Helpers
 {
     public static class IconHelper
     {
-        private static readonly Logger logger = LoggerHelper.GetLogger();
+        private static readonly Logger _logger = LoggerHelper.GetLogger();
         private static readonly ConcurrentDictionary<string, ImageSource> _cache = new ConcurrentDictionary<string, ImageSource>(StringComparer.OrdinalIgnoreCase);
 
         #region Public Methods
@@ -34,7 +34,7 @@ namespace DisplayProfileManager.Helpers
 
             if (filename.Contains('/') || filename.Contains('\\') || filename.Contains(".."))
             {
-                logger.Warn($"Icon filename '{filename}' rejected — contains path traversal characters");
+                _logger.Warn($"Icon filename '{filename}' rejected — contains path traversal characters");
                 return null;
             }
 
@@ -55,7 +55,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Error(ex, $"Failed to load icon '{filename}'");
+                _logger.Error(ex, $"Failed to load icon '{filename}'");
                 return null;
             }
         }
@@ -86,7 +86,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Error(ex, $"Failed to load image source for icon '{filename}' at size {size}");
+                _logger.Error(ex, $"Failed to load image source for icon '{filename}' at size {size}");
                 return null;
             }
         }
@@ -104,7 +104,7 @@ namespace DisplayProfileManager.Helpers
             using (var dst = new FileStream(destPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true))
                 await src.CopyToAsync(dst);
 
-            logger.Info($"Imported icon '{sourcePath}' → '{destPath}'");
+            _logger.Info($"Imported icon '{sourcePath}' → '{destPath}'");
             return destFilename;
         }
 
@@ -116,7 +116,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Failed to enumerate icons folder");
+                _logger.Error(ex, "Failed to enumerate icons folder");
                 return Array.Empty<string>();
             }
         }

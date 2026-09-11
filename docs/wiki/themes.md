@@ -28,7 +28,7 @@ Open **"Settings"** and select a theme from the **Theme** dropdown. The change a
 Use **"Import"** in the main or settings window to select a compatible `.xaml` theme file. Display Profile Manager validates the file before copying it into:
 
 ```text
-%AppData%\Roaming\DisplayProfileManager\Themes\
+%AppData%\DisplayProfileManager\Themes\
 ```
 
 A successfully imported theme is loaded, applied immediately, and selected as the current theme.
@@ -64,9 +64,9 @@ A custom theme can use the same name as a packaged theme. In that case, the user
 
 DPM Theme Builder (`DPMThemeBuilder.pyw`) is a standalone Python tool that converts color schemes from the [`tinted-theming/schemes` repository](https://github.com/tinted-theming/schemes) into Display Profile Manager-compatible `.xaml` files.
 
-**Requirements:** Python 3.8+ with Tkinter. No third-party packages are required. `pyyaml` is optional and provides more robust YAML parsing.
+**Requirements:** Python 3.10+ with Tkinter. No third-party packages are required. `pyyaml` is optional and provides more robust YAML parsing.
 
-> The standalone `DPMThemeBuilder.exe` bundles the required runtime and does not require a separate Python installation.
+> The release package contains `DPMThemeBuilder.exe`, `DPMThemeBuilder.pyw`, the Builder license, and Builder third-party notices. The executable bundles the required runtime and does not require a separate Python installation.
 
 ![Theme Builder](../img/theme-builder.png)
 

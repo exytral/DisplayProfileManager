@@ -32,7 +32,7 @@ namespace DisplayProfileManager.Core
         private readonly string _appDataFolder;
         private readonly string _profilesFolderPath;
 
-        private const int CurrentSchemaVersion = 4;
+        internal const int CurrentSchemaVersion = 5;
 
         public enum ApplySource { Unknown, Window, Tray, Hotkey, CommandLine, Startup }
 
@@ -43,12 +43,14 @@ namespace DisplayProfileManager.Core
             public Profile Profile { get; }
             public ApplySource Source { get; }
             public long DurationMilliseconds { get; }
+            public string WarningSummary { get; }
 
-            public ProfileAppliedEventArgs(Profile profile, ApplySource source, long durationMilliseconds)
+            public ProfileAppliedEventArgs(Profile profile, ApplySource source, long durationMilliseconds, string warningSummary = null)
             {
                 Profile = profile;
                 Source = source;
                 DurationMilliseconds = durationMilliseconds;
+                WarningSummary = warningSummary ?? string.Empty;
             }
         }
 
@@ -60,7 +62,25 @@ namespace DisplayProfileManager.Core
             public bool ResolutionChanged { get; set; }
             public bool DpiChanged { get; set; }
             public bool AudioSuccess { get; set; }
+            public bool AdvancedColorSuccess { get; set; } = true;
+            public bool ColorProfileSuccess { get; set; } = true;
         }
+
+        internal static string GetApplyWarningSummary(ProfileApplyResult result)
+        {
+            if (result == null) return string.Empty;
+
+            var failures = new List<string>();
+            if (!result.AdvancedColorSuccess) failures.Add("Advanced Color");
+            if (!result.ColorProfileSuccess) failures.Add("Color Profile");
+            if (!result.DpiChanged) failures.Add("DPI");
+            if (!result.AudioSuccess) failures.Add("Audio");
+
+            return string.Join(", ", failures);
+        }
+
+        internal static string AppendApplyWarnings(string message, string warningSummary) =>
+            string.IsNullOrEmpty(warningSummary) ? message : $"{message} — {warningSummary} failed to apply";
 
 
         public static ProfileManager Instance
@@ -119,6 +139,7 @@ namespace DisplayProfileManager.Core
             RecoverScriptEntries(root);
             RecoverOptionalProperty(root, "audioSettings", typeof(AudioSetting));
             RecoverOptionalProperty(root, "wallpaperSettings", typeof(WallpaperSettings));
+            RecoverOptionalProperty(root, "scriptSettings", typeof(ScriptSettings));
             RecoverOptionalProperty(root, "hotkeyConfig", typeof(HotkeyConfig));
             RecoverOptionalProperty(root, "enableWallpaper", typeof(bool));
             RecoverOptionalProperty(root, "enableAudio", typeof(bool));
@@ -130,6 +151,7 @@ namespace DisplayProfileManager.Core
             RecoverOptionalProperty(root, "lastModifiedDate", typeof(DateTime));
             RecoverOptionalProperty(root, "schemaVersion", typeof(int));
 
+            NormalizeSubsystemSettings(root);
             return root.ToObject<Profile>();
         }
 
@@ -151,12 +173,20 @@ namespace DisplayProfileManager.Core
 
         private static void RecoverScriptEntries(JObject root)
         {
-            var token = root["scripts"];
+            RecoverScriptEntries(root, "scripts");
+
+            if (root["scriptSettings"] is JObject scriptSettings)
+                RecoverScriptEntries(scriptSettings, "scripts");
+        }
+
+        private static void RecoverScriptEntries(JObject owner, string propertyName)
+        {
+            var token = owner[propertyName];
             if (token == null) return;
 
             if (!(token is JArray scripts))
             {
-                root.Remove("scripts");
+                owner.Remove(propertyName);
                 return;
             }
 
@@ -180,14 +210,43 @@ namespace DisplayProfileManager.Core
             }
         }
 
+        private static void NormalizeSubsystemSettings(JObject root)
+        {
+            var wallpaperSettings = root["wallpaperSettings"] as JObject;
+            if (wallpaperSettings != null && wallpaperSettings["enabled"] == null)
+                wallpaperSettings["enabled"] = root["enableWallpaper"]?.Value<bool>() ?? false;
+
+            var audioSettings = root["audioSettings"] as JObject;
+            if (audioSettings != null && audioSettings["enabled"] == null)
+                audioSettings["enabled"] = root["enableAudio"]?.Value<bool>() ?? false;
+
+            var scriptSettings = root["scriptSettings"] as JObject;
+            if (scriptSettings == null)
+            {
+                scriptSettings = new JObject();
+                root["scriptSettings"] = scriptSettings;
+            }
+
+            if (scriptSettings["enabled"] == null)
+                scriptSettings["enabled"] = root["enableScripts"]?.Value<bool>() ?? false;
+
+            if (scriptSettings["scripts"] == null && root["scripts"] is JArray legacyScripts)
+                scriptSettings["scripts"] = legacyScripts.DeepClone();
+
+            root.Remove("enableWallpaper");
+            root.Remove("enableAudio");
+            root.Remove("enableScripts");
+            root.Remove("scripts");
+        }
+
         public async Task<bool> LoadProfilesAsync()
         {
             EnsureProfilesFolderExists();
+            var previousProfiles = _profiles;
 
             try
             {
-                _profiles.Clear();
-
+                var loadedProfiles = new List<Profile>();
                 var profileFiles = Directory.GetFiles(_profilesFolderPath, "*.dpm");
                 List<DisplayConfigHelper.DisplayConfigInfo> liveConfigs = null;
                 foreach (var file in profileFiles)
@@ -218,7 +277,7 @@ namespace DisplayProfileManager.Core
                             }
                         }
 
-                        _profiles.Add(profile);
+                        loadedProfiles.Add(profile);
                     }
                     catch (Exception ex)
                     {
@@ -226,8 +285,18 @@ namespace DisplayProfileManager.Core
                     }
                 }
 
-                if (_profiles.Count == 0)
-                    await CreateDefaultProfileAsync();
+                if (HasTotalProfileLoadFailure(profileFiles.Length, loadedProfiles.Count))
+                {
+                    _logger.Error($"Failed to load any of {profileFiles.Length} existing profile files -> keeping the previous in-memory profiles");
+                    return false;
+                }
+
+                _profiles = loadedProfiles;
+                if (_profiles.Count == 0 && await CreateDefaultProfileAsync() == null)
+                {
+                    _profiles = previousProfiles;
+                    return false;
+                }
 
                 _currentProfileId = _settingsManager.GetCurrentProfileId();
                 ProfilesLoaded?.Invoke(this, EventArgs.Empty);
@@ -237,10 +306,12 @@ namespace DisplayProfileManager.Core
             catch (Exception ex)
             {
                 _logger.Error(ex, "Error loading profiles");
-                _profiles = new List<Profile>();
+                _profiles = previousProfiles;
                 return false;
             }
         }
+
+        internal static bool HasTotalProfileLoadFailure(int discoveredProfileFileCount, int loadedProfileCount) => discoveredProfileFileCount > 0 && loadedProfileCount == 0;
 
         private async Task<bool> MigrateProfileAsync(Profile profile, List<DisplayConfigHelper.DisplayConfigInfo> liveConfigs, string rawJson = null)
         {
@@ -353,6 +424,13 @@ namespace DisplayProfileManager.Core
                 changed = true;
             }
 
+            // Consolidate subsystem enablement into the settings objects
+            if (profile.SchemaVersion < 5)
+            {
+                profile.SchemaVersion = 5;
+                changed = true;
+            }
+
             return changed;
         }
 
@@ -390,13 +468,17 @@ namespace DisplayProfileManager.Core
                     return null;
                 }
 
-                if (GetProfile(profile.Id) != null)
+                if (!TryNormalizeProfileId(profile.Id, out string normalizedProfileId) || GetProfile(normalizedProfileId) != null)
                     profile.Id = Guid.NewGuid().ToString();
+                else
+                    profile.Id = normalizedProfileId;
 
                 profile.Name = GetUniqueProfileName(profile.Name);
                 profile.UpdateLastModified();
 
-                await AddProfileAsync(profile);
+                if (!await AddProfileAsync(profile))
+                    return null;
+
                 return profile;
             }
             catch (Exception ex)
@@ -404,6 +486,18 @@ namespace DisplayProfileManager.Core
                 _logger.Error(ex, "Error importing profile");
                 return null;
             }
+        }
+
+        internal static bool TryNormalizeProfileId(string profileId, out string normalizedProfileId)
+        {
+            if (Guid.TryParse(profileId, out Guid parsedProfileId))
+            {
+                normalizedProfileId = parsedProfileId.ToString("D");
+                return true;
+            }
+
+            normalizedProfileId = null;
+            return false;
         }
 
         public Profile DuplicateProfile(string profileId)
@@ -458,9 +552,9 @@ namespace DisplayProfileManager.Core
                     AvailableRefreshRates = ds.AvailableRefreshRates != null ? new Dictionary<string, List<int>>(ds.AvailableRefreshRates.ToDictionary(kvp => kvp.Key, kvp => kvp.Value)) : new Dictionary<string, List<int>>(),
                     AvailableDpiScaling = ds.AvailableDpiScaling != null ? ds.AvailableDpiScaling : new List<uint>()
                 }).ToList(),
-                EnableAudio = sourceProfile.EnableAudio,
                 AudioSettings = sourceProfile.AudioSettings != null ? new AudioSetting
                 {
+                    Enabled = sourceProfile.AudioSettings.Enabled,
                     DefaultPlaybackDeviceId = sourceProfile.AudioSettings.DefaultPlaybackDeviceId,
                     PlaybackDeviceName = sourceProfile.AudioSettings.PlaybackDeviceName,
                     DefaultCaptureDeviceId = sourceProfile.AudioSettings.DefaultCaptureDeviceId,
@@ -468,9 +562,9 @@ namespace DisplayProfileManager.Core
                     ApplyPlaybackDevice = sourceProfile.AudioSettings.ApplyPlaybackDevice,
                     ApplyCaptureDevice = sourceProfile.AudioSettings.ApplyCaptureDevice
                 } : new AudioSetting(),
-                EnableWallpaper = sourceProfile.EnableWallpaper,
                 WallpaperSettings = sourceProfile.WallpaperSettings != null ? new WallpaperSettings
                 {
+                    Enabled = sourceProfile.WallpaperSettings.Enabled,
                     Mode = sourceProfile.WallpaperSettings.Mode,
                     SolidColorArgb = sourceProfile.WallpaperSettings.SolidColorArgb,
                     Position = sourceProfile.WallpaperSettings.Position,
@@ -485,15 +579,18 @@ namespace DisplayProfileManager.Core
                         Shuffle = sourceProfile.WallpaperSettings.SlideshowConfig.Shuffle
                     } : null
                 } : null,
-                EnableScripts = sourceProfile.EnableScripts,
-                Scripts = sourceProfile.Scripts?
-                    .Select(s => new Script
-                    {
-                        FileName = s.FileName,
-                        Arguments = s.Arguments,
-                        IsEnabled = s.IsEnabled
-                    })
-                    .ToList() ?? new List<Script>(),
+                ScriptSettings = sourceProfile.ScriptSettings != null ? new ScriptSettings
+                {
+                    Enabled = sourceProfile.ScriptSettings.Enabled,
+                    Scripts = sourceProfile.ScriptSettings.Scripts?
+                        .Select(s => new Script
+                        {
+                            FileName = s.FileName,
+                            Arguments = s.Arguments,
+                            IsEnabled = s.IsEnabled
+                        })
+                        .ToList() ?? new List<Script>()
+                } : new ScriptSettings(),
                 HotkeyConfig = new HotkeyConfig()
             };
 
@@ -521,9 +618,13 @@ namespace DisplayProfileManager.Core
                 var currentSettings = await GetCurrentDisplaySettingsAsync();
                 defaultProfile.DisplaySettings.AddRange(currentSettings);
 
-                AddProfile(defaultProfile);
+                if (!await AddProfileAsync(defaultProfile))
+                {
+                    _logger.Error("Failed to persist default profile");
+                    return null;
+                }
+
                 _currentProfileId = defaultProfile.Id;
-                await SaveProfileAsync(defaultProfile);
                 await _settingsManager.SetCurrentProfileIdAsync(defaultProfile.Id);
                 await _settingsManager.SetDefaultProfileIdAsync(defaultProfile.Id);
 
@@ -532,8 +633,7 @@ namespace DisplayProfileManager.Core
             catch (Exception ex)
             {
                 _logger.Error(ex, "Error creating default profile");
-                AddProfile(defaultProfile);
-                return defaultProfile;
+                return null;
             }
         }
 
@@ -714,8 +814,13 @@ namespace DisplayProfileManager.Core
 
                 // Apply Display Configuration
                 var configWatch = Stopwatch.StartNew();
-                result.DisplayConfigApplied = topologyApplied &&
-                    await DisplayConfigHelper.ApplyDisplayConfig(displayConfigs);
+                if (topologyApplied)
+        {
+            var displayResult = await DisplayConfigHelper.ApplyDisplayConfigDetailed(displayConfigs);
+            result.DisplayConfigApplied = displayResult.Success;
+            result.AdvancedColorSuccess = displayResult.AdvancedColorSuccess;
+            result.ColorProfileSuccess = displayResult.ColorProfileSuccess;
+        }
                 configWatch.Stop();
 
                 if (topologyApplied && ShouldForceApplyFailureAt(2))
@@ -757,7 +862,7 @@ namespace DisplayProfileManager.Core
 
                 // Apply Wallpaper Settings
                 var wallpaperWatch = Stopwatch.StartNew();
-                if (profile.EnableWallpaper && profile.WallpaperSettings != null)
+                if (profile.WallpaperSettings?.Enabled == true)
                 {
                     try
                     {
@@ -772,7 +877,7 @@ namespace DisplayProfileManager.Core
 
                 // Apply Audio Settings
                 var audioWatch = Stopwatch.StartNew();
-                if (profile.EnableAudio && profile.AudioSettings != null)
+                if (profile.AudioSettings?.Enabled == true)
                     result.AudioSuccess = AudioHelper.ApplyAudioSettings(profile.AudioSettings);
                 audioWatch.Stop();
 
@@ -784,18 +889,18 @@ namespace DisplayProfileManager.Core
 
                 // Execute Scripts
                 scriptWatch.Start();
-                if (profile.EnableScripts && profile.Scripts != null && profile.Scripts.Any())
+                if (profile.ScriptSettings?.Enabled == true && profile.ScriptSettings.Scripts?.Any() == true)
                 {
-                    var enabledScripts = profile.Scripts.Count(s => s.IsEnabled);
-                    var disabledNote = enabledScripts == profile.Scripts.Count
+                    var enabledScripts = profile.ScriptSettings.Scripts.Count(s => s.IsEnabled);
+                    var disabledNote = enabledScripts == profile.ScriptSettings.Scripts.Count
                         ? ""
-                        : $" ({profile.Scripts.Count - enabledScripts} disabled)";
+                        : $" ({profile.ScriptSettings.Scripts.Count - enabledScripts} disabled)";
 
                     _logger.Info($"Executing {TextHelper.Plural(enabledScripts, "script")}{disabledNote}...");
-                    foreach (var command in profile.Scripts)
+                    foreach (var command in profile.ScriptSettings.Scripts)
                         _scriptManager.ExecuteScript(command);
                 }
-                else if (!profile.EnableScripts && profile.Scripts?.Any() == true)
+                else if (profile.ScriptSettings?.Enabled != true && profile.ScriptSettings?.Scripts?.Any() == true)
                     _logger.Debug("Scripts disabled, skipping execution");
                 scriptWatch.Stop();
 
@@ -829,7 +934,13 @@ namespace DisplayProfileManager.Core
                 totalWatch.Stop();
 
                 if (result.Success)
-                    ProfileApplied?.Invoke(this, new ProfileAppliedEventArgs(profile, source, totalWatch.ElapsedMilliseconds));
+                {
+                    string warningSummary = GetApplyWarningSummary(result);
+                    if (!string.IsNullOrEmpty(warningSummary))
+                        _logger.Warn($"Profile '{profile.Name}' applied with warnings: {warningSummary}");
+
+                    ProfileApplied?.Invoke(this, new ProfileAppliedEventArgs(profile, source, totalWatch.ElapsedMilliseconds, warningSummary));
+                }
 
                 // Timing Summary
                 _logger.Info($"[PERF] Map: {mapWatch.ElapsedMilliseconds} ms | Topology: {topologyWatch.ElapsedMilliseconds} ms | Config: {configWatch.ElapsedMilliseconds} ms");
@@ -1040,7 +1151,9 @@ namespace DisplayProfileManager.Core
             string errorDetails =
                 $"Failed to apply profile '{profileName}'.\n" +
                 $"Some settings may not have been applied correctly.\n\n" +
-                $"Display: {result.DisplayConfigApplied},\n" +
+                $"Display Layout: {result.DisplayConfigApplied},\n" +
+                $"Advanced Color: {result.AdvancedColorSuccess},\n" +
+                $"Color Profile: {result.ColorProfileSuccess},\n" +
                 $"DPI: {result.DpiChanged},\n" +
                 $"Audio: {result.AudioSuccess}";
 
@@ -1059,6 +1172,13 @@ namespace DisplayProfileManager.Core
 
             string cleanName = name.Trim();
             return _profiles.FirstOrDefault(p => p.Name.Trim().Equals(cleanName, StringComparison.OrdinalIgnoreCase));
+        }
+
+        internal Profile ResolveProfileNameOrId(string nameOrId)
+        {
+            if (string.IsNullOrWhiteSpace(nameOrId)) return null;
+
+            return GetProfile(nameOrId) ?? GetProfileByName(nameOrId);
         }
 
         public Profile GetCurrentProfile()
@@ -1086,10 +1206,15 @@ namespace DisplayProfileManager.Core
             ProfileAdded?.Invoke(this, profile);
         }
 
-        public async Task<bool> AddProfileAsync(Profile profile)
+        public Task<bool> AddProfileAsync(Profile profile) => AddProfileAsync(profile, SaveProfileAsync);
+
+        internal async Task<bool> AddProfileAsync(Profile profile, Func<Profile, Task<bool>> saveProfile)
         {
+            if (!await saveProfile(profile))
+                return false;
+
             AddProfile(profile);
-            return await SaveProfileAsync(profile);
+            return true;
         }
 
         public void UpdateProfile(Profile profile)
@@ -1104,10 +1229,22 @@ namespace DisplayProfileManager.Core
             }
         }
 
-        public async Task<bool> UpdateProfileAsync(Profile profile)
+        public Task<bool> UpdateProfileAsync(Profile profile) => UpdateProfileAsync(profile, SaveProfileAsync);
+
+        internal async Task<bool> UpdateProfileAsync(Profile profile, Func<Profile, Task<bool>> saveProfile)
         {
-            UpdateProfile(profile);
-            return await SaveProfileAsync(profile);
+            var existingProfile = GetProfile(profile.Id);
+            if (existingProfile == null)
+                return false;
+
+            profile.UpdateLastModified();
+            if (!await saveProfile(profile))
+                return false;
+
+            var index = _profiles.IndexOf(existingProfile);
+            _profiles[index] = profile;
+            ProfileUpdated?.Invoke(this, profile);
+            return true;
         }
 
         public void DeleteProfile(string profileId)
@@ -1116,22 +1253,38 @@ namespace DisplayProfileManager.Core
             ProfileDeleted?.Invoke(this, profileId);
         }
 
-        public async Task<bool> DeleteProfileAsync(string profileId)
+        public Task<bool> DeleteProfileAsync(string profileId) => DeleteProfileAsync(profileId, DeleteProfileFileAsync);
+
+        internal async Task<bool> DeleteProfileAsync(string profileId, Func<string, Task<bool>> deleteProfileFile)
         {
             try
             {
-                DeleteProfile(profileId);
-                var filePath = GetProfileFilePath(profileId);
-                if (File.Exists(filePath))
-                {
-                    await Task.Run(() => File.Delete(filePath));
-                }
+                if (!await deleteProfileFile(profileId))
+                    return false;
 
+                DeleteProfile(profileId);
                 return true;
             }
             catch (Exception ex)
             {
                 _logger.Error(ex, "Error deleting profile");
+                return false;
+            }
+        }
+
+        private async Task<bool> DeleteProfileFileAsync(string profileId)
+        {
+            try
+            {
+                var filePath = GetProfileFilePath(profileId);
+                if (File.Exists(filePath))
+                    await Task.Run(() => File.Delete(filePath));
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Error deleting profile file");
                 return false;
             }
         }
@@ -1182,11 +1335,11 @@ namespace DisplayProfileManager.Core
             return root.Substring(0, Math.Min(room, root.Length)).TrimEnd() + "\u2026" + tail;
         }
 
-        private static readonly Regex MarkerPattern = new Regex(@"(( - Copy)|( \(\d+\)))+$", RegexOptions.Compiled);
+        private static readonly Regex _markerPattern = new Regex(@"(( - Copy)|( \(\d+\)))+$", RegexOptions.Compiled);
 
         private static string MarkerChain(string name)
         {
-            var m = MarkerPattern.Match(name);
+            var m = _markerPattern.Match(name);
             return m.Success ? m.Value : string.Empty;
         }
 

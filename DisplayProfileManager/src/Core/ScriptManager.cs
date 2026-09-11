@@ -39,7 +39,12 @@ namespace DisplayProfileManager.Core
         {
             if (script == null || !script.IsEnabled || string.IsNullOrWhiteSpace(script.FileName)) return;
 
-            string path = Path.Combine(_scriptsFolderPath, script.FileName);
+            if (!TryResolveSandboxedScriptPath(_scriptsFolderPath, script.FileName, out string path))
+            {
+                _logger.Warn("Rejected script path outside sandbox: " + script.FileName);
+                return;
+            }
+
             if (File.Exists(path))
             {
                 string argsLog = !string.IsNullOrEmpty(script.Arguments) ? " " + script.Arguments : "";
@@ -101,6 +106,29 @@ namespace DisplayProfileManager.Core
         }
 
         #endregion
+
+        private static bool TryResolveSandboxedScriptPath(string scriptsFolderPath, string fileName, out string resolvedPath)
+        {
+            resolvedPath = null;
+            if (string.IsNullOrWhiteSpace(scriptsFolderPath) || string.IsNullOrWhiteSpace(fileName)) return false;
+
+            try
+            {
+                string sandbox = Path.GetFullPath(scriptsFolderPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                string sandboxPrefix = sandbox + Path.DirectorySeparatorChar;
+                string candidate = Path.GetFullPath(Path.Combine(sandbox, fileName));
+
+                if (!candidate.StartsWith(sandboxPrefix, StringComparison.OrdinalIgnoreCase))
+                    return false;
+
+                resolvedPath = candidate;
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
 
         private void CreateShortcut(string shortcutPath, string targetPath)
         {

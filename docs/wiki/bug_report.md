@@ -1,6 +1,6 @@
 # Reporting a Bug
 
-Before filing, check the [existing issues](/issues) to see if the problem has already been reported.
+Before filing, check the [existing issues](https://github.com/exytral/DisplayProfileManager/issues) to see if the problem has already been reported.
 
 ---
 
@@ -24,7 +24,7 @@ Most display-switching problems depend on the transition between two states. Inc
 Attach both `.dpm` files when applicable. Profile files are stored at:
 
 ```text
-%AppData%\Roaming\DisplayProfileManager\Profiles\
+%AppData%\DisplayProfileManager\Profiles\
 ```
 
 ### 3. Log file
@@ -32,7 +32,7 @@ Attach both `.dpm` files when applicable. Profile files are stored at:
 The application logs profile-apply activity to a daily log file. The logs are stored at:
 
 ```text
-%AppData%\Roaming\DisplayProfileManager\Logs\
+%AppData%\DisplayProfileManager\Logs\
 ```
 
 Attach the relevant log file from the day the problem occurred. For a reproducible problem, reproduce it first and then collect the log immediately afterward.
@@ -41,4 +41,4 @@ Attach the relevant log file from the day the problem occurred. For a reproducib
 
 ## How to file
 
-Use the [bug report form](/issues/new/choose) on GitHub. The form prompts you for the information needed to investigate the problem.
+Use the [bug report form](https://github.com/exytral/DisplayProfileManager/issues/new/choose) on GitHub. The form prompts you for the information needed to investigate the problem.

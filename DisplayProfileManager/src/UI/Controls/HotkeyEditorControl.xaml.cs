@@ -12,7 +12,7 @@ namespace DisplayProfileManager.UI.Controls
 {
     public partial class HotkeyEditorControl : UserControl, INotifyPropertyChanged
     {
-        private static readonly Logger logger = LoggerHelper.GetLogger();
+        private static readonly Logger _logger = LoggerHelper.GetLogger();
 
         private HotkeyConfig _currentHotkey;
         private bool _isRecording;
@@ -166,7 +166,7 @@ namespace DisplayProfileManager.UI.Controls
             }
         }
 
-        private void HotkeyTextBox_GotFocus(object sender, RoutedEventArgs e) => logger.Debug("HotkeyEditorControl: Got focus");
+        private void HotkeyTextBox_GotFocus(object sender, RoutedEventArgs e) => _logger.Debug("HotkeyEditorControl: Got focus");
 
         private void HotkeyTextBox_LostFocus(object sender, RoutedEventArgs e)
         {
@@ -186,7 +186,7 @@ namespace DisplayProfileManager.UI.Controls
             {
                 IsRecording = true;
                 _pressedKeys.Clear();
-                logger.Debug("HotkeyEditorControl: Started recording");
+                _logger.Debug("HotkeyEditorControl: Started recording");
             }
         }
 
@@ -196,7 +196,7 @@ namespace DisplayProfileManager.UI.Controls
             {
                 IsRecording = false;
                 _recordingModifiers = ModifierKeys.None;
-                logger.Debug("HotkeyEditorControl: Stopped recording");
+                _logger.Debug("HotkeyEditorControl: Stopped recording");
             }
         }
 
@@ -237,7 +237,7 @@ namespace DisplayProfileManager.UI.Controls
             OnPropertyChanged(nameof(IsValid));
 
             HotkeyChanged?.Invoke(this, _currentHotkey);
-            logger.Debug($"HotkeyEditorControl: Set hotkey to {_currentHotkey}");
+            _logger.Debug($"HotkeyEditorControl: Set hotkey to {_currentHotkey}");
         }
 
         private void ClearHotkey()

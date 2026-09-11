@@ -14,7 +14,7 @@ namespace DisplayProfileManager
 {
     public partial class App : Application
     {
-        private static readonly Logger logger = LoggerHelper.GetLogger();
+        private static readonly Logger _logger = LoggerHelper.GetLogger();
 
         private TrayIcon _trayIcon;
         private MainWindow _mainWindow;
@@ -35,6 +35,7 @@ namespace DisplayProfileManager
 
         private const string MutexName = "DPM_Mutex";
         private const string ShowWindowEventName = "DPM_ShowWindow";
+        private const int IpcAuthorityReadyTimeoutMs = 10000;
 
         protected override async void OnStartup(StartupEventArgs e)
         {
@@ -43,7 +44,7 @@ namespace DisplayProfileManager
             _settingsManager = SettingsManager.Instance;
             _profileManager = ProfileManager.Instance;
 
-            logger.Info($"Display Profile Manager Starting | Version: {System.Reflection.Assembly.GetExecutingAssembly().GetName().Version}");
+            _logger.Info($"Display Profile Manager Starting | Version: {System.Reflection.Assembly.GetExecutingAssembly().GetName().Version}");
 
             var cli = CliParser.Parse(e.Args);
 
@@ -54,7 +55,7 @@ namespace DisplayProfileManager
 
                 if (!ok)
                 {
-                    logger.Error("--unshell: shell extension removal failed. Exiting.");
+                    _logger.Error("--unshell: shell extension removal failed. Exiting.");
                     Shutdown(1);
                     return;
                 }
@@ -63,23 +64,23 @@ namespace DisplayProfileManager
                 if (loaded)
                     await SettingsManager.Instance.SetDesktopContextMenuAsync(false);
                 else
-                    logger.Warn("--unshell: settings failed to load, skipping DesktopContextMenuEnabled save");
+                    _logger.Warn("--unshell: settings failed to load, skipping DesktopContextMenuEnabled save");
 
                 if (wasRegistered)
                 {
                     if (!ShellContextMenuHelper.RestartExplorer())
                     {
-                        logger.Error("--unshell: shell extension was removed, but Explorer restart failed. Exiting.");
+                        _logger.Error("--unshell: shell extension was removed, but Explorer restart failed. Exiting.");
                         Shutdown(1);
                         return;
                     }
 
-                    logger.Info("--unshell: shell extension removed and Explorer restarted. Exiting.");
+                    _logger.Info("--unshell: shell extension removed and Explorer restarted. Exiting.");
                     Shutdown(0);
                 }
                 else
                 {
-                    logger.Info("--unshell: shell extension was not registered. Exiting.");
+                    _logger.Info("--unshell: shell extension was not registered. Exiting.");
                     Shutdown(2);
                 }
 
@@ -93,7 +94,7 @@ namespace DisplayProfileManager
 
                 if (!ok)
                 {
-                    logger.Error("--shell: shell extension registration failed. Exiting.");
+                    _logger.Error("--shell: shell extension registration failed. Exiting.");
                     Shutdown(1);
                     return;
                 }
@@ -102,16 +103,16 @@ namespace DisplayProfileManager
                 if (loaded)
                     await SettingsManager.Instance.SetDesktopContextMenuAsync(true);
                 else
-                    logger.Warn("--shell: settings failed to load, skipping DesktopContextMenuEnabled save");
+                    _logger.Warn("--shell: settings failed to load, skipping DesktopContextMenuEnabled save");
 
                 if (wasRegistered)
                 {
-                    logger.Info("--shell: shell extension was already registered. Exiting.");
+                    _logger.Info("--shell: shell extension was already registered. Exiting.");
                     Shutdown(2);
                 }
                 else
                 {
-                    logger.Info("--shell: shell extension registered. Exiting.");
+                    _logger.Info("--shell: shell extension registered. Exiting.");
                     Shutdown(0);
                 }
 
@@ -123,45 +124,70 @@ namespace DisplayProfileManager
             string profile = cli.Profile, theme = cli.Theme;
             var commandQueue = cli.CommandQueue;
 
+            bool isAuthoritative = true;
+            if (!devMode)
+                isAuthoritative = CheckSingleInstance();
+
             if (isExit)
             {
-                bool sent = await IpcServer.SendAsync("CMD:EXIT");
-                if (!sent)
+                bool sent = !devMode && !isAuthoritative
+                    ? await IpcServer.SendAsync("CMD:EXIT", IpcAuthorityReadyTimeoutMs)
+                    : await IpcServer.SendAsync("CMD:EXIT");
+
+                if (sent)
                 {
-                    logger.Info("--exit: no active instance found. Exiting.");
-                    Shutdown(2);
+                    _logger.Info("--exit command sent. Exiting.");
+                    Shutdown(0);
+                }
+                else if (!devMode && !isAuthoritative)
+                {
+                    _logger.Error("Active instance owns the single-instance mutex, but its IPC pipe did not become ready. Exit command not executed locally.");
+                    Shutdown(1);
                 }
                 else
                 {
-                    logger.Info("--exit command sent. Exiting.");
-                    Shutdown(0);
+                    _logger.Info("--exit: no active instance found. Exiting.");
+                    Shutdown(2);
                 }
 
                 return;
             }
 
-            if (!devMode && commandQueue.Count > 0)
+            if (!devMode && !isAuthoritative)
             {
-                bool allSent = true;
-                foreach (var cmd in commandQueue)
+                if (commandQueue.Count > 0)
                 {
-                    if (!await IpcServer.SendAsync(cmd))
+                    bool allSent = true;
+                    foreach (var cmd in commandQueue)
                     {
-                        allSent = false;
-                        break;
+                        if (!await IpcServer.SendAsync(cmd, IpcAuthorityReadyTimeoutMs))
+                        {
+                            allSent = false;
+                            break;
+                        }
                     }
-                }
 
-                if (allSent)
-                {
-                    logger.Info("All commands passed to active instance. Exiting.");
-                    Shutdown();
+                    if (allSent)
+                    {
+                        _logger.Info("All commands passed to active instance. Exiting.");
+                        Shutdown();
+                        return;
+                    }
+
+                    _logger.Error("Active instance owns the single-instance mutex, but its IPC pipe did not become ready. Command not executed locally.");
+                    Shutdown(1);
                     return;
                 }
 
+                WindowActivationHelper.BringExistingInstanceToFront("Display Profile Manager", ShowWindowEventName);
+                Shutdown();
+                return;
+            }
+            if (!devMode && commandQueue.Count > 0)
+            {
                 if (isRefresh || (isTheme && string.IsNullOrEmpty(theme)))
                 {
-                    logger.Info("Target maintenance command requires active instance. Exiting.");
+                    _logger.Info("Target maintenance command requires active instance. Exiting.");
                     Shutdown();
                     return;
                 }
@@ -172,9 +198,9 @@ namespace DisplayProfileManager
                     bool saved = false;
 
                     if (!await _settingsManager.LoadSettingsAsync())
-                        logger.Warn("--theme: settings failed to load -> not saved");
+                        _logger.Warn("--theme: settings failed to load -> not saved");
                     else if (!ThemeHelper.ThemeExists(theme))
-                        logger.Error($"--theme: '{theme}' is not available theme -> not saved");
+                        _logger.Error($"--theme: '{theme}' is not available theme -> not saved");
                     else
                     {
                         await _settingsManager.UpdateSettingAsync("Theme", theme);
@@ -184,9 +210,9 @@ namespace DisplayProfileManager
                     if (!isProfile)
                     {
                         if (saved)
-                            logger.Info($"Theme '{theme}' saved. Exiting.");
+                            _logger.Info($"Theme '{theme}' saved. Exiting.");
                         else
-                            logger.Info("Exiting without theme change.");
+                            _logger.Info("Exiting without theme change.");
 
                         Shutdown();
                         return;
@@ -198,7 +224,7 @@ namespace DisplayProfileManager
             {
                 await _settingsManager.LoadSettingsAsync();
                 if (_settingsManager.Debug.AnySet)
-                    logger.Warn($"Debug flags are set: {_settingsManager.Debug}. Behavior is deliberately altered.");
+                    _logger.Warn($"Debug flags are set: {_settingsManager.Debug}. Behavior is deliberately altered.");
                 profile = _settingsManager.GetCurrentProfileId();
             }
 
@@ -207,23 +233,18 @@ namespace DisplayProfileManager
                 bool result = await ApplyProfileFromCommandLineAsync(profile);
                 if (isHeadless)
                 {
-                    logger.Info(result
+                    _logger.Info(result
                         ? "Headless apply complete. Exiting."
                         : $"Headless apply failed for profile '{profile}'. Exiting.");
                     Shutdown(result ? 0 : 1);
                     return;
                 }
                 else if (!result)
-                    logger.Warn($"CLI apply failed for profile '{profile}'. Continuing to main window.");
+                    _logger.Warn($"CLI apply failed for profile '{profile}'. Continuing to main window.");
             }
 
             if (devMode)
                 _cancellationTokenSource = new CancellationTokenSource();
-            else if (!CheckSingleInstance())
-            {
-                Shutdown();
-                return;
-            }
 
             try
             {
@@ -243,7 +264,7 @@ namespace DisplayProfileManager
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Application initialization failed");
+                _logger.Error(ex, "Application initialization failed");
                 Shutdown();
             }
         }
@@ -254,10 +275,7 @@ namespace DisplayProfileManager
             _instanceMutex = new Mutex(true, MutexName, out isNewInstance);
 
             if (!isNewInstance)
-            {
-                WindowActivationHelper.BringExistingInstanceToFront("Display Profile Manager", ShowWindowEventName);
                 return false;
-            }
 
             _ownsInstanceMutex = true;
 
@@ -269,7 +287,7 @@ namespace DisplayProfileManager
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error setting up show window event");
+                _logger.Error(ex, "Error setting up show window event");
             }
 
             return true;
@@ -277,8 +295,6 @@ namespace DisplayProfileManager
 
         private async Task InitializeApplicationAsync()
         {
-            StartIPCPipeListener();
-
             _settingsManager = SettingsManager.Instance;
             _profileManager = ProfileManager.Instance;
 
@@ -288,10 +304,15 @@ namespace DisplayProfileManager
             ThemeHelper.InitializeTheme();
             InitializeGlobalHotkeys();
 
+            // Later authoritative profile reloads must reconcile RegisterHotKey state before UI consumers observe them
+            _profileManager.ProfilesLoaded += OnProfilesLoaded;
             _profileManager.ProfileAdded += OnProfileChanged;
             _profileManager.ProfileUpdated += OnProfileChanged;
             _profileManager.ProfileDeleted += OnProfileDeleted;
             _profileManager.ProfileApplied += OnProfileApplied;
+
+            // Expose IPC only after command handlers can observe fully initialized authoritative state
+            StartIPCPipeListener();
         }
 
         private void SetupTrayIcon()
@@ -318,7 +339,7 @@ namespace DisplayProfileManager
                         if (!applyResult.Success)
                         {
                             string errorDetails = _profileManager.GetApplyResultErrorMessage(startupProfile.Name, applyResult);
-                            logger.Warn(errorDetails);
+                            _logger.Warn(errorDetails);
                             _trayIcon?.ShowNotification("Startup profile", errorDetails, TrayNotificationIcon.Error);
                         }
                     }
@@ -326,7 +347,7 @@ namespace DisplayProfileManager
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error applying startup profile");
+                _logger.Error(ex, "Error applying startup profile");
             }
         }
 
@@ -342,7 +363,7 @@ namespace DisplayProfileManager
         {
             if (receivedValue == "CMD:EXIT")
             {
-                logger.Info("--exit received. Shutting down.");
+                _logger.Info("--exit received. Shutting down.");
                 Shutdown();
             }
             else if (receivedValue == "CMD:REFRESH")
@@ -362,7 +383,7 @@ namespace DisplayProfileManager
 
                     if (!ThemeHelper.ThemeExists(targetTheme))
                     {
-                        logger.Error($"IPC: '{targetTheme}' is not available theme. Ignored.");
+                        _logger.Error($"IPC: '{targetTheme}' is not available theme. Ignored.");
                         return;
                     }
 
@@ -378,10 +399,10 @@ namespace DisplayProfileManager
                 if (string.IsNullOrEmpty(targetProfile))
                     targetProfile = _settingsManager.GetCurrentProfileId();
 
-                var profile = _profileManager.GetProfileByName(targetProfile) ?? _profileManager.GetProfile(targetProfile);
+                var profile = _profileManager.ResolveProfileNameOrId(targetProfile);
                 if (profile == null)
                 {
-                    logger.Warn($"IPC: Profile '{targetProfile}' not found.");
+                    _logger.Warn($"IPC: Profile '{targetProfile}' not found.");
                     return;
                 }
 
@@ -415,7 +436,7 @@ namespace DisplayProfileManager
                                 }
                                 catch (Exception ex)
                                 {
-                                    logger.Error(ex, "Error showing main window from listener");
+                                    _logger.Error(ex, "Error showing main window from listener");
                                 }
                             });
                         }
@@ -425,7 +446,7 @@ namespace DisplayProfileManager
                 catch (ObjectDisposedException) when (cancellationToken.IsCancellationRequested) { }
                 catch (Exception ex)
                 {
-                    logger.Error(ex, "Error in show window listener");
+                    _logger.Error(ex, "Error in show window listener");
                 }
             }, cancellationToken);
         }
@@ -499,7 +520,7 @@ namespace DisplayProfileManager
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error initializing global hotkeys");
+                _logger.Error(ex, "Error initializing global hotkeys");
             }
         }
 
@@ -513,17 +534,17 @@ namespace DisplayProfileManager
                 if (profileHotkeys.Count > 0)
                 {
                     _globalHotkeyHelper.RegisterAllProfileHotkeys(profileHotkeys, CreateProfileHotkeyCallback);
-                    logger.Info($"Registered {profileHotkeys.Count} profile hotkeys");
+                    _logger.Info($"Registered {profileHotkeys.Count} profile hotkeys");
                 }
                 else
                 {
                     _globalHotkeyHelper.UnregisterAllProfileHotkeys();
-                    logger.Info("No enabled profile hotkeys - unregistered all");
+                    _logger.Info("No enabled profile hotkeys - unregistered all");
                 }
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error registering profile hotkeys");
+                _logger.Error(ex, "Error registering profile hotkeys");
             }
         }
 
@@ -532,18 +553,18 @@ namespace DisplayProfileManager
             try
             {
                 _profileEditWindowCount++;
-                logger.Debug($"ProfileEditWindow opened. Count: {_profileEditWindowCount}");
+                _logger.Debug($"ProfileEditWindow opened. Count: {_profileEditWindowCount}");
 
                 if (!_hotkeysDisabledForEditing && _globalHotkeyHelper != null)
                 {
                     _globalHotkeyHelper.UnregisterAllProfileHotkeys();
                     _hotkeysDisabledForEditing = true;
-                    logger.Info("Disabled all profile hotkeys for editing");
+                    _logger.Info("Disabled all profile hotkeys for editing");
                 }
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error disabling profile hotkeys");
+                _logger.Error(ex, "Error disabling profile hotkeys");
             }
         }
 
@@ -552,18 +573,18 @@ namespace DisplayProfileManager
             try
             {
                 _profileEditWindowCount = Math.Max(0, _profileEditWindowCount - 1);
-                logger.Debug($"ProfileEditWindow closed. Count: {_profileEditWindowCount}");
+                _logger.Debug($"ProfileEditWindow closed. Count: {_profileEditWindowCount}");
 
                 if (_profileEditWindowCount == 0 && _hotkeysDisabledForEditing)
                 {
                     _hotkeysDisabledForEditing = false;
                     RegisterAllProfileHotkeys();
-                    logger.Info("Re-enabled profile hotkeys after editing");
+                    _logger.Info("Re-enabled profile hotkeys after editing");
                 }
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error re-enabling profile hotkeys");
+                _logger.Error(ex, "Error re-enabling profile hotkeys");
             }
         }
 
@@ -579,13 +600,13 @@ namespace DisplayProfileManager
                 var profile = _profileManager.GetProfile(profileId);
                 if (profile != null)
                 {
-                    logger.Info($"Applying profile '{profile.Name}' via hotkey");
+                    _logger.Info($"Applying profile '{profile.Name}' via hotkey");
 
                     var applyResult = await _profileManager.ApplyProfileAsync(profile, ProfileManager.ApplySource.Hotkey);
                     if (!applyResult.Success)
                     {
                         string errorDetails = _profileManager.GetApplyResultErrorMessage(profile.Name, applyResult);
-                        logger.Warn(errorDetails);
+                        _logger.Warn(errorDetails);
 
                         _trayIcon?.ShowNotification("Apply failed", errorDetails, TrayNotificationIcon.Error);
                     }
@@ -593,7 +614,7 @@ namespace DisplayProfileManager
             }
             catch (Exception ex)
             {
-                logger.Error(ex, $"Error applying profile {profileId} via hotkey");
+                _logger.Error(ex, $"Error applying profile {profileId} via hotkey");
                 try
                 {
                     _trayIcon?.ShowNotification("Apply failed", "Error applying profile via hotkey", TrayNotificationIcon.Error);
@@ -606,17 +627,17 @@ namespace DisplayProfileManager
         {
             try
             {
-                logger.Info($"Applying profile '{profileNameOrId}' via CLI");
+                _logger.Info($"Applying profile '{profileNameOrId}' via CLI");
 
                 _profileManager = ProfileManager.Instance;
                 await SettingsManager.Instance.LoadSettingsAsync();
                 await _profileManager.LoadProfilesAsync();
 
-                var profile = _profileManager.GetProfileByName(profileNameOrId) ?? _profileManager.GetProfile(profileNameOrId);
+                var profile = _profileManager.ResolveProfileNameOrId(profileNameOrId);
 
                 if (profile == null)
                 {
-                    logger.Warn($"Profile '{profileNameOrId}' not found.");
+                    _logger.Warn($"Profile '{profileNameOrId}' not found.");
                     return false;
                 }
 
@@ -624,7 +645,7 @@ namespace DisplayProfileManager
                 if (!result.Success)
                 {
                     var errorDetails = _profileManager.GetApplyResultErrorMessage(profile.Name, result);
-                    logger.Warn(errorDetails);
+                    _logger.Warn(errorDetails);
                     _trayIcon?.ShowNotification("Apply failed", errorDetails, TrayNotificationIcon.Error);
                 }
 
@@ -632,10 +653,12 @@ namespace DisplayProfileManager
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Error applying profile from CLI");
+                _logger.Error(ex, "Error applying profile from CLI");
                 return false;
             }
         }
+
+        private void OnProfilesLoaded(object sender, EventArgs e) => RegisterAllProfileHotkeys();
 
         private void OnProfileChanged(object sender, Profile profile) => RegisterAllProfileHotkeys();
 
@@ -644,11 +667,11 @@ namespace DisplayProfileManager
             try
             {
                 _globalHotkeyHelper?.UnregisterProfileHotkey(profileId);
-                logger.Info($"Unregistered hotkey for deleted profile: {profileId}");
+                _logger.Info($"Unregistered hotkey for deleted profile: {profileId}");
             }
             catch (Exception ex)
             {
-                logger.Error(ex, $"Error unregistering hotkey for deleted profile {profileId}");
+                _logger.Error(ex, $"Error unregistering hotkey for deleted profile {profileId}");
             }
         }
 
@@ -669,7 +692,9 @@ namespace DisplayProfileManager
             double seconds = Math.Ceiling(e.DurationMilliseconds / 100.0) / 10.0;
             string elapsed = $"{seconds:0.#} {(seconds == 1 ? "second" : "seconds")}";
 
-            _trayIcon?.ShowNotification(e.Profile.Name, $"{source} in {elapsed}", TrayNotificationIcon.None);
+            string message = ProfileManager.AppendApplyWarnings($"{source} in {elapsed}", e.WarningSummary);
+            var icon = string.IsNullOrEmpty(e.WarningSummary) ? TrayNotificationIcon.None : TrayNotificationIcon.Info;
+            _trayIcon?.ShowNotification(e.Profile.Name, message, icon);
         }
 
         private static void OnScrollViewerPreviewMouseWheel(object sender, MouseWheelEventArgs e)
@@ -695,40 +720,51 @@ namespace DisplayProfileManager
         {
             try
             {
-                _cancellationTokenSource?.Cancel();
-                _showWindowEvent?.Dispose();
-
-                if (_ownsInstanceMutex)
-                    _instanceMutex?.ReleaseMutex();
-
-                _instanceMutex?.Dispose();
-
-                _trayIcon?.Dispose();
-
-                if (_profileManager != null)
+                try
                 {
-                    _profileManager.ProfileAdded -= OnProfileChanged;
-                    _profileManager.ProfileUpdated -= OnProfileChanged;
-                    _profileManager.ProfileDeleted -= OnProfileDeleted;
-                    _profileManager.ProfileApplied -= OnProfileApplied;
+                    _cancellationTokenSource?.Cancel();
+                    _showWindowEvent?.Dispose();
+                    _trayIcon?.Dispose();
+
+                    if (_profileManager != null)
+                    {
+                        _profileManager.ProfilesLoaded -= OnProfilesLoaded;
+                        _profileManager.ProfileAdded -= OnProfileChanged;
+                        _profileManager.ProfileUpdated -= OnProfileChanged;
+                        _profileManager.ProfileDeleted -= OnProfileDeleted;
+                        _profileManager.ProfileApplied -= OnProfileApplied;
+                    }
+
+                    if (_globalHotkeyHelper != null)
+                    {
+                        _globalHotkeyHelper.UnregisterAllProfileHotkeys();
+                        _globalHotkeyHelper.Dispose();
+                    }
+
+                    ThemeHelper.Cleanup();
+                }
+                catch (Exception ex)
+                {
+                    _logger.Error(ex, "Error during application exit");
                 }
 
-                if (_globalHotkeyHelper != null)
-                {
-                    _globalHotkeyHelper.UnregisterAllProfileHotkeys();
-                    _globalHotkeyHelper.Dispose();
-                }
-
-                ThemeHelper.Cleanup();
-
+                _logger.Info("Display Profile Manager Exited");
+                base.OnExit(e);
             }
-            catch (Exception ex)
+            finally
             {
-                logger.Error(ex, "Error during application exit");
-            }
+                try
+                {
+                    if (_ownsInstanceMutex)
+                        _instanceMutex?.ReleaseMutex();
 
-            logger.Info("Display Profile Manager Exited");
-            base.OnExit(e);
+                    _instanceMutex?.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    _logger.Error(ex, "Error releasing single-instance authority");
+                }
+            }
         }
     }
 }

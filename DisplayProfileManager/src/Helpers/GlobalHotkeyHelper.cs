@@ -10,7 +10,7 @@ namespace DisplayProfileManager.Helpers
 {
     public class GlobalHotkeyHelper : IDisposable
     {
-        private static readonly Logger logger = LoggerHelper.GetLogger();
+        private static readonly Logger _logger = LoggerHelper.GetLogger();
 
         #region P/Invoke
 
@@ -92,7 +92,7 @@ namespace DisplayProfileManager.Helpers
             _hwndSource.AddHook(WndProc);
             _windowHandle = _hwndSource.Handle;
 
-            logger.Debug($"Created message window with handle: 0x{_windowHandle:X}");
+            _logger.Debug($"Created message window with handle: 0x{_windowHandle:X}");
         }
 
         private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -101,12 +101,12 @@ namespace DisplayProfileManager.Helpers
             if (msg == WmHotkey)
             {
                 int hotkeyId = wParam.ToInt32();
-                logger.Debug($"WmHotkey received for hotkey ID: {hotkeyId}");
+                _logger.Debug($"WmHotkey received for hotkey ID: {hotkeyId}");
                 if (_hotkeyActions.TryGetValue(hotkeyId, out Action callback))
                 {
                     try
                     {
-                        logger.Debug($"Executing callback for hotkey {hotkeyId}");
+                        _logger.Debug($"Executing callback for hotkey {hotkeyId}");
                         if (System.Windows.Application.Current?.Dispatcher != null)
                             System.Windows.Application.Current.Dispatcher.BeginInvoke(callback);
                         else
@@ -116,11 +116,11 @@ namespace DisplayProfileManager.Helpers
                     }
                     catch (Exception ex)
                     {
-                        logger.Error(ex, $"Error executing hotkey {hotkeyId} callback");
+                        _logger.Error(ex, $"Error executing hotkey {hotkeyId} callback");
                     }
                 }
                 else
-                    logger.Warn($"No callback found for hotkey ID: {hotkeyId}");
+                    _logger.Warn($"No callback found for hotkey ID: {hotkeyId}");
             }
 
             return IntPtr.Zero;
@@ -139,16 +139,16 @@ namespace DisplayProfileManager.Helpers
             if (RegisterHotKey(_windowHandle, hotkeyId, finalModifiers, virtualKey))
             {
                 _hotkeyActions[hotkeyId] = callback;
-                logger.Info($"Successfully registered hotkey {hotkeyId} for key 0x{virtualKey:X2} with modifiers 0x{finalModifiers:X2}");
+                _logger.Info($"Successfully registered hotkey {hotkeyId} for key 0x{virtualKey:X2} with modifiers 0x{finalModifiers:X2}");
                 return hotkeyId;
             }
             else
             {
                 var error = Marshal.GetLastWin32Error();
-                logger.Error($"Failed to register hotkey {hotkeyId}. Error code: {error}");
+                _logger.Error($"Failed to register hotkey {hotkeyId}. Error code: {error}");
 
                 if (error == 1409)
-                    logger.Warn("Hotkey is already registered by another application");
+                    _logger.Warn("Hotkey is already registered by another application");
 
                 return -1;
             }
@@ -164,7 +164,7 @@ namespace DisplayProfileManager.Helpers
             bool result = UnregisterHotKey(_windowHandle, hotkeyId);
             _hotkeyActions.Remove(hotkeyId);
 
-            logger.Debug($"Unregistered hotkey {hotkeyId}: {(result ? "Success" : "Failed")}");
+            _logger.Debug($"Unregistered hotkey {hotkeyId}: {(result ? "Success" : "Failed")}");
             return result;
         }
 
@@ -184,7 +184,7 @@ namespace DisplayProfileManager.Helpers
 
             if (virtualKey == 0)
             {
-                logger.Error($"Could not convert WPF Key {hotkey.Key} to virtual key");
+                _logger.Error($"Could not convert WPF Key {hotkey.Key} to virtual key");
                 return -1;
             }
 
@@ -194,10 +194,10 @@ namespace DisplayProfileManager.Helpers
             {
                 _profileHotkeyIds[profileId] = hotkeyId;
                 _hotkeyIdToProfileId[hotkeyId] = profileId;
-                logger.Info($"Registered profile hotkey for '{profileId}': {hotkey} (ID: {hotkeyId})");
+                _logger.Info($"Registered profile hotkey for '{profileId}': {hotkey} (ID: {hotkeyId})");
             }
             else
-                logger.Error($"Failed to register profile hotkey for '{profileId}': {hotkey}");
+                _logger.Error($"Failed to register profile hotkey for '{profileId}': {hotkey}");
 
             return hotkeyId;
         }
@@ -215,7 +215,7 @@ namespace DisplayProfileManager.Helpers
                 _profileHotkeyIds.Remove(profileId);
                 _hotkeyIdToProfileId.Remove(hotkeyId);
 
-                logger.Debug($"Unregistered profile hotkey for '{profileId}' (ID: {hotkeyId}): {(result ? "Success" : "Failed")}");
+                _logger.Debug($"Unregistered profile hotkey for '{profileId}' (ID: {hotkeyId}): {(result ? "Success" : "Failed")}");
                 return result;
             }
 
@@ -250,7 +250,7 @@ namespace DisplayProfileManager.Helpers
             foreach (var profileId in profileIds)
                 UnregisterProfileHotkey(profileId);
 
-            logger.Info("Unregistered all profile hotkeys");
+            _logger.Info("Unregistered all profile hotkeys");
         }
 
         #endregion
@@ -264,7 +264,7 @@ namespace DisplayProfileManager.Helpers
                     foreach (var hotkeyId in _hotkeyActions.Keys)
                     {
                         UnregisterHotKey(_windowHandle, hotkeyId);
-                        logger.Debug($"Unregistered hotkey {hotkeyId} during disposal");
+                        _logger.Debug($"Unregistered hotkey {hotkeyId} during disposal");
                     }
                     _hotkeyActions.Clear();
                     _profileHotkeyIds.Clear();

@@ -11,7 +11,7 @@ namespace DisplayProfileManager.Helpers
 {
     public static class WallpaperHelper
     {
-        private static readonly Logger logger = LoggerHelper.GetLogger();
+        private static readonly Logger _logger = LoggerHelper.GetLogger();
         private static readonly uint[] _standardIntervalSeconds = { 60, 600, 1800, 3600, 21600, 86400 };
         private static readonly HashSet<string> _imageExtensions = new HashSet<string>([".jpg", ".jpeg", ".png", ".bmp", ".gif"], StringComparer.OrdinalIgnoreCase);
 
@@ -161,13 +161,13 @@ namespace DisplayProfileManager.Helpers
                     }
                     catch (Exception ex)
                     {
-                        logger.Warn(ex, $"GetMonitorDevicePathAt failed at index {i}");
+                        _logger.Warn(ex, $"GetMonitorDevicePathAt failed at index {i}");
                     }
                 }
 
                 if (dwPaths.Count == 0)
                 {
-                    logger.Warn("IDesktopWallpaper reported no monitors");
+                    _logger.Warn("IDesktopWallpaper reported no monitors");
                     return map;
                 }
 
@@ -191,12 +191,12 @@ namespace DisplayProfileManager.Helpers
                             // Keep first device name for shared interface path
                             var prior = map.FirstOrDefault(kv => string.Equals(kv.Value, match, StringComparison.OrdinalIgnoreCase));
                             if (prior.Key != null)
-                                logger.Debug($"{dd.DeviceName} resolves to same monitor as {prior.Key}, skipping");
+                                _logger.Debug($"{dd.DeviceName} resolves to same monitor as {prior.Key}, skipping");
                             else
                                 map[dd.DeviceName] = match;
                         }
                         else
-                            logger.Debug($"No IDesktopWallpaper match for {dd.DeviceName} (interface path '{dd2.DeviceID}')");
+                            _logger.Debug($"No IDesktopWallpaper match for {dd.DeviceName} (interface path '{dd2.DeviceID}')");
                     }
 
                     dd = new DisplayDevice { cb = Marshal.SizeOf(typeof(DisplayDevice)) };
@@ -204,14 +204,14 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "BuildMonitorMap failed");
+                _logger.Error(ex, "BuildMonitorMap failed");
             }
 
             foreach (var kvp in map)
-                logger.Debug($"Wallpaper monitor map: {kvp.Key} -> {kvp.Value}");
+                _logger.Debug($"Wallpaper monitor map: {kvp.Key} -> {kvp.Value}");
 
             if (map.Count == 0)
-                logger.Warn("Wallpaper monitor map is empty -> every apply will skip every monitor");
+                _logger.Warn("Wallpaper monitor map is empty -> every apply will skip every monitor");
 
             return map;
         }
@@ -255,7 +255,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Debug(ex, $"Registry read failed for {subkey}\\{value}");
+                _logger.Debug(ex, $"Registry read failed for {subkey}\\{value}");
             }
 
             return null;
@@ -272,7 +272,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Debug(ex, $"Registry read failed for {subkey}\\{value}");
+                _logger.Debug(ex, $"Registry read failed for {subkey}\\{value}");
                 return null;
             }
         }
@@ -288,7 +288,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Debug(ex, $"Registry probe failed for {subkey}");
+                _logger.Debug(ex, $"Registry probe failed for {subkey}");
                 return false;
             }
         }
@@ -332,7 +332,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Debug(ex, "Could not scan Spotlight cache");
+                _logger.Debug(ex, "Could not scan Spotlight cache");
                 return null;
             }
         }
@@ -353,7 +353,7 @@ namespace DisplayProfileManager.Helpers
                 {
                     snapshot.Mode = WallpaperMode.Slideshow;
                     CaptureSlideshow(dw, snapshot);
-                    logger.Info("Wallpaper capture: Slideshow mode");
+                    _logger.Info("Wallpaper capture: Slideshow mode");
                     return snapshot;
                 }
 
@@ -371,7 +371,7 @@ namespace DisplayProfileManager.Helpers
                     }
                     catch (Exception ex)
                     {
-                        logger.Warn(ex, $"GetWallpaper failed for {kvp.Key}");
+                        _logger.Warn(ex, $"GetWallpaper failed for {kvp.Key}");
                     }
 
                     if (IsSpotlightPath(path))
@@ -398,7 +398,7 @@ namespace DisplayProfileManager.Helpers
                 {
                     snapshot.Mode = WallpaperMode.Spotlight;
                     snapshot.PerMonitor.Clear();
-                    logger.Info("Wallpaper capture: Spotlight mode");
+                    _logger.Info("Wallpaper capture: Spotlight mode");
                     return snapshot;
                 }
 
@@ -408,17 +408,17 @@ namespace DisplayProfileManager.Helpers
 
                     var detached = snapshot.PerMonitor.Keys.Count(k => monitorMap.TryGetValue(k, out var id) && !IsMonitorAttached(dw, id));
                     var detachedNote = detached > 0 ? $", {TextHelper.Plural(detached, "monitor")} currently detached" : "";
-                    logger.Info($"Wallpaper capture: Picture mode, {TextHelper.Plural(snapshot.PerMonitor.Count, "monitor")}{detachedNote}");
+                    _logger.Info($"Wallpaper capture: Picture mode, {TextHelper.Plural(snapshot.PerMonitor.Count, "monitor")}{detachedNote}");
                 }
                 else
                 {
                     snapshot.Mode = WallpaperMode.Solid;
-                    logger.Info("Wallpaper capture: Solid Color mode");
+                    _logger.Info("Wallpaper capture: Solid Color mode");
                 }
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Wallpaper capture failed");
+                _logger.Error(ex, "Wallpaper capture failed");
                 snapshot.Mode = WallpaperMode.Unknown;
             }
 
@@ -434,7 +434,7 @@ namespace DisplayProfileManager.Helpers
 
                 // Preserve non-standard intervals rather than rewriting captured state
                 if (!_standardIntervalSeconds.Contains(seconds))
-                    logger.Warn($"Slideshow interval reads {seconds}s, which Windows does not offer -> capturing it as-is");
+                    _logger.Warn($"Slideshow interval reads {seconds}s, which Windows does not offer -> capturing it as-is");
 
                 snapshot.SlideshowConfig = new SlideshowConfig
                 {
@@ -445,7 +445,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Warn(ex, "GetSlideshowOptions failed -> capturing without interval or shuffle");
+                _logger.Warn(ex, "GetSlideshowOptions failed -> capturing without interval or shuffle");
                 snapshot.SlideshowConfig = new SlideshowConfig();
             }
         }
@@ -483,7 +483,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Debug(ex, "GetSlideshow failed -> capturing without source folder");
+                _logger.Debug(ex, "GetSlideshow failed -> capturing without source folder");
             }
 
             return paths;
@@ -497,7 +497,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Warn(ex, "GetPosition failed -> defaulting to Fill");
+                _logger.Warn(ex, "GetPosition failed -> defaulting to Fill");
                 return DesktopWallpaperPosition.Fill;
             }
         }
@@ -510,7 +510,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Warn(ex, "GetBackgroundColor failed -> defaulting to black");
+                _logger.Warn(ex, "GetBackgroundColor failed -> defaulting to black");
                 return 0;
             }
         }
@@ -557,7 +557,7 @@ namespace DisplayProfileManager.Helpers
                     dw.SetBackgroundColor(snapshot.SolidColorArgb);
                     ClearAllWallpapers(dw);
 
-                    logger.Info("Wallpaper applied: Solid Color");
+                    _logger.Info("Wallpaper applied: Solid Color");
                     return;
                 }
 
@@ -566,7 +566,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "Wallpaper apply failed");
+                _logger.Error(ex, "Wallpaper apply failed");
             }
         }
 
@@ -581,21 +581,21 @@ namespace DisplayProfileManager.Helpers
             // Spotlight cannot run when background apps are disabled
             if (HkcuDword(BackgroundAppsSubkey, BackgroundAppsDisabled) == 1)
             {
-                logger.Warn("Spotlight apply: background apps disabled globally -> provider cannot run");
+                _logger.Warn("Spotlight apply: background apps disabled globally -> provider cannot run");
                 return;
             }
 
             // Enable provider before selecting Spotlight mode
             if (!SetHkcuDword(DesktopSpotlightSubkey, DesktopSpotlightValue, 1, create: true))
             {
-                logger.Warn("Spotlight apply: cannot write DesktopSpotlight provider switch");
+                _logger.Warn("Spotlight apply: cannot write DesktopSpotlight provider switch");
                 return;
             }
 
             // Update existing wallpaper mode value only
             if (!SetHkcuDword(WallpapersSubkey, "BackgroundType", BackgroundTypeSpotlight, create: false))
             {
-                logger.Warn("Spotlight apply: cannot write BackgroundType");
+                _logger.Warn("Spotlight apply: cannot write BackgroundType");
                 return;
             }
 
@@ -610,10 +610,10 @@ namespace DisplayProfileManager.Helpers
             }
 
             RefreshDesktop();
-            logger.Info("Desktop Spotlight applied and refreshed");
+            _logger.Info("Desktop Spotlight applied and refreshed");
 
             if (SettingsManager.Instance.Debug.SkipSpotlightRepaint)
-                logger.Warn("[debugFlag: skipSpotlightRepaint] Not painting -> leaving repaint to Windows");
+                _logger.Warn("[debugFlag: skipSpotlightRepaint] Not painting -> leaving repaint to Windows");
             else
                 PaintSpotlightImage();
         }
@@ -635,7 +635,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Debug(ex, $"Registry write failed for {subkey}\\{value}");
+                _logger.Debug(ex, $"Registry write failed for {subkey}\\{value}");
                 return false;
             }
         }
@@ -646,18 +646,18 @@ namespace DisplayProfileManager.Helpers
 
             if (path == null)
             {
-                logger.Debug("Spotlight: no image to paint, leaving repaint to Windows");
+                _logger.Debug("Spotlight: no image to paint, leaving repaint to Windows");
                 return;
             }
 
             try
             {
                 CreateDesktopWallpaper().SetWallpaper(null, path);
-                logger.Info($"Spotlight: painted {System.IO.Path.GetFileName(path)}");
+                _logger.Info($"Spotlight: painted {System.IO.Path.GetFileName(path)}");
             }
             catch (Exception ex)
             {
-                logger.Debug(ex, "Spotlight: could not paint, leaving desktop as-is");
+                _logger.Debug(ex, "Spotlight: could not paint, leaving desktop as-is");
             }
         }
 
@@ -667,7 +667,7 @@ namespace DisplayProfileManager.Helpers
 
             if (monitorMap.Count == 0)
             {
-                logger.Warn("Wallpaper apply: no addressable monitors, nothing applied");
+                _logger.Warn("Wallpaper apply: no addressable monitors, nothing applied");
                 return;
             }
 
@@ -677,7 +677,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Debug(ex, "SetBackgroundColor failed -> letterbox color left as-is");
+                _logger.Debug(ex, "SetBackgroundColor failed -> letterbox color left as-is");
             }
 
             int applied = 0;
@@ -694,14 +694,14 @@ namespace DisplayProfileManager.Helpers
                 if (string.IsNullOrEmpty(monitorId))
                 {
                     skipped++;
-                    logger.Debug($"{kvp.Key} not connected and no stored monitor id, skipping");
+                    _logger.Debug($"{kvp.Key} not connected and no stored monitor id, skipping");
                     continue;
                 }
 
                 if (!string.IsNullOrEmpty(kvp.Value.Path) && !System.IO.File.Exists(kvp.Value.Path))
                 {
                     missing++;
-                    logger.Warn($"Wallpaper file not found for {kvp.Key}: {kvp.Value.Path}");
+                    _logger.Warn($"Wallpaper file not found for {kvp.Key}: {kvp.Value.Path}");
                     continue;
                 }
 
@@ -712,21 +712,21 @@ namespace DisplayProfileManager.Helpers
                 }
                 catch (Exception ex)
                 {
-                    logger.Warn(ex, $"SetWallpaper failed for {kvp.Key}");
+                    _logger.Warn(ex, $"SetWallpaper failed for {kvp.Key}");
                 }
             }
 
             try
             {
                 dw.SetPosition(StringToPosition(snapshot.Position));
-                logger.Info($"Wallpaper position set to '{snapshot.Position}'");
+                _logger.Info($"Wallpaper position set to '{snapshot.Position}'");
             }
             catch (Exception ex)
             {
-                logger.Warn(ex, $"SetPosition({snapshot.Position}) failed");
+                _logger.Warn(ex, $"SetPosition({snapshot.Position}) failed");
             }
 
-            logger.Info($"Wallpaper applied: Picture mode, {applied} applied, {skipped} skipped (disconnected), {missing} skipped (file missing)");
+            _logger.Info($"Wallpaper applied: Picture mode, {applied} applied, {skipped} skipped (disconnected), {missing} skipped (file missing)");
             RefreshDesktop();
         }
 
@@ -734,7 +734,7 @@ namespace DisplayProfileManager.Helpers
         {
             if (snapshot.SlideshowConfig == null)
             {
-                logger.Warn("Wallpaper apply: Slideshow mode with no config, nothing applied");
+                _logger.Warn("Wallpaper apply: Slideshow mode with no config, nothing applied");
                 return;
             }
 
@@ -749,11 +749,11 @@ namespace DisplayProfileManager.Helpers
                 dw.SetSlideshowOptions(options, snapshot.SlideshowConfig.IntervalSeconds * 1000);
 
                 var source = sourceSet ? "source applied" : "source unavailable, timing only";
-                logger.Info($"Wallpaper applied: Slideshow every {snapshot.SlideshowConfig.IntervalSeconds}s, " + $"shuffle {snapshot.SlideshowConfig.Shuffle}, {source}");
+                _logger.Info($"Wallpaper applied: Slideshow every {snapshot.SlideshowConfig.IntervalSeconds}s, " + $"shuffle {snapshot.SlideshowConfig.Shuffle}, {source}");
             }
             catch (Exception ex)
             {
-                logger.Warn(ex, "SetSlideshowOptions failed");
+                _logger.Warn(ex, "SetSlideshowOptions failed");
             }
         }
 
@@ -768,7 +768,7 @@ namespace DisplayProfileManager.Helpers
 
             if (folder == null)
             {
-                logger.Warn($"Slideshow source folder no longer exists: {string.Join(", ", paths)}");
+                _logger.Warn($"Slideshow source folder no longer exists: {string.Join(", ", paths)}");
                 return false;
             }
 
@@ -796,7 +796,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Warn(ex, $"SetSlideshow failed for {folder}");
+                _logger.Warn(ex, $"SetSlideshow failed for {folder}");
                 return false;
             }
         }
@@ -818,13 +818,13 @@ namespace DisplayProfileManager.Helpers
                     }
                     catch (Exception ex)
                     {
-                        logger.Debug(ex, $"Could not clear wallpaper at index {i}");
+                        _logger.Debug(ex, $"Could not clear wallpaper at index {i}");
                     }
                 }
             }
             catch (Exception ex)
             {
-                logger.Warn(ex, "Could not enumerate monitors to clear wallpaper");
+                _logger.Warn(ex, "Could not enumerate monitors to clear wallpaper");
             }
         }
 
@@ -846,7 +846,7 @@ namespace DisplayProfileManager.Helpers
             }
             catch (Exception ex)
             {
-                logger.Debug(ex, $"Could not read image dimensions for {path}");
+                _logger.Debug(ex, $"Could not read image dimensions for {path}");
                 return false;
             }
         }
@@ -903,7 +903,7 @@ namespace DisplayProfileManager.Helpers
                 }
                 catch (Exception ex)
                 {
-                    logger.Debug(ex, $"Could not read slideshow folder {folder}");
+                    _logger.Debug(ex, $"Could not read slideshow folder {folder}");
                 }
             }
 
@@ -965,6 +965,9 @@ namespace DisplayProfileManager.Helpers
 
     public class WallpaperSettings
     {
+        [JsonProperty("enabled")]
+        public bool Enabled { get; set; } = false;
+
         [JsonProperty("mode")]
         [JsonConverter(typeof(StringEnumConverter))]
         public WallpaperMode Mode { get; set; } = WallpaperMode.Unknown;

@@ -8,7 +8,7 @@ namespace DisplayProfileManager.Helpers
 {
     public class DpiHelper
     {
-        private static readonly Logger logger = LoggerHelper.GetLogger();
+        private static readonly Logger _logger = LoggerHelper.GetLogger();
         private static readonly uint[] _dpiVals = { 100, 125, 150, 175, 200, 225, 250, 300, 350, 400, 450, 500 };
 
         #region P/Invoke
@@ -154,7 +154,7 @@ namespace DisplayProfileManager.Helpers
             // Refuse to write when display scale cannot be read
             if (!dpiScalingInfo.IsInitialized)
             {
-                logger.Warn($"No DPI scaling info for {deviceName} -> scaling left unchanged");
+                _logger.Warn($"No DPI scaling info for {deviceName} -> scaling left unchanged");
                 return false;
             }
 
@@ -172,7 +172,7 @@ namespace DisplayProfileManager.Helpers
             if (!_dpiVals.Contains(dpiPercentToSet))
             {
                 uint nearest = _dpiVals.OrderBy(v => Math.Abs((int)v - (int)dpiPercentToSet)).First();
-                logger.Warn($"{dpiPercentToSet}% is not supported scaling step for {deviceName} -> using {nearest}%");
+                _logger.Warn($"{dpiPercentToSet}% is not supported scaling step for {deviceName} -> using {nearest}%");
                 dpiPercentToSet = nearest;
 
                 if (dpiPercentToSet == dpiScalingInfo.Current)
@@ -193,7 +193,7 @@ namespace DisplayProfileManager.Helpers
 
             if (idx1 == -1 || idx2 == -1)
             {
-                logger.Warn($"No scaling table entry for {dpiPercentToSet}% or recommended {dpiScalingInfo.Recommended}% on {deviceName}");
+                _logger.Warn($"No scaling table entry for {dpiPercentToSet}% or recommended {dpiScalingInfo.Recommended}% on {deviceName}");
                 return false;
             }
 
@@ -212,7 +212,7 @@ namespace DisplayProfileManager.Helpers
 
             int result = DisplayConfigSetDeviceInfo(ref setPacket.header);
             if (result != 0)
-                logger.Warn($"DisplayConfigSetDeviceInfo returned {result} setting {deviceName} to {dpiPercentToSet}%");
+                _logger.Warn($"DisplayConfigSetDeviceInfo returned {result} setting {deviceName} to {dpiPercentToSet}%");
 
             return result == 0;
         }
