@@ -48,12 +48,12 @@ This does not establish universal source-member ordering. Logical capability lis
 
 - `try`, `catch`, and `finally` always use braces.
 - Single-statement conditional and loop bodies may remain unbraced when the body is simple and the surrounding structure remains clear.
-- A trivial early `return`, `break`, or `continue` may remain unbraced and may share the line with its controlling condition when that compact form is consistent with the surrounding method.
-- A conditional branch whose return expresses a meaningful branch result uses braces rather than the compact early-escape form.
+- A trivial early bare `return;`, `break`, `continue`, or validation `throw` may remain unbraced and may share the line with its controlling condition when that compact form is consistent with the surrounding method. Prefer the compact one-line form for these simple escapes when it remains readily readable.
+- A conditional branch that returns a value or expression normally expresses a meaningful branch result and uses braces rather than the compact early-escape form. This includes sentinel values such as `false` or `null`, outcome/enum values, collections, tuples, and delegated method results.
 - Multi-statement conditional and loop bodies use braces.
 - Keep simple `if`, `else if`, `for`, `foreach`, and `while` headers on one line when they remain readily readable.
 - Break a control-flow header only when the condition is genuinely long or complex and the stacked form makes its logical structure easier to scan. Do not split routine loop initializer/condition/increment syntax across lines merely for width.
-- Keep short method, constructor, local-function, and delegate signatures on one line when they remain readily readable. Use multiline parameter lists when a long signature materially benefits from vertical structure; when multiline, keep the parameter layout deliberate and consistent.
+- Keep short method, constructor, local-function, and delegate signatures on one line when they remain readily readable. Keep short invocations, assertions, predicates, and simple one-lambda calls compact for the same reason. Use multiline parameter or argument lists when parallel values, native/API calls, or genuinely complex signatures materially benefit from vertical structure; do not wrap solely for an unstated column limit.
 - Keep compact expression-bodied members on one line when the declaration and expression remain readily readable. Do not split solely at `=>` to satisfy an arbitrary width.
 - Returns that conclude meaningful work or establish the method's resulting value remain visually separated from preceding work according to the local method structure.
 - The distinction between an early escape and a meaningful return is semantic and follows the established style of the surrounding file or type rather than the returned value itself.
@@ -125,7 +125,8 @@ No universal region template is required.
 - Use `LoggerHelper.GetLogger()`.
 - Keep logging close to the operation or decision it describes.
 - Prefer concise developer-facing messages with useful context.
-- Single-clause diagnostic/status messages normally omit a terminal period. Keep sentence punctuation when the message contains multiple sentences or otherwise reads as deliberate sentence-form output.
+- Single-clause diagnostic/status messages normally omit a terminal period. A concise completion message may use a terminal period when it deliberately marks the end of a major operation; subordinate stage/status messages normally remain unpunctuated.
+- When a log explains that an operation is being bypassed, prefer `Skipping <operation> -> <reason>` so the skipped responsibility is named before the reason.
 - Use the appropriate log level.
 - Do not add comments merely to repeat a log message.
 
@@ -227,6 +228,7 @@ Related dictionaries should preserve this category order where the same resource
 - The dominant naming pattern is `Subject_Condition_ExpectedResult`.
 - Very small tests may use shorter names where the containing class supplies an unambiguous subject.
 - Arrange / Act / Assert should remain clear when a test contains distinct phases, without requiring literal comments.
+- Keep simple assertions, production calls, and one-lambda test expressions on one line when they remain readily readable, even when moderately long. Use multiline argument layout for block lambdas, structured collection literals, or genuinely complex argument groups that materially benefit from vertical structure; do not wrap a simple assertion or call solely for width.
 - Reusable fixture builders normally appear before the tests that use them.
 - Builders are top-level `internal sealed` types, keep the subject-under-construction field near the top, expose fluent configuration methods, and place `Build()` last.
 - Builder method order is conceptual rather than alphabetical.
@@ -234,6 +236,8 @@ Related dictionaries should preserve this category order where the same resource
 - Unit tests should not directly depend on registry access, P/Invoke, or live display hardware.
 - Reflection and controlled in-memory singleton manipulation are acceptable when required to isolate pure behavior.
 - Test comments should explain regression intent or unusual platform behavior rather than restate assertions.
+- Fixtures and examples must be intentionally synthetic. Never copy or derive hardware IDs, monitor identities, profile/theme names, paths, logs, or other personal environment data from an owner or contributor.
+- When an exact fixture value is incidental, use the established generic vocabulary: `MAN` for the manufacturer identity under test, `DEV` for an alternate/nonmatching manufacturer, product codes such as `1001`/`1002`/`9999`, TargetIds such as `11`/`22`/`33`, adapter values such as `1`/`2` or `0x111`/`0x222`, display names such as `DISPLAY1`/`DISPLAY2`, profile names such as `Profile`/`Profile A`/`Profile B`, and theme names such as `Theme`/`Theme A`. Use plain synthetic filenames such as `color.icc` and `script.ps1` when the filename itself is incidental. Preserve platform-required string syntax around those values. Do not use real vendor PNP identifiers as generic filler; use another value only when its shape or value is itself under test.
 
 ## ShellExt C++
 

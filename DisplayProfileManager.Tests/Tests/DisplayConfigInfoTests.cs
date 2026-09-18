@@ -41,5 +41,53 @@ namespace DisplayProfileManager.Tests.Tests
 
             Assert.IsFalse(info.IsHdrEnabled);
         }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void PopulatePreferredResolution_CurrentSignalSizedValue_IsReplacedByPreferredMode()
+        {
+            var info = new DisplayConfigHelper.DisplayConfigInfo
+            {
+                NativeWidth = 4096,
+                NativeHeight = 2160
+            };
+            var adapter = new DisplayConfigHelper.LUID { LowPart = 7 };
+
+            bool result = DisplayConfigHelper.PopulatePreferredResolution(
+                info,
+                adapter,
+                33,
+                (ref DisplayConfigHelper.DisplayConfigTargetPreferredMode preferred) =>
+                {
+                    preferred.width = 3840;
+                    preferred.height = 2160;
+                    return 0;
+                });
+
+            Assert.IsTrue(result);
+            Assert.AreEqual(3840, info.NativeWidth);
+            Assert.AreEqual(2160, info.NativeHeight);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void PopulatePreferredResolution_QueryFailure_LeavesNativeDimensionsUnknown()
+        {
+            var info = new DisplayConfigHelper.DisplayConfigInfo
+            {
+                NativeWidth = 4096,
+                NativeHeight = 2160
+            };
+
+            bool result = DisplayConfigHelper.PopulatePreferredResolution(
+                info,
+                new DisplayConfigHelper.LUID { LowPart = 7 },
+                33,
+                (ref DisplayConfigHelper.DisplayConfigTargetPreferredMode preferred) => 31);
+
+            Assert.IsFalse(result);
+            Assert.AreEqual(0, info.NativeWidth);
+            Assert.AreEqual(0, info.NativeHeight);
+        }
     }
 }

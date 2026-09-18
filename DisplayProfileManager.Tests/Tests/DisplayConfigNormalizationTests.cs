@@ -9,7 +9,7 @@ namespace DisplayProfileManager.Tests.Tests
     [TestClass]
     public class BuildSourceIdMapTests
     {
-        private static Dictionary<uint, uint> Map(params (uint sourceId, bool enabled)[] displays)
+        private static Dictionary<CcdSourceKey, uint> Map(params (uint sourceId, bool enabled)[] displays)
         {
             var configs = displays
                 .Select(d => new DisplayConfigHelper.DisplayConfigInfo
@@ -21,14 +21,16 @@ namespace DisplayProfileManager.Tests.Tests
             return DisplayConfigHelper.BuildSourceIdMap(configs);
         }
 
+        private static CcdSourceKey Key(uint sourceId) => CcdAddress.Source(default, sourceId);
+
         [TestMethod]
         [TestCategory("Unit")]
         public void BuildSourceIdMap_WithGap_ProducesContiguousIndices()
         {
             var map = Map((0, true), (2, true));
 
-            Assert.AreEqual(0u, map[0], "SourceId 0 must normalize to 0.");
-            Assert.AreEqual(1u, map[2], "SourceId 2 must normalize to 1, not 2.");
+            Assert.AreEqual(0u, map[Key(0)], "SourceId 0 must normalize to 0.");
+            Assert.AreEqual(1u, map[Key(2)], "SourceId 2 must normalize to 1, not 2.");
         }
 
         [TestMethod]
@@ -37,9 +39,9 @@ namespace DisplayProfileManager.Tests.Tests
         {
             var map = Map((0, true), (1, true), (2, true));
 
-            Assert.AreEqual(0u, map[0]);
-            Assert.AreEqual(1u, map[1]);
-            Assert.AreEqual(2u, map[2]);
+            Assert.AreEqual(0u, map[Key(0)]);
+            Assert.AreEqual(1u, map[Key(1)]);
+            Assert.AreEqual(2u, map[Key(2)]);
         }
 
         [TestMethod]
@@ -48,7 +50,7 @@ namespace DisplayProfileManager.Tests.Tests
         {
             var map = Map((0, true));
 
-            Assert.AreEqual(0u, map[0]);
+            Assert.AreEqual(0u, map[Key(0)]);
         }
 
         [TestMethod]
@@ -57,7 +59,7 @@ namespace DisplayProfileManager.Tests.Tests
         {
             var map = Map((4, true));
 
-            Assert.AreEqual(0u, map[4], "A lone enabled display must normalize to SourceId 0 regardless of its saved value.");
+            Assert.AreEqual(0u, map[Key(4)], "A lone enabled display must normalize to SourceId 0 regardless of its saved value.");
         }
 
         [TestMethod]
@@ -66,9 +68,9 @@ namespace DisplayProfileManager.Tests.Tests
         {
             var map = Map((0, true), (5, true), (12, true));
 
-            Assert.AreEqual(0u, map[0]);
-            Assert.AreEqual(1u, map[5]);
-            Assert.AreEqual(2u, map[12]);
+            Assert.AreEqual(0u, map[Key(0)]);
+            Assert.AreEqual(1u, map[Key(5)]);
+            Assert.AreEqual(2u, map[Key(12)]);
         }
 
         [TestMethod]
@@ -86,7 +88,7 @@ namespace DisplayProfileManager.Tests.Tests
         {
             var map = Map((0, true), (1, false), (2, true));
 
-            Assert.IsFalse(map.ContainsKey(1), "Disabled displays must not appear in the source ID map.");
+            Assert.IsFalse(map.ContainsKey(Key(1)), "Disabled displays must not appear in the source ID map.");
             Assert.AreEqual(2, map.Count);
         }
 
@@ -122,8 +124,8 @@ namespace DisplayProfileManager.Tests.Tests
             var map = DisplayConfigHelper.BuildSourceIdMap(configs);
 
             Assert.AreEqual(2, map.Count, "Two unique SourceIds must produce two map entries, not one per display.");
-            Assert.AreEqual(0u, map[0], "Clone group SourceId=0 must normalize to 0.");
-            Assert.AreEqual(1u, map[1], "Extended SourceId=1 must normalize to 1.");
+            Assert.AreEqual(0u, map[Key(0)], "Clone group SourceId=0 must normalize to 0.");
+            Assert.AreEqual(1u, map[Key(1)], "Extended SourceId=1 must normalize to 1.");
         }
 
         [TestMethod]
@@ -133,8 +135,8 @@ namespace DisplayProfileManager.Tests.Tests
             var map = Map((3, true), (3, true), (5, true));
 
             Assert.AreEqual(2, map.Count);
-            Assert.AreEqual(0u, map[3], "Clone group SourceId=3 must normalize to 0.");
-            Assert.AreEqual(1u, map[5], "Extended SourceId=5 must normalize to 1.");
+            Assert.AreEqual(0u, map[Key(3)], "Clone group SourceId=3 must normalize to 0.");
+            Assert.AreEqual(1u, map[Key(5)], "Extended SourceId=5 must normalize to 1.");
         }
 
         [TestMethod]
@@ -155,9 +157,9 @@ namespace DisplayProfileManager.Tests.Tests
                 new DisplayConfigInfoBuilder().WithSourceId(0).Build(),
             });
 
-            Assert.AreEqual(forward[0], reversed[0]);
-            Assert.AreEqual(forward[2], reversed[2]);
-            Assert.AreEqual(forward[4], reversed[4]);
+            Assert.AreEqual(forward[Key(0)], reversed[Key(0)]);
+            Assert.AreEqual(forward[Key(2)], reversed[Key(2)]);
+            Assert.AreEqual(forward[Key(4)], reversed[Key(4)]);
         }
 
         [TestMethod]
@@ -173,7 +175,7 @@ namespace DisplayProfileManager.Tests.Tests
 
             var submitted = configs
                 .Where(c => c.IsEnabled)
-                .Select(c => map[c.SourceId])
+                .Select(c => map[CcdAddress.Source(c)])
                 .OrderBy(x => x)
                 .ToList();
 
@@ -194,7 +196,7 @@ namespace DisplayProfileManager.Tests.Tests
 
             var normalized = configs
                 .Where(c => c.IsEnabled)
-                .Select(c => map[c.SourceId])
+                .Select(c => map[CcdAddress.Source(c)])
                 .ToList();
 
             Assert.AreEqual(normalized.Count, normalized.Distinct().Count(), "All normalized SourceIds submitted to SetDisplayConfig must be unique.");

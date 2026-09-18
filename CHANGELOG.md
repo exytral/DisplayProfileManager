@@ -6,6 +6,54 @@ For user-facing release notes, see the [GitHub Releases](https://github.com/exyt
 
 ---
 
+<a id="2.2.2"></a>
+## [2.2.2] - Unreleased
+
+### fix — wallpaper and personalization
+
+- **Destination-owned wallpaper transitions** — Solid Color, Picture, Slideshow, and Desktop Spotlight are established through one explicit destination-mode transition plan instead of inheriting state from the previous mode. Solid disables desktop-background rendering; Picture and Slideshow re-establish their Windows-owned content after prior ownership is neutralized.
+- **Slideshow state ownership** — slideshow capture/apply retains desktop background color and position alongside source, interval, and shuffle, while Picture preserves distinct per-monitor wallpaper paths and background color.
+- **Desktop Spotlight ownership** — provider/mode state remains authoritative. When Windows does not repaint promptly, the application may bridge repaint with an existing verified Client.CBS provider-owned image over the exact active monitor domain, then reasserts and verifies Desktop Spotlight ownership and Fill presentation. Windows remains responsible for content delivery and freshness.
+
+### fix — display and color handling
+
+- **Adapter-qualified CCD addressing** — live display target and source IDs remain paired with their current adapter LUID wherever Windows scopes them by adapter. Profiles retain `TargetId` plus manufacturer/product EDID identity but no adapter LUID, SourceId, or path index. Current-address resolution canonicalizes adapter-qualified endpoints, follows a unique EDID identity when available, otherwise permits only an unambiguous numeric `TargetId` as the generic port/location fallback, and fails closed when current evidence is ambiguous.
+- **Live Advanced Color capability** — HDR/WCG capability is no longer profile state; both capability flags are reacquired from the live resolved target while `isHdrEnabled` / `isWcgEnabled` remain durable desired state. On pre-24H2 systems, HDR intent is authorized by live HDR capability and is not reinterpreted as ACM when the live target cannot support HDR.
+- **Preferred-mode native resolution** — profile `nativeWidth` / `nativeHeight` come from Windows target preferred/best mode rather than current signal timing. Migration to schema 6 invalidates earlier values and immediately backfills safely resolved active or inactive-present targets; unresolved targets or preferred-mode query failures remain `0x0` for later self-heal.
+- **Windows 11 24H2 Advanced Color modes** — build 26100+ capture/apply resolves to SDR, WCG, or HDR from the active Windows color mode. HDR is a complete destination; HDR-to-SDR/WCG transitions disable HDR before establishing the requested SDR-side WCG state. Native setter return codes remain the mutation authority and stage failures remain non-blocking to the overall display/layout success boundary.
+- **Advanced Color INFO_2 ABI** — `DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO_2` matches the native trailing field order for `colorEncoding`, `bitsPerColorChannel`, and `activeColorMode`, with deterministic layout and native-buffer mapping coverage.
+
+### fix — profile apply and persistence
+
+- **Ordered profile-apply authority** — all in-process profile applies enter one strict FIFO authority, preventing callers from interleaving display, wallpaper, audio, script, persistence, or rollback work. Previous-profile rollback stays inside the failing request's authority window.
+- **Managed profile identity** — files under the managed Profiles directory load in deterministic order and must carry a valid GUID matching the managed filename. Invalid, mismatched, ambiguous, or duplicate identities are preserved on disk and skipped before migration or save; external imports retain safe ID regeneration.
+- **Current-profile marker persistence** — a successful profile apply remains successful if saving its current-profile ID to `Settings.json` fails. The failure is reported as a secondary warning and SettingsManager restores the previous persisted-settings value instead of retaining an unsaved marker in its model.
+- **Profile schema 6 / WCG terminology** — schema 5 and older `isAcmEnabled` data is translated at the profile boundary into the effective HDR/WCG destination, positive legacy-shape markers can lower an incorrectly declared schema before ordered migration, unsupported future schemas and non-current save attempts fail closed, and `schemaVersion` remains the sole profile-format generation marker.
+
+### fix — CLI, shell, themes, and scripts
+
+- **Normal/development IPC routing** — normal and `--dev` instances use distinct session-scoped pipe namespaces. Ordinary commands route only to normal authority, explicit development commands route only to development authority, and bare `--exit` uses normal-first then development fallback.
+- **CLI option-token consistency** — slash-prefixed options are recognized as options when parsing following values, so sequences such as `/theme /profile Name` no longer consume `/profile` as the theme name.
+- **Bounded ShellExt JSON parsing** — Explorer's native profile reader validates strict string escapes, Unicode surrogate pairs, UTF-8, root-member semantics, duplicate keys, recursive value skipping, and bounded per-file/aggregate/profile/recursion work without a managed runtime dependency.
+- **Shell registration persistence** — `--shell` compensates a newly created registration when desired-state metadata cannot be persisted, while successful `--unshell` teardown remains authoritative even if settings persistence fails.
+- **Custom-theme foreground ownership** — custom themes retain their declared button foreground, including user themes shadowing packaged names; packaged themes retain automatic accent-contrast behavior.
+- **Multi-script profile import** — the profile editor imports multiple selected scripts while preserving per-file validation and partial success, then reports failures once for the batch.
+- **About library version resolution** — About resolves referenced assemblies on demand so the shipped `System.Management` version is reported before another code path loads it, while unavailable versions no longer render a dangling `v` prefix.
+
+### misc — update behavior
+
+- **Release notification cooldown** — newer GitHub releases are advertised after a three-day release-age threshold instead of seven days, retaining a settling window while reducing how long update-enabled installations remain on an older release.
+
+### build — dependencies
+
+- **MSTest update** — the managed test metapackage moves from 4.3.3 to 4.4.0.
+
+### test — regression coverage
+
+- **Managed suite — 567 tests** — C#/MSTest coverage exercises profile apply ordering and persistence, managed profile identity/schema migration, adapter-qualified CCD/DPI authorization, live Advanced Color capability and destination semantics, wallpaper transition/rollback ownership, CLI/IPC/shell behavior, themes, script import, and supporting helpers.
+- **Native ShellExt suite — 24 checks** — the standalone JsonReader regression executable covers bounded parsing, UTF-8/escape handling, root semantics, malformed-input rejection, and menu-facing profile extraction independently of the managed suite.
+
+---
 <a id="2.2.1"></a>
 ## [2.2.1] - 2026-09-11
 
@@ -16,7 +64,7 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 - **Transactional profile mutations** — add/update operations persist the candidate before publishing it to the in-memory profile list, failed editor saves no longer leak working changes into the live profile, and default-profile references are updated only after the corresponding profile save succeeds.
 - **Profile-load failure boundary** — an empty Profiles directory can still create the initial Default profile, while a directory containing saved profiles that all fail to load now reports failure and preserves the previous authoritative in-memory profile list instead of silently replacing it.
 - **Imported profile identity** — imported profile IDs are validated as GUIDs and normalized to canonical `D` form before they can participate in profile file paths; invalid or colliding IDs receive a fresh GUID.
-- **Profile schema 5** — wallpaper, audio, and script section enablement is stored with the corresponding nested settings object. Legacy root enable/script members remain accepted during deserialization and migrate to the normalized shape, with current nested values taking precedence when both forms are present. Profiles created by DPM now start at the current schema version, while the parameterless constructor remains at `0` so schema-less legacy JSON still enters migration when loaded.
+- **Profile schema 5** — wallpaper, audio, and script section enablement is stored with the corresponding nested settings object. Legacy root enable/script members remain accepted during deserialization and migrate to the normalized shape, with current nested values taking precedence when both forms are present. Profiles created by the application now start at the current schema version, while the parameterless constructor remains at `0` so schema-less legacy JSON still enters migration when loaded.
 
 ### fix — settings and command authority
 
@@ -56,7 +104,7 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 ### test — stabilization coverage
 
 - **Regression suite** — focused pure unit coverage was added for profile transactionality, editor isolation, default-reference sequencing, script path validation, hotkey reload reconciliation, CCD query retries, virtual-mode topology preparation, profile schema 5, current-schema profile creation, schema-less upstream-profile compatibility, ICC parsing, settings casing/state, profile load/import boundaries, ID-first profile resolution, and secondary apply-result presentation. The current suite contains 314 tests.
-- **Inherited test audit** — reviewed the pre-2.2.1 test suite and removed 30 redundant, framework-only, historical API-shape, or self-contained simulation cases that did not meaningfully constrain DPM behavior. Existing production-behavior coverage was retained, with newer production-seam tests covering the relevant topology contracts.
+- **Test-suite audit** — reviewed the test suite and removed 30 redundant, framework-only, historical API-shape, or self-contained simulation cases that did not meaningfully constrain application behavior. Existing production-behavior coverage was retained, with newer production-seam tests covering the relevant topology contracts.
 
 ### misc — contribution policy
 
@@ -75,8 +123,8 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 
 - **Native wallpaper capture and apply** — `WallpaperHelper` wraps `IDesktopWallpaper` and captures `Solid Color`, `Picture`, `Slideshow`, and `Spotlight` state, including background color, per-monitor picture paths, fitment, slideshow options/source, and Spotlight state. Monitor joins use `EDD_GET_DEVICE_INTERFACE_NAME` and exclude detached adapters; duplicate interface paths resolve first-claim-wins.
 - **Wallpaper editing and previews** — Solid Color, Picture, Slideshow, and Spotlight profiles expose mode-appropriate controls and previews. Slideshow sources use `IShellItemArray`/`SIGDN_FILESYSPATH`; missing sources, images, and disconnected monitors are skipped non-destructively. Previews use `BitmapCacheOption.OnLoad`.
-- **Wallpaper application preserves stored state** — slideshow sources are set before options, fitment is applied after the image, and final desktop refresh handles fitment-only changes. Background color is captured and applied for all modes so Picture profiles using Fit or Center preserve their letterbox color.
-- **Spotlight support** — detection combines the wallpaper path, `BackgroundType`, provider state, and ContentDeliveryManager state. Apply enables the provider before selecting the mode and triggers repaint through `BackgroundType`/`SPI_SETDESKWALLPAPER`; globally disabled background apps abort the apply. Displayed image is resolved from the active ContentDeliveryManager cache rather than the fixed `DesktopSpotlight\Assets\Images` set.
+- ~~**Wallpaper application preserves stored state** — slideshow sources are set before options, fitment is applied after the image, and final desktop refresh handles fitment-only changes. Background color is captured and applied for Solid Color, Picture, and Slideshow so Picture profiles using Fit or Center preserve their letterbox color.~~ *Stored wallpaper fields were introduced, but cross-mode destination ownership could leave Solid Color, Picture, or Slideshow under the previous mode's Windows ownership. Rebuilt in [2.2.2](#2.2.2).*
+- ~~**Spotlight support** — detection combines the wallpaper path, `BackgroundType`, provider state, and ContentDeliveryManager state. Apply enables the provider before selecting the mode and triggers repaint through `BackgroundType`/`SPI_SETDESKWALLPAPER`; globally disabled background apps abort the apply. Displayed image is resolved from the active ContentDeliveryManager cache rather than the fixed `DesktopSpotlight\Assets\Images` set.~~ *Desktop Spotlight capture/editor support was introduced, but activation and repaint ownership were not reliably established. Rebuilt in [2.2.2](#2.2.2) around provider/mode authority and verified repaint handling.*
 
 ### feat — desktop context menu
 
@@ -274,7 +322,7 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 - **`ColorProfileHelper`** — `Helpers/ColorProfileHelper.cs` is a P/Invoke wrapper for `mscms.dll`. `GetSystemColorDirectory` resolves the system color profile directory. `GetInstalledColorProfilesFiltered(hdrOnly)` enumerates installed `.icc`/`.icm` files; when `hdrOnly = true`, restricts to profiles containing an MHC2 tag or a CICP tag with transfer function 16 (PQ) or 18 (HLG). `GetDisplayDefaultColorProfile` reads the current per-display OS association (user scope first, system scope fallback). `ApplyColorProfile` sets default via `ColorProfileSetDisplayDefaultAssociation`, enabling per-user scope if not already active.
 - **`ApplyColorProfiles`** — `DisplayConfigHelper` calls it inside `ApplyDisplayConfig` after `ApplyAdvancedColorState`. Builds transient `DisplaySetting` from live config to supply the correct `AdapterLuid` and `SourceId` for the P/Invoke call.
 - **Color profile combobox** — rightmost column of `DisplaySettingControl` settings row. Dropdown: Not Applied, then installed profiles (HDR-only set when HDR is active, full set otherwise). Profiles no longer installed on system appear as `(not found)` placeholders to preserve stored value.
-- **Native resolution marker** — resolution dropdown appends `★` to native EDID entry. Refresh rate dropdown appends `★` to peak rate.
+- **Native resolution marker** — resolution dropdown appends `★` to the stored native-resolution entry. Refresh rate dropdown appends `★` to peak rate. *Native-resolution sourcing was corrected in [2.2.2](#2.2.2) to use Windows target preferred/best mode.*
 
 ### feat — advanced color state
 
@@ -303,6 +351,7 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 ### fix — clone groups
 
 - **Primary transfer on clone** — when the attached display owns the primary flag, transfer to the source at clone time. `GetDisplaySettings()` now reads `IsPrimary` from the data model rather than the checkbox so the value survives `RebuildDisplayControls` cycle.
+- **Clone source authority through rebuild** — `IsCloneSource` records the selected source and `DisplayGroupHelper` prefers it as the group representative, so shared resolution, refresh rate, rotation, DPI, HDR/ACM, and color-profile values follow the selected source across rebuilds. This fixes 2.0.x behavior where `TargetId` ordering could make an attached display authoritative instead.
 - **Break Clone restores attached display fully** — original SourceId, position, primary flag, resolution, refresh rate, rotation, DPI scaling, HDR state, ACM state, and color profile are saved at clone time via `[JsonIgnore]` fields (`OriginalSourceId`, `OriginalIsPrimary`, `OriginalPositionX/Y`, `OriginalWidth/Height`, `OriginalFrequency`, `OriginalRotation`, `OriginalDpiScaling`, `OriginalIsHdrEnabled`, `OriginalIsAcmEnabled`, `OriginalColorProfile`) and restored on break. Falls back to the native resolution and a position to the right of the source if no saved values are available.
 - **Break Clone guarantees a primary** — source display is assigned primary on break; checkbox is synchronized before rebuild fires.
 - **Clone params carried through rebuild** — `GetDisplaySettings()` now copies all `[JsonIgnore]` clone parameter fields so they survive control rebuild.
@@ -450,7 +499,7 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 
 - **`SchemaVersion` field on profiles** — defaults to `0` on deserialization so existing profiles without a schema field automatically trigger migration on first load.
 - **Automatic profile migration** — `LoadProfilesAsync` migrates outdated profiles on startup without changing `LastModifiedDate`. Version 0 → 1 backfills `NativeWidth`/`NativeHeight` and corrects `ReadableDeviceName` from live display data by `TargetId`. Displays unavailable during migration are skipped. *Hardware self-healing expanded to profile apply in [2.2.0](#2.2.0).*
-- **`NativeWidth`/`NativeHeight` on `DisplaySetting`** — stores EDID preferred timing resolution from `targetVideoSignalInfo.activeSize`, representing physical pixel grid. Populated during `GetCurrentDisplaySettingsAsync` ~~and used by `BreakClone` to restore the correct resolution rather than defaulting to the highest supported mode, which may be a wider DCI resolution~~. *Rewritten to restore original settings in [2.1.0](#2.1.0).*
+- **`NativeWidth`/`NativeHeight` on `DisplaySetting`** — stores `targetVideoSignalInfo.activeSize` as the then-used native-resolution metadata. That value represents the active target signal size, not EDID preferred timing or a guaranteed physical panel grid. Populated during `GetCurrentDisplaySettingsAsync` ~~and used by `BreakClone` to restore the correct resolution rather than defaulting to the highest supported mode, which may be a wider DCI resolution~~. *Rewritten to restore original settings in [2.1.0](#2.1.0). Preferred/native resolution sourcing was corrected in [2.2.2](#2.2.2) to use Windows target preferred/best mode.*
 
 ### feat — scripts
 
@@ -576,7 +625,7 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 - **SourceId normalization** — saved profiles can contain disabled displays, leaving remaining active displays with non-contiguous `SourceId` values such as `0, 2, 4`; `SetDisplayConfig` rejects such gaps. Active displays now receive contiguous source IDs through `BuildSourceIdMap` before submission. Single-display configurations had previously worked by coincidence because they were always assigned `SourceId 0`.
 - **`ApplyHdrSettings` uses live `RawTargetId`** — stored profile `TargetId` values are lower-16-bit base IDs, while `DisplayConfigSetDeviceInfo` requires session-specific raw target ID. Fresh post-topology `GetDisplayConfigs` query matches by base `TargetId` and supplies live `RawTargetId`; `ApplyDisplayLayout` follows the same pattern because pre-topology raw identities are stale after `SetDisplayConfig`.
 - **Redundancy checks** — topology, layout, and HDR application compare current live state first and skip corresponding call when no change is needed.
-- **Removed erroneous `SetDisplayConfig` and `ChangeDisplaySettingsEx` calls** — `SetPrimary` and `ApplyDisplayPosition` previously issued an additional display-configuration call before topology apply, while `ChangeResolution` used legacy `ChangeDisplaySettings` API after topology. Rewritten path constructs desired layout directly and submits it atomically.
+- **Removed erroneous `SetDisplayConfig` and `ChangeDisplaySettingsEx` calls** — `SetPrimary` and `ApplyDisplayPosition` previously issued an additional display-configuration call before topology apply, while `ChangeResolution` used legacy `ChangeDisplaySettings` API after topology. Rewritten path constructs desired layout directly and submits it atomically. Resolution/refresh and target rotation are carried through the supplied CCD layout instead of a later GDI resolution call; the [v1.3.0](#v1.3.0) post-topology GDI mode-restore boundary had already been removed in [v1.3.5](#v1.3.5).
 - **`SDC_TOPOLOGY_SUPPLIED` correctly re-added to `SetDisplayConfigFlags`** — required for proper clone-group topology application.
 - ~~**`VerifyDisplayConfiguration`** — moved into `ApplyDisplayLayout` so non-zero `SetDisplayConfig` result could be retained as successful when the post-apply live check confirmed the expected display topology, including enabled/disabled state and clone-group SourceId sharing.~~ *Retired in [2.2.0](#2.2.0) because verifier did not establish that requested layout values had been applied and could therefore turn failed layout submission into false success.*
 
@@ -585,6 +634,8 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 - **Clone group detection by `SourceId` only** — previously grouped by `DeviceName + SourceId`, which failed under certain multi-monitor clone scenarios.
 - **Clone creation for non-primary displays** — `ApplyDisplayTopology` and `ApplyDisplayLayout` assign shared `SourceId` to clone-group members instead of sequentially assigning one per display. Previously, only the primary display could be cloned by coincidence.
 - **`BreakClone` preserves per-member settings** — ~~early clone implementation pre-seeded per-member restoration values so broken clones could recover attached-member resolution and refresh settings.~~ *Rewritten in [2.1.0](#2.1.0).*
+
+> **Note:** clone source authority was still implicit in 2.0.x. Editor rebuilds ordered members by `TargetId` and used the first member as the group representative, so an attached display could retain its prior rotation instead of inheriting the selected source's orientation; Break Clone also had no original-rotation snapshot. Resolved in [2.1.0](#2.1.0) with explicit source-role grouping and rotation restoration.
 
 ### fix — profile management
 
@@ -658,7 +709,7 @@ _[PR #14](https://github.com/zac15987/DisplayProfileManager/pull/14) by [jonatha
 - **`ResetModeAndSetCloneGroup()`** — invalidates source-mode index while setting clone group, as required for `SDC_TOPOLOGY_SUPPLIED`.
 - **`DISPLAYCONFIG_PATH_SOURCE_MODE_IDX_INVALID` constant added** — required by clone-topology construction.
 - **Clone group detection in `GetCurrentDisplaySettingsAsync`** — groups displays by `DeviceName + SourceId` and assigns `CloneGroupId` strings.
-- **Phase 1 / Phase 2 apply pattern** — topology is submitted first with `SDC_TOPOLOGY_SUPPLIED` and null modes, followed by the full configuration with `SDC_USE_SUPPLIED_DISPLAY_CONFIG` and modes.
+- **Phase 1 / Phase 2 apply pattern** — topology is submitted first with `SDC_TOPOLOGY_SUPPLIED` and null modes, followed by the full configuration with `SDC_USE_SUPPLIED_DISPLAY_CONFIG` and modes. *This removed the [v1.3.0](#v1.3.0) post-topology GDI mode-restore boundary that could fail on 90°/270° displays; the broader early supplied-config path still had separate correctness defects resolved in [2.0.0](#2.0.0).*
 
 > **Note:** clone creation only succeeded when the primary display was part of a group because source-mode consumption iterated per display instead of per `SourceId`. `SourceModeInfoIdx` could overwrite the entire `modeInfoIdx` field, and HDR used the wrong target-ID form. Partially addressed in [v1.4.0](#v1.4.0) and later display-engine rewrites; base `TargetId`/live `RawTargetId` distinction was ultimately resolved in [2.0.0](#2.0.0).
 
@@ -669,12 +720,12 @@ _[PR #14](https://github.com/zac15987/DisplayProfileManager/pull/14) by [jonatha
 
 _[zac15987/DisplayProfileManager](https://github.com/zac15987/DisplayProfileManager/releases/tag/v1.3.0)_
 
-- Incorporating [PR #8](https://github.com/zac15987/DisplayProfileManager/pull/8) by [jarandal](https://github.com/jarandal) — initial HDR support and screen rotation.
+- Incorporating [PR #8](https://github.com/zac15987/DisplayProfileManager/pull/8) by [jarandal](https://github.com/jarandal) — initial HDR and screen-rotation implementations.
 
 ### feat — display
 
 - ~~**HDR support** — enable and disable HDR per display via `DisplayConfigSetDeviceInfo`.~~ *The profile passed a stripped base `TargetId` where the API required a live raw `TargetId`, producing `ERROR_INVALID_PARAMETER` (87). Resolved by live `RawTargetId` handling in [2.0.0](#2.0.0).*
-- **Screen rotation per display** — 0°, 90°, 180°, 270°.
+- **Screen rotation per display** — 0°, 90°, 180°, 270°. *Capture/persistence and target orientation were implemented, while the subsequent GDI mode restore could fail on 90°/270° because quarter-turn orientations require width/height axes to be exchanged; 0°/180° preserve those axes and were not affected by this specific failure. That post-topology GDI restore was removed in [v1.3.5](#v1.3.5), and the display engine was later rewritten around supplied CCD layout in [2.0.0](#2.0.0).*
 - ~~**Staged application mode** — applied settings in two phases with a configurable delay as a workaround for displays rejecting settings when waking from deep sleep.~~ *Fixed delay was non-deterministic and sat between active and inactive configuration steps, rather than after waking inactive displays. Removed in [2.0.0](#2.0.0).*
 - ~~**Atomic `SetDisplayConfig`** — initial attempt at using `SetDisplayConfig` for display configuration.~~ *Separate post-calls for resolution and primary display still required due to malformed path and mode construction. Rewritten in [2.0.0](#2.0.0).*
 

@@ -1,6 +1,6 @@
 # Creating and Managing Profiles
 
-Profiles store display settings such as monitor layout, resolution, refresh rate, rotation, HDR/ACM state, and DPI scaling. A profile can also store wallpaper, audio, scripts, and a global hotkey.
+Profiles store display settings such as monitor layout, resolution, refresh rate, rotation, HDR/WCG state, and DPI scaling. A profile can also store wallpaper, audio, scripts, and a global hotkey.
 
 ---
 
@@ -23,7 +23,7 @@ The profile editor shows one panel per detected monitor under **Display Settings
 - **Enable** — include or exclude the monitor from the profile
 - **Primary** — designate the primary display
 - **HDR** — desired HDR state on HDR-capable displays
-- **ACM** — desired Auto Color Management state where supported
+- **WCG** — desired Wide Color Gamut state where supported; on eligible SDR displays this uses Windows Auto Color Management
 - **Resolution** — width × height
 - **Refresh Rate** — desired refresh rate in Hz
 - **Rotation** — Not Applied, 0°, 90°, 180°, or 270°
@@ -54,14 +54,14 @@ Clone groups can coexist with independent extended displays in the same profile.
 
 When **Enable Wallpaper** is active, the profile applies its saved Windows wallpaper state.
 
-| Mode           | Stored state                                         |
-| -------------- | -----------------------------------------------------|
-| **Solid Color**| Background color                                     |
-| **Picture**    | Per-monitor image path and fitment                   |
-| **Slideshow**  | Fitment, interval, shuffle state, and source folder  |
-| **Spotlight**  | Spotlight-enabled state                              |
+| Mode            | Stored state                                                          |
+| --------------- | --------------------------------------------------------------------- |
+| **Solid Color** | Background color                                                      |
+| **Picture**     | Per-monitor image path, background color, and fitment                 |
+| **Slideshow**   | Background color, fitment, interval, shuffle state, and source folder |
+| **Spotlight**   | Desktop Spotlight-enabled state                                       |
 
-The profile editor shows a wallpaper preview and provides mode-specific controls. **Solid Color** and **Picture** include a color picker, while **Picture** also provides fitment options. **Slideshow** provides fitment, interval, shuffle/order, and source-folder controls. **Spotlight** provides a preview only.
+The profile editor shows a wallpaper preview and provides mode-specific controls. **Solid Color** and **Picture** include a color picker, while **Picture** also provides fitment options. **Slideshow** restores its saved background color and provides fitment, interval, shuffle/order, and source-folder controls. **Spotlight** provides a preview only and is restored with Fill presentation; online Spotlight image delivery remains owned by Windows.
 
 ## Audio
 

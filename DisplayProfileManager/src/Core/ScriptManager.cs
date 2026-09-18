@@ -1,11 +1,32 @@
-﻿using DisplayProfileManager.Helpers;
+using DisplayProfileManager.Helpers;
 using NLog;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 
 namespace DisplayProfileManager.Core
 {
+    internal sealed class ScriptImportResult
+    {
+        public string SourcePath { get; }
+        public string ImportedFileName { get; }
+        public bool Success => !string.IsNullOrWhiteSpace(ImportedFileName);
+
+        public ScriptImportResult(string sourcePath, string importedFileName)
+        {
+            SourcePath = sourcePath;
+            ImportedFileName = importedFileName;
+        }
+    }
+
+    internal sealed class ScriptImportBatchResult
+    {
+        public List<ScriptImportResult> Results { get; } = new List<ScriptImportResult>();
+        public int ImportedCount { get; internal set; }
+        public int FailedCount { get; internal set; }
+    }
+
     public class ScriptManager
     {
         private static readonly Logger _logger = LoggerHelper.GetLogger();
@@ -103,6 +124,37 @@ namespace DisplayProfileManager.Core
                 _logger.Error(ex, "Failed to import script to sandbox.");
                 return null;
             }
+        }
+
+        internal Task<ScriptImportBatchResult> ImportScriptsAsync(IEnumerable<string> sourcePaths) =>
+            ImportScriptsAsync(sourcePaths, ImportScriptAsync);
+
+        internal static async Task<ScriptImportBatchResult> ImportScriptsAsync(
+            IEnumerable<string> sourcePaths,
+            Func<string, Task<string>> importOneAsync)
+        {
+            var batch = new ScriptImportBatchResult();
+            if (sourcePaths == null || importOneAsync == null) return batch;
+
+            foreach (var sourcePath in sourcePaths)
+            {
+                string importedFileName = null;
+                try
+                {
+                    importedFileName = await importOneAsync(sourcePath);
+                }
+                catch (Exception ex)
+                {
+                    _logger.Error(ex, $"Failed to import script '{sourcePath}' in batch");
+                }
+
+                var result = new ScriptImportResult(sourcePath, importedFileName);
+                batch.Results.Add(result);
+                if (result.Success) batch.ImportedCount++;
+                else batch.FailedCount++;
+            }
+
+            return batch;
         }
 
         #endregion

@@ -6,11 +6,12 @@ Display Profile Manager accepts command-line arguments for profile application, 
 
 ---
 
-Flags accept any number of leading dashes, or none at all:
+Flags accept any number of leading dashes, a leading slash, or no prefix:
 
 ```text
 DisplayProfileManager.exe --profile "Profile"
 DisplayProfileManager.exe -profile "Profile"
+DisplayProfileManager.exe /profile "Profile"
 DisplayProfileManager.exe profile "Profile"
 ```
 
@@ -96,7 +97,7 @@ DisplayProfileManager.exe --dev
 
 ## Prefix matching
 
-All flags except `--tray`, `--exit`, `--shell`, `--unshell`, and `--dev` support unambiguous prefix matching after leading dashes are stripped:
+All flags except `--tray`, `--exit`, `--shell`, `--unshell`, and `--dev` support unambiguous prefix matching after an optional dash or slash prefix is stripped:
 
 ```text
 --profile "Profile"  == --prof "Profile" == --p "Profile"
@@ -138,7 +139,7 @@ See [Precedence when flags are combined](#precedence-when-flags-are-combined) ab
 DisplayProfileManager.exe --theme "Theme" --headless "Profile"
 ```
 
-`--profile` and `--headless` share one profile value. An explicit profile argument is last-write-wins; a bare profile-affecting flag does not clear an existing value. `--headless` is cumulative once present.
+`--profile` and `--headless` share one profile value. An explicit profile argument is last-write-wins; a bare profile-affecting flag does not clear an existing value. `--headless` is cumulative once present. A following dash- or slash-prefixed option is treated as another option token rather than as the preceding flag's value.
 
 ---
 

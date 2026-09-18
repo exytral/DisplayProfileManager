@@ -1,4 +1,4 @@
-﻿using DisplayProfileManager.Core;
+using DisplayProfileManager.Core;
 using DisplayProfileManager.Helpers;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
@@ -193,7 +193,6 @@ namespace DisplayProfileManager.Tests.Tests
                 OriginalSettings = true,
                 OriginalPositionX = 10,
                 OriginalPositionY = 20,
-                OriginalSourceId = 4,
                 OriginalIsPrimary = true,
                 OriginalWidth = 3840,
                 OriginalHeight = 2160,
@@ -201,7 +200,7 @@ namespace DisplayProfileManager.Tests.Tests
                 OriginalRotation = 1,
                 OriginalDpiScaling = 150,
                 OriginalIsHdrEnabled = true,
-                OriginalIsAcmEnabled = false,
+                OriginalIsWcgEnabled = false,
                 OriginalColorProfile = "before.icc"
             });
 
@@ -215,7 +214,6 @@ namespace DisplayProfileManager.Tests.Tests
             Assert.AreEqual(source.OriginalSettings, target.OriginalSettings);
             Assert.AreEqual(source.OriginalPositionX, target.OriginalPositionX);
             Assert.AreEqual(source.OriginalPositionY, target.OriginalPositionY);
-            Assert.AreEqual(source.OriginalSourceId, target.OriginalSourceId);
             Assert.AreEqual(source.OriginalIsPrimary, target.OriginalIsPrimary);
             Assert.AreEqual(source.OriginalWidth, target.OriginalWidth);
             Assert.AreEqual(source.OriginalHeight, target.OriginalHeight);
@@ -223,7 +221,7 @@ namespace DisplayProfileManager.Tests.Tests
             Assert.AreEqual(source.OriginalRotation, target.OriginalRotation);
             Assert.AreEqual(source.OriginalDpiScaling, target.OriginalDpiScaling);
             Assert.AreEqual(source.OriginalIsHdrEnabled, target.OriginalIsHdrEnabled);
-            Assert.AreEqual(source.OriginalIsAcmEnabled, target.OriginalIsAcmEnabled);
+            Assert.AreEqual(source.OriginalIsWcgEnabled, target.OriginalIsWcgEnabled);
             Assert.AreEqual(source.OriginalColorProfile, target.OriginalColorProfile);
         }
 

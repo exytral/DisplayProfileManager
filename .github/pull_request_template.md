@@ -1,6 +1,6 @@
 ## Summary
 
-<!-- What changed, why it changed, and the intended behavioral result. -->
+<!-- What changed, why it changed, and the intended behavioral result. Keep this repository-facing: omit internal release/coordination details and avoid redundant version qualifiers. -->
 
 ## Changes
 
@@ -10,7 +10,7 @@
 
 ## Validation
 
-<!-- Report only validation that was actually performed. Include relevant tests, builds, and manual/runtime checks. -->
+<!-- Report only validation that was actually performed. Include relevant tests, builds, and manual/runtime checks; report outcomes rather than internal workflow/run/coordination mechanics. -->
 
 - <!-- Add validation -->
 

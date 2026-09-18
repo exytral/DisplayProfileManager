@@ -1,4 +1,4 @@
-﻿using DisplayProfileManager.Core;
+using DisplayProfileManager.Core;
 using DisplayProfileManager.Helpers;
 using DisplayProfileManager.UI.ViewModels;
 using NLog;
@@ -303,17 +303,17 @@ namespace DisplayProfileManager.UI.Windows
                             innerPanel.Children.Add(hdr);
                         }
 
-                        if (setting.IsAcmEnabled)
+                        if (setting.IsWcgEnabled)
                         {
-                            var acm = new TextBlock
+                            var wcg = new TextBlock
                             {
-                                Text = "ACM: On",
+                                Text = "WCG: On",
                                 Style = (Style)FindResource("PrimaryTextBlockStyle"),
                                 FontSize = 12,
                                 Foreground = (SolidColorBrush)FindResource("SecondaryTextBrush"),
                                 Opacity = DisabledDisplayDetailOpacity
                             };
-                            innerPanel.Children.Add(acm);
+                            innerPanel.Children.Add(wcg);
                         }
 
                         if (!string.IsNullOrEmpty(setting.ColorProfile))
@@ -436,16 +436,16 @@ namespace DisplayProfileManager.UI.Windows
                             innerPanel.Children.Add(hdr);
                         }
 
-                        if (setting.IsHdrSupported && setting.IsAcmEnabled)
+                        if (setting.IsWcgEnabled)
                         {
-                            var acm = new TextBlock
+                            var wcg = new TextBlock
                             {
-                                Text = "ACM: On",
+                                Text = "WCG: On",
                                 Style = (Style)FindResource("PrimaryTextBlockStyle"),
                                 FontSize = 12,
                                 Foreground = (SolidColorBrush)FindResource("SecondaryTextBrush")
                             };
-                            innerPanel.Children.Add(acm);
+                            innerPanel.Children.Add(wcg);
                         }
 
                         if (!string.IsNullOrEmpty(setting.ColorProfile))
@@ -737,43 +737,64 @@ namespace DisplayProfileManager.UI.Windows
                 await ApplyProfile(profile);
         }
 
-        private async Task ApplyProfile(Profile profile)
+        internal static async Task RunWithApplyBusyStateAsync(Action<bool> setBusy, Func<Task> operation)
         {
-            if (_isApplying) return;
+            if (setBusy == null) throw new ArgumentNullException(nameof(setBusy));
+            if (operation == null) throw new ArgumentNullException(nameof(operation));
+
+            setBusy(true);
             try
             {
-                _isApplying = true;
-
-                var applyWatch = Stopwatch.StartNew();
-                var applyResult = await _profileManager.ApplyProfileAsync(profile, ProfileManager.ApplySource.Window);
-                applyWatch.Stop();
-
-                if (!applyResult.Success)
-                {
-                    StatusTextBlock.Text = "Failed to apply profile";
-                    string errorDetails = _profileManager.GetApplyResultErrorMessage(profile.Name, applyResult);
-                    _logger.Warn(errorDetails);
-                    MessageBox.Show(errorDetails, "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
-                }
-                else
-                {
-                    string elapsed = $"{(applyWatch.Elapsed.TotalSeconds == 0 ? "0"
-                        : $"{Math.Ceiling(applyWatch.Elapsed.TotalSeconds * 10) / 10:0.#}")} {(Math.Ceiling(applyWatch.Elapsed.TotalSeconds * 10) / 10 == 1 ? "second" : "seconds")}";
-
-                    string warningSummary = ProfileManager.GetApplyWarningSummary(applyResult);
-                    StatusTextBlock.Text = ProfileManager.AppendApplyWarnings($"'{profile.Name}' applied in {elapsed}", warningSummary);
-                }
-            }
-            catch (Exception ex)
-            {
-                StatusTextBlock.Text = "Error applying profile";
-                MessageBox.Show($"Exception: Error applying profile: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                _logger.Error(ex, "Exception while applying profile");
+                await operation();
             }
             finally
             {
-                _isApplying = false;
+                setBusy(false);
             }
+        }
+
+        private void SetApplyBusyState(bool isBusy)
+        {
+            _isApplying = isBusy;
+            ProfilesListBox.IsEnabled = !isBusy;
+        }
+
+        private async Task ApplyProfile(Profile profile)
+        {
+            if (_isApplying) return;
+
+            await RunWithApplyBusyStateAsync(SetApplyBusyState, async () =>
+            {
+                try
+                {
+                    StatusTextBlock.Text = $"Applying '{profile.Name}'...";
+                    var applyWatch = Stopwatch.StartNew();
+                    var applyResult = await _profileManager.ApplyProfileAsync(profile, ProfileManager.ApplySource.Window);
+                    applyWatch.Stop();
+
+                    if (!applyResult.Success)
+                    {
+                        StatusTextBlock.Text = "Failed to apply profile";
+                        string errorDetails = _profileManager.GetApplyResultErrorMessage(profile.Name, applyResult);
+                        _logger.Warn(errorDetails);
+                        MessageBox.Show(errorDetails, "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    }
+                    else
+                    {
+                        string elapsed = $"{(applyWatch.Elapsed.TotalSeconds == 0 ? "0"
+                            : $"{Math.Ceiling(applyWatch.Elapsed.TotalSeconds * 10) / 10:0.#}")} {(Math.Ceiling(applyWatch.Elapsed.TotalSeconds * 10) / 10 == 1 ? "second" : "seconds")}";
+
+                        string warningSummary = ProfileManager.GetApplyWarningSummary(applyResult);
+                        StatusTextBlock.Text = ProfileManager.AppendApplyWarnings($"'{profile.Name}' applied in {elapsed}", warningSummary);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    StatusTextBlock.Text = "Error applying profile";
+                    MessageBox.Show($"Exception: Error applying profile: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    _logger.Error(ex, "Exception while applying profile");
+                }
+            });
         }
 
         private async void ApplyProfileButton_Click(object sender, RoutedEventArgs e)

@@ -1,4 +1,4 @@
-﻿using DisplayProfileManager.Core;
+using DisplayProfileManager.Core;
 using NLog;
 using System;
 using System.Collections.Generic;
@@ -342,10 +342,17 @@ namespace DisplayProfileManager.Helpers
             if (string.IsNullOrEmpty(setting.ColorProfile) || !setting.IsEnabled)
             {
                 return true;
-
             }
 
-            return ApplyColorFile(setting.DeviceName, setting.AdapterLuid, setting.SourceId, setting.ColorProfile);
+            var targetKey = CcdAddress.Target(setting.AdapterLuid, setting.TargetId);
+            var live = liveConfigs?.FirstOrDefault(config => CcdAddress.Target(config).Equals(targetKey));
+            if (live == null)
+            {
+                _logger.Warn($"Could not find active display matching target {targetKey} to apply color profile");
+                return false;
+            }
+
+            return ApplyColorFile(live.DeviceName, live.AdapterId, live.SourceId, setting.ColorProfile);
         }
 
         #endregion

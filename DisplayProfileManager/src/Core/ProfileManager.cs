@@ -1,4 +1,4 @@
-﻿using DisplayProfileManager.Helpers;
+using DisplayProfileManager.Helpers;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using NLog;
@@ -21,6 +21,7 @@ namespace DisplayProfileManager.Core
         private static readonly object _lock = new object();
 
         private bool _rollingBack;
+        private readonly ProfileApplyAuthority _applyAuthority = new ProfileApplyAuthority();
 
         private static ProfileManager _instance;
         private readonly ScriptManager _scriptManager = ScriptManager.Instance;
@@ -31,8 +32,11 @@ namespace DisplayProfileManager.Core
 
         private readonly string _appDataFolder;
         private readonly string _profilesFolderPath;
+        private readonly Func<List<DisplayConfigHelper.DisplayConfigInfo>> _getMigrationDisplayConfigs;
+        private readonly Func<List<DisplayConfigHelper.DisplayConfigInfo>> _getMigrationDisplayAddresses;
+        private readonly ProfileApplyRuntime _applyRuntime;
 
-        internal const int CurrentSchemaVersion = 5;
+        internal const int CurrentSchemaVersion = 6;
 
         public enum ApplySource { Unknown, Window, Tray, Hotkey, CommandLine, Startup }
 
@@ -62,19 +66,26 @@ namespace DisplayProfileManager.Core
             public bool ResolutionChanged { get; set; }
             public bool DpiChanged { get; set; }
             public bool AudioSuccess { get; set; }
+            public bool WallpaperSuccess { get; set; } = true;
             public bool AdvancedColorSuccess { get; set; } = true;
             public bool ColorProfileSuccess { get; set; } = true;
+            public bool CurrentProfilePersisted { get; set; } = true;
         }
 
         internal static string GetApplyWarningSummary(ProfileApplyResult result)
         {
-            if (result == null) return string.Empty;
+            if (result == null)
+            {
+                return string.Empty;
+            }
 
             var failures = new List<string>();
             if (!result.AdvancedColorSuccess) failures.Add("Advanced Color");
             if (!result.ColorProfileSuccess) failures.Add("Color Profile");
             if (!result.DpiChanged) failures.Add("DPI");
+            if (!result.WallpaperSuccess) failures.Add("Wallpaper");
             if (!result.AudioSuccess) failures.Add("Audio");
+            if (!result.CurrentProfilePersisted) failures.Add("Current Profile Marker");
 
             return string.Join(", ", failures);
         }
@@ -109,8 +120,26 @@ namespace DisplayProfileManager.Core
         public string CurrentProfileId => _currentProfileId;
 
         private ProfileManager()
+            : this(
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DisplayProfileManager"),
+                DisplayConfigHelper.GetDisplayConfigs,
+                null,
+                DisplayConfigHelper.GetAllPathDisplayAddresses)
         {
-            _appDataFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DisplayProfileManager");
+        }
+
+        internal ProfileManager(
+            string appDataFolder,
+            Func<List<DisplayConfigHelper.DisplayConfigInfo>> getMigrationDisplayConfigs,
+            ProfileApplyRuntime applyRuntime = null,
+            Func<List<DisplayConfigHelper.DisplayConfigInfo>> getMigrationDisplayAddresses = null)
+        {
+            if (string.IsNullOrWhiteSpace(appDataFolder)) throw new ArgumentException("Profile storage folder is required.", nameof(appDataFolder));
+
+            _getMigrationDisplayConfigs = getMigrationDisplayConfigs ?? throw new ArgumentNullException(nameof(getMigrationDisplayConfigs));
+            _getMigrationDisplayAddresses = getMigrationDisplayAddresses ?? _getMigrationDisplayConfigs;
+            _applyRuntime = applyRuntime ?? ProfileApplyRuntime.CreateDefault(_settingsManager);
+            _appDataFolder = appDataFolder;
             _profilesFolderPath = Path.Combine(_appDataFolder, "Profiles");
             _profiles = new List<Profile>();
             _currentProfileId = null;
@@ -132,9 +161,15 @@ namespace DisplayProfileManager.Core
 
         public static Profile DeserializeProfile(string json)
         {
-            if (string.IsNullOrWhiteSpace(json)) return null;
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return null;
+            }
 
             var root = JObject.Parse(json);
+
+            RecoverOptionalProperty(root, "schemaVersion", typeof(int));
+            ReconcileProfileSchema(root);
 
             RecoverScriptEntries(root);
             RecoverOptionalProperty(root, "audioSettings", typeof(AudioSetting));
@@ -149,8 +184,8 @@ namespace DisplayProfileManager.Core
             RecoverOptionalProperty(root, "icon", typeof(string));
             RecoverOptionalProperty(root, "createdDate", typeof(DateTime));
             RecoverOptionalProperty(root, "lastModifiedDate", typeof(DateTime));
-            RecoverOptionalProperty(root, "schemaVersion", typeof(int));
 
+            NormalizeAdvancedColorSchema(root);
             NormalizeSubsystemSettings(root);
             return root.ToObject<Profile>();
         }
@@ -210,6 +245,54 @@ namespace DisplayProfileManager.Core
             }
         }
 
+        internal static int ReconcileProfileSchema(JObject root)
+        {
+            if (root == null) throw new ArgumentNullException(nameof(root));
+
+            int declaredSchema = root["schemaVersion"]?.Value<int>() ?? 0;
+            if (declaredSchema > CurrentSchemaVersion) throw new InvalidDataException($"Profile schema {declaredSchema} is newer than supported schema {CurrentSchemaVersion}.");
+
+            int effectiveSchema = declaredSchema;
+
+            if (root["isDefault"] != null)
+                effectiveSchema = Math.Min(effectiveSchema, 3);
+
+            if (root["enableWallpaper"] != null ||
+                root["enableAudio"] != null ||
+                root["enableScripts"] != null ||
+                root["scripts"] != null)
+            {
+                effectiveSchema = Math.Min(effectiveSchema, 4);
+            }
+
+            if (root["displaySettings"] is JArray displaySettings && displaySettings.OfType<JObject>().Any(setting => setting["isAcmEnabled"] != null))
+                effectiveSchema = Math.Min(effectiveSchema, 5);
+
+            if (effectiveSchema != declaredSchema)
+                root["schemaVersion"] = effectiveSchema;
+
+            return effectiveSchema;
+        }
+
+        internal static bool NeedsProfileMigration(Profile profile) => profile != null && profile.SchemaVersion < CurrentSchemaVersion;
+
+        internal static bool CanPersistProfileSchema(Profile profile) => profile != null && profile.SchemaVersion == CurrentSchemaVersion;
+
+        private static void NormalizeAdvancedColorSchema(JObject root)
+        {
+            int schemaVersion = root["schemaVersion"]?.Value<int>() ?? 0;
+            if (schemaVersion >= 6 || !(root["displaySettings"] is JArray displaySettings)) return;
+
+            foreach (var displaySetting in displaySettings.OfType<JObject>())
+            {
+                bool hdrEnabled = displaySetting["isHdrEnabled"]?.Value<bool>() ?? false;
+                bool legacyWcgEnabled = displaySetting["isAcmEnabled"]?.Value<bool>() ?? false;
+
+                displaySetting["isWcgEnabled"] = hdrEnabled ? false : legacyWcgEnabled;
+                displaySetting.Remove("isAcmEnabled");
+            }
+        }
+
         private static void NormalizeSubsystemSettings(JObject root)
         {
             var wallpaperSettings = root["wallpaperSettings"] as JObject;
@@ -247,8 +330,12 @@ namespace DisplayProfileManager.Core
             try
             {
                 var loadedProfiles = new List<Profile>();
-                var profileFiles = Directory.GetFiles(_profilesFolderPath, "*.dpm");
+                var acceptedProfileIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var profileFiles = Directory.GetFiles(_profilesFolderPath, "*.dpm")
+                    .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
                 List<DisplayConfigHelper.DisplayConfigInfo> liveConfigs = null;
+                List<DisplayConfigHelper.DisplayConfigInfo> addressConfigs = null;
                 foreach (var file in profileFiles)
                 {
                     try
@@ -258,16 +345,24 @@ namespace DisplayProfileManager.Core
 
                         if (profile == null || string.IsNullOrWhiteSpace(profile.Name) || profile.DisplaySettings == null)
                         {
-                            _logger.Warn($"Skipping invalid profile file: {Path.GetFileName(file)}");
+                            _logger.Warn($"Skipping profile load -> invalid file: {Path.GetFileName(file)}");
                             continue;
                         }
 
-                        if (profile.SchemaVersion < CurrentSchemaVersion)
+                        if (!TryValidateManagedProfileIdentity(file, profile, acceptedProfileIds, out string identityFailure))
+                        {
+                            _logger.Warn($"Skipping profile load -> managed file '{file}' cannot be modified: {identityFailure}");
+                            continue;
+                        }
+
+                        if (NeedsProfileMigration(profile))
                         {
                             if (liveConfigs == null)
-                                liveConfigs = DisplayConfigHelper.GetDisplayConfigs();
+                                liveConfigs = _getMigrationDisplayConfigs();
+                            if (addressConfigs == null)
+                                addressConfigs = _getMigrationDisplayAddresses();
 
-                            bool migrated = await MigrateProfileAsync(profile, liveConfigs, json);
+                            bool migrated = await MigrateProfileAsync(profile, liveConfigs, addressConfigs, json);
                             if (migrated)
                             {
                                 var savedDate = profile.LastModifiedDate;
@@ -313,25 +408,22 @@ namespace DisplayProfileManager.Core
 
         internal static bool HasTotalProfileLoadFailure(int discoveredProfileFileCount, int loadedProfileCount) => discoveredProfileFileCount > 0 && loadedProfileCount == 0;
 
-        private async Task<bool> MigrateProfileAsync(Profile profile, List<DisplayConfigHelper.DisplayConfigInfo> liveConfigs, string rawJson = null)
+        private async Task<bool> MigrateProfileAsync(
+            Profile profile,
+            List<DisplayConfigHelper.DisplayConfigInfo> liveConfigs,
+            List<DisplayConfigHelper.DisplayConfigInfo> addressConfigs,
+            string rawJson = null)
         {
             bool changed = false;
 
-            // Backfill native dimensions and display name
+            // Backfill display name
             if (profile.SchemaVersion < 1)
             {
                 foreach (var setting in profile.DisplaySettings)
                 {
-                    var match = liveConfigs.FirstOrDefault(c => c.TargetId == setting.TargetId);
+                    var match = ResolveHardwareBackfillDisplay(setting, liveConfigs);
                     if (match != null)
                     {
-                        if (setting.NativeWidth == 0 && match.NativeWidth > 0)
-                        {
-                            setting.NativeWidth = match.NativeWidth;
-                            setting.NativeHeight = match.NativeHeight;
-                            changed = true;
-                        }
-
                         if (!string.IsNullOrEmpty(match.FriendlyName))
                         {
                             setting.ReadableDeviceName = match.FriendlyName;
@@ -360,7 +452,7 @@ namespace DisplayProfileManager.Core
                 {
                     if (string.IsNullOrEmpty(setting.ColorProfile))
                     {
-                        var match = liveConfigs.FirstOrDefault(c => c.TargetId == setting.TargetId);
+                        var match = ResolveHardwareBackfillDisplay(setting, liveConfigs);
                         if (match != null)
                         {
                             try
@@ -408,7 +500,7 @@ namespace DisplayProfileManager.Core
 
                 foreach (var setting in profile.DisplaySettings)
                 {
-                    var match = liveConfigs.FirstOrDefault(c => (c.TargetId & 0xFFFF) == (setting.TargetId & 0xFFFF));
+                    var match = ResolveHardwareBackfillDisplay(setting, liveConfigs);
                     if (match == null)
                     {
                         _logger.Info($"Migration: {setting.ReadableDeviceName} (TargetId {setting.TargetId}) not connected, skipping identity backfill");
@@ -430,6 +522,29 @@ namespace DisplayProfileManager.Core
                 profile.SchemaVersion = 5;
                 changed = true;
             }
+            if (profile.SchemaVersion < 6)
+            {
+                var currentAddresses = addressConfigs ?? new List<DisplayConfigHelper.DisplayConfigInfo>();
+                foreach (var setting in profile.DisplaySettings ?? new List<DisplaySetting>())
+                {
+                    if (setting.IsHdrEnabled)
+                        setting.IsWcgEnabled = false;
+
+                    setting.NativeWidth = 0;
+                    setting.NativeHeight = 0;
+
+                    var match = ResolveHardwareBackfillDisplay(setting, currentAddresses);
+                    if (match?.NativeWidth > 0 && match.NativeHeight > 0)
+                    {
+                        setting.NativeWidth = match.NativeWidth;
+                        setting.NativeHeight = match.NativeHeight;
+                    }
+                }
+
+                profile.WallpaperSettings = new WallpaperSettings();
+                profile.SchemaVersion = 6;
+                changed = true;
+            }
 
             return changed;
         }
@@ -440,6 +555,13 @@ namespace DisplayProfileManager.Core
 
             try
             {
+                if (!CanPersistProfileSchema(profile))
+                {
+                    string schema = profile == null ? "<null>" : profile.SchemaVersion.ToString();
+                    _logger.Warn($"Refusing to save profile schema {schema}; expected {CurrentSchemaVersion}");
+                    return false;
+                }
+
                 var filePath = GetProfileFilePath(profile.Id);
                 var json = JsonConvert.SerializeObject(profile, Formatting.Indented);
                 await Task.Run(() => FileHelper.AtomicWrite(filePath, json));
@@ -468,6 +590,15 @@ namespace DisplayProfileManager.Core
                     return null;
                 }
 
+                if (NeedsProfileMigration(profile))
+                {
+                    await MigrateProfileAsync(
+                        profile,
+                        _getMigrationDisplayConfigs(),
+                        _getMigrationDisplayAddresses(),
+                        json);
+                }
+
                 if (!TryNormalizeProfileId(profile.Id, out string normalizedProfileId) || GetProfile(normalizedProfileId) != null)
                     profile.Id = Guid.NewGuid().ToString();
                 else
@@ -477,7 +608,9 @@ namespace DisplayProfileManager.Core
                 profile.UpdateLastModified();
 
                 if (!await AddProfileAsync(profile))
+                {
                     return null;
+                }
 
                 return profile;
             }
@@ -500,10 +633,58 @@ namespace DisplayProfileManager.Core
             return false;
         }
 
+        internal static bool TryValidateManagedProfileIdentity(string filePath, Profile profile, ISet<string> acceptedProfileIds, out string failureReason)
+        {
+            failureReason = string.Empty;
+            if (profile == null || acceptedProfileIds == null)
+            {
+                failureReason = "profile identity context is missing";
+                return false;
+            }
+
+            if (!TryNormalizeProfileId(profile.Id, out string normalizedProfileId))
+            {
+                failureReason = $"profile id '{profile.Id}' is not a GUID";
+                return false;
+            }
+
+            string fileStem = Path.GetFileNameWithoutExtension(filePath);
+            if (!Guid.TryParse(fileStem, out Guid fileGuid))
+            {
+                failureReason = $"filename stem '{fileStem}' is not a GUID";
+                return false;
+            }
+
+            string normalizedFileId = fileGuid.ToString("D");
+            if (!string.Equals(normalizedProfileId, normalizedFileId, StringComparison.OrdinalIgnoreCase))
+            {
+                failureReason = $"profile id '{normalizedProfileId}' does not match filename id '{normalizedFileId}'";
+                return false;
+            }
+
+            if (!string.Equals(fileStem, normalizedFileId, StringComparison.OrdinalIgnoreCase))
+            {
+                failureReason = $"filename stem '{fileStem}' is not the canonical GUID path";
+                return false;
+            }
+
+            if (!acceptedProfileIds.Add(normalizedProfileId))
+            {
+                failureReason = $"duplicate profile id '{normalizedProfileId}'";
+                return false;
+            }
+
+            profile.Id = normalizedProfileId;
+            return true;
+        }
+
         public Profile DuplicateProfile(string profileId)
         {
             var sourceProfile = GetProfile(profileId);
-            if (sourceProfile == null) return null;
+            if (sourceProfile == null)
+            {
+                return null;
+            }
 
             var duplicatedProfile = new Profile
             {
@@ -522,12 +703,9 @@ namespace DisplayProfileManager.Core
                     ReadableDeviceName = ds.ReadableDeviceName,
                     ManufacturerName = ds.ManufacturerName,
                     ProductCodeID = ds.ProductCodeID,
-                    AdapterId = ds.AdapterId,
                     TargetId = ds.TargetId,
-                    SourceId = ds.SourceId,
                     CloneGroupId = ds.CloneGroupId,
                     IsCloneSource = ds.IsCloneSource,
-                    PathIndex = ds.PathIndex,
                     // State
                     IsEnabled = ds.IsEnabled,
                     IsPrimary = ds.IsPrimary,
@@ -541,8 +719,9 @@ namespace DisplayProfileManager.Core
                     Rotation = ds.Rotation,
                     DpiScaling = ds.DpiScaling,
                     IsHdrSupported = ds.IsHdrSupported,
+                    IsWcgSupported = ds.IsWcgSupported,
                     IsHdrEnabled = ds.IsHdrEnabled,
-                    IsAcmEnabled = ds.IsAcmEnabled,
+                    IsWcgEnabled = ds.IsWcgEnabled,
                     ColorProfile = ds.ColorProfile,
                     // Native
                     NativeWidth = ds.NativeWidth,
@@ -600,7 +779,10 @@ namespace DisplayProfileManager.Core
         public async Task<Profile> DuplicateProfileAsync(string profileId)
         {
             var duplicatedProfile = DuplicateProfile(profileId);
-            if (duplicatedProfile == null) return null;
+            if (duplicatedProfile == null)
+            {
+                return null;
+            }
 
             if (await AddProfileAsync(duplicatedProfile))
             {
@@ -641,6 +823,60 @@ namespace DisplayProfileManager.Core
 
         #region Apply
 
+        internal sealed class AdvancedColorCaptureUnavailableException : InvalidOperationException
+        {
+            public AdvancedColorCaptureUnavailableException(string message) : base(message) { }
+        }
+
+        internal static List<DisplayConfigHelper.DisplayConfigInfo> CaptureDisplayConfigsForProfile(
+            Func<List<DisplayConfigHelper.DisplayConfigInfo>> getDisplayConfigs,
+            bool requireKnownAdvancedColor,
+            int maxAttempts = 3,
+            Action<int> retryDelay = null)
+        {
+            if (getDisplayConfigs == null) throw new ArgumentNullException(nameof(getDisplayConfigs));
+            if (maxAttempts < 1) throw new ArgumentOutOfRangeException(nameof(maxAttempts));
+
+            int attempts = requireKnownAdvancedColor ? maxAttempts : 1;
+            List<DisplayConfigHelper.DisplayConfigInfo> configs = null;
+
+            for (int attempt = 1; attempt <= attempts; attempt++)
+            {
+                configs = getDisplayConfigs() ?? new List<DisplayConfigHelper.DisplayConfigInfo>();
+                if (!requireKnownAdvancedColor || configs.All(config => config == null || config.IsAdvancedColorInfoAvailable))
+                {
+                    return configs;
+                }
+
+                if (attempt < attempts)
+                    retryDelay?.Invoke(attempt);
+            }
+
+            var unavailableDisplays = configs
+                .Where(config => config != null && !config.IsAdvancedColorInfoAvailable)
+                .Select(config => !string.IsNullOrWhiteSpace(config.FriendlyName) ? config.FriendlyName : config.DeviceName)
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .ToList();
+            string suffix = unavailableDisplays.Count > 0 ? $" for {string.Join(", ", unavailableDisplays)}" : string.Empty;
+            throw new AdvancedColorCaptureUnavailableException($"Advanced Color state is temporarily unavailable{suffix}; current display capture was deferred.");
+        }
+
+        internal static void ProjectAdvancedColorForCapture(
+            DisplaySetting setting,
+            DisplayConfigHelper.DisplayConfigInfo live,
+            bool requireKnownAdvancedColor)
+        {
+            if (setting == null) throw new ArgumentNullException(nameof(setting));
+            if (live == null) throw new ArgumentNullException(nameof(live));
+
+            if (requireKnownAdvancedColor && !live.IsAdvancedColorInfoAvailable) throw new AdvancedColorCaptureUnavailableException("Advanced Color state became unavailable while current display settings were being captured.");
+
+            setting.IsHdrSupported = live.IsHdrSupported;
+            setting.IsWcgSupported = live.IsWcgSupported;
+            setting.IsHdrEnabled = live.IsHdrEnabled;
+            setting.IsWcgEnabled = live.IsWcgEnabled;
+        }
+
         public async Task<List<DisplaySetting>> GetCurrentDisplaySettingsAsync()
         {
             return await Task.Run(() =>
@@ -649,11 +885,16 @@ namespace DisplayProfileManager.Core
 
                 try
                 {
-                    _logger.Debug("Getting current display settings...");
+                    _logger.Debug("Reading current display settings...");
 
                     List<DisplayHelper.DisplayInfo> displays = DisplayHelper.GetDisplays();
 
-                    List<DisplayConfigHelper.DisplayConfigInfo> displayConfigs = DisplayConfigHelper.GetDisplayConfigs();
+                    bool requireKnownAdvancedColor = DisplayConfigHelper.IsWindows24H2OrGreater();
+                    List<DisplayConfigHelper.DisplayConfigInfo> displayConfigs = CaptureDisplayConfigsForProfile(
+                        DisplayConfigHelper.GetDisplayConfigs,
+                        requireKnownAdvancedColor,
+                        maxAttempts: 3,
+                        retryDelay: attempt => System.Threading.Thread.Sleep(100 * attempt));
 
                     if (displayConfigs.Count > 0)
                     {
@@ -662,7 +903,6 @@ namespace DisplayProfileManager.Core
                             var foundConfig = displayConfigs[i];
                             var foundDisplay = displays.Find(x => x.DeviceName == foundConfig.DeviceName);
 
-                            string adpaterIdText = $"{foundConfig.AdapterId.HighPart:X8}{foundConfig.AdapterId.LowPart:X8}";
                             DpiHelper.DPIScalingInfo dpiInfo = DpiHelper.GetDPIScalingInfo(foundConfig.DeviceName, foundConfig);
 
                             DisplaySetting setting = new DisplaySetting();
@@ -672,10 +912,8 @@ namespace DisplayProfileManager.Core
                             setting.ReadableDeviceName = !string.IsNullOrEmpty(foundConfig.FriendlyName) ? foundConfig.FriendlyName : foundConfig.DeviceName;
                             setting.ManufacturerName = foundConfig.ManufacturerName;
                             setting.ProductCodeID = foundConfig.ProductCodeID;
-                            setting.AdapterId = adpaterIdText;
+                            setting.AdapterLuid = foundConfig.AdapterId;
                             setting.TargetId = foundConfig.TargetId;
-                            setting.SourceId = foundConfig.SourceId;
-                            setting.PathIndex = foundConfig.PathIndex;
                             // State
                             setting.IsEnabled = foundConfig.IsEnabled;
                             setting.IsPrimary = foundDisplay?.IsPrimary ?? foundConfig.IsPrimary;
@@ -688,15 +926,12 @@ namespace DisplayProfileManager.Core
                             setting.Frequency = foundDisplay?.Frequency ?? (int)foundConfig.RefreshRate;
                             setting.Rotation = (int)foundConfig.Rotation;
                             setting.DpiScaling = dpiInfo.Current;
-                            setting.IsHdrSupported = foundConfig.IsHdrSupported;
-                            setting.IsHdrEnabled = foundConfig.IsHdrEnabled;
-                            setting.IsAcmEnabled = foundConfig.IsAcmEnabled;
+                            ProjectAdvancedColorForCapture(setting, foundConfig, requireKnownAdvancedColor);
                             setting.ColorProfile = ColorProfileHelper.GetDisplayDefaultColorProfile(foundConfig.AdapterId, foundConfig.SourceId);
                             // Native
                             setting.NativeWidth = foundConfig.NativeWidth;
                             setting.NativeHeight = foundConfig.NativeHeight;
 
-                            // Capture display capabilities
                             try
                             {
                                 var capabilities = DisplayHelper.GetDisplayCapabilities(setting.DeviceName);
@@ -721,17 +956,26 @@ namespace DisplayProfileManager.Core
 
                         _logger.Info($"Created {settings.Count} display settings from {displayConfigs.Count} configs");
 
-                        // Detect clone groups
-                        var cloneGroups = settings.GroupBy(s => new { s.DeviceName, s.SourceId }).Where(g => g.Count() > 1).ToList();
+                        // Detect clone groups from live CCD source relationships
+                        var cloneGroups = displayConfigs
+                            .Select((config, index) => new { config, index })
+                            .Where(item => item.config.IsEnabled)
+                            .GroupBy(item => new { item.config.AdapterId.HighPart, item.config.AdapterId.LowPart, item.config.SourceId })
+                            .Where(group => group.Count() > 1)
+                            .ToList();
                         if (cloneGroups.Any())
                         {
                             int cloneGroupIndex = 1;
                             foreach (var group in cloneGroups)
                             {
                                 string cloneGroupId = $"clone-group-{cloneGroupIndex}";
-                                foreach (var setting in group)
+                                bool first = true;
+                                foreach (var item in group)
                                 {
+                                    var setting = settings[item.index];
                                     setting.CloneGroupId = cloneGroupId;
+                                    setting.IsCloneSource = first;
+                                    first = false;
                                     _logger.Info($"Detected clone group '{cloneGroupId}': " + $"{setting.ReadableDeviceName} (TargetId: {setting.TargetId})");
                                 }
                                 cloneGroupIndex++;
@@ -739,6 +983,11 @@ namespace DisplayProfileManager.Core
                             _logger.Info($"Detected {TextHelper.Plural(cloneGroups.Count, "clone group")} with {cloneGroups.Sum(g => g.Count())} total displays");
                         }
                     }
+                }
+                catch (AdvancedColorCaptureUnavailableException ex)
+                {
+                    _logger.Warn(ex.Message);
+                    throw;
                 }
                 catch (Exception ex)
                 {
@@ -749,7 +998,137 @@ namespace DisplayProfileManager.Core
             });
         }
 
-        public async Task<ProfileApplyResult> ApplyProfileAsync(Profile profile, ApplySource source = ApplySource.Unknown)
+        internal static bool TryMapDisplaySettingForApply(
+            DisplaySetting setting,
+            List<DisplayConfigHelper.DisplayConfigInfo> activeDisplayConfigs,
+            List<DisplayConfigHelper.DisplayConfigInfo> addressDisplayConfigs,
+            out DisplayConfigHelper.DisplayConfigInfo mapped,
+            out DisplayConfigHelper.CurrentAddressResolutionStatus resolutionStatus)
+        {
+            if (setting == null) throw new ArgumentNullException(nameof(setting));
+
+            var currentAddress = DisplayConfigHelper.ResolveCurrentApplyAddressDetailed(setting, addressDisplayConfigs, out resolutionStatus);
+            if (currentAddress == null && resolutionStatus != DisplayConfigHelper.CurrentAddressResolutionStatus.Absent)
+            {
+                mapped = null;
+                return false;
+            }
+
+            var active = currentAddress != null
+                ? activeDisplayConfigs?.FirstOrDefault(c => CcdAddress.Target(c).Equals(CcdAddress.Target(currentAddress)))
+                : null;
+
+            mapped = new DisplayConfigHelper.DisplayConfigInfo
+            {
+                // Current hardware address
+                DeviceName = !string.IsNullOrEmpty(currentAddress?.DeviceName) ? currentAddress.DeviceName : setting.DeviceName,
+                FriendlyName = setting.ReadableDeviceName,
+                ManufacturerName = !string.IsNullOrEmpty(currentAddress?.ManufacturerName) ? currentAddress.ManufacturerName : setting.ManufacturerName,
+                ProductCodeID = !string.IsNullOrEmpty(currentAddress?.ProductCodeID) ? currentAddress.ProductCodeID : setting.ProductCodeID,
+                MonitorDevicePath = currentAddress?.MonitorDevicePath ?? string.Empty,
+                AdapterId = currentAddress?.AdapterId ?? default,
+                TargetId = currentAddress?.TargetId ?? setting.TargetId,
+                RawTargetId = currentAddress?.RawTargetId ?? setting.TargetId,
+                PathIndex = currentAddress?.PathIndex ?? 0,
+                OutputTechnology = currentAddress?.OutputTechnology ?? default,
+                // Desired topology state
+                SourceId = 0,
+                IsEnabled = setting.IsEnabled,
+                IsPrimary = setting.IsPrimary,
+                DisplayPositionX = setting.DisplayPositionX,
+                DisplayPositionY = setting.DisplayPositionY,
+                Width = setting.Width,
+                Height = setting.Height,
+                RefreshRate = setting.Frequency,
+                Rotation = (DisplayConfigHelper.DisplayConfigRotation)setting.Rotation,
+                IsHdrSupported = active?.IsHdrSupported ?? setting.IsHdrSupported,
+                IsWcgSupported = active?.IsWcgSupported ?? setting.IsWcgSupported,
+                IsHdrEnabled = setting.IsHdrEnabled,
+                IsWcgEnabled = setting.IsWcgEnabled,
+                ColorProfile = setting.ColorProfile
+            };
+            return true;
+        }
+
+        internal static void AssignDesiredSourceGroups(IEnumerable<(DisplaySetting Setting, DisplayConfigHelper.DisplayConfigInfo Mapped)> mappings)
+        {
+            var sourceByGroup = new Dictionary<string, uint>(StringComparer.Ordinal);
+            var nextSourceByAdapter = new Dictionary<string, uint>(StringComparer.Ordinal);
+            int independentOrdinal = 0;
+
+            foreach (var pair in mappings ?? Enumerable.Empty<(DisplaySetting, DisplayConfigHelper.DisplayConfigInfo)>())
+            {
+                if (pair.Setting == null || pair.Mapped == null) continue;
+
+                string adapterKey = CcdAddress.FormatLuid(pair.Mapped.AdapterId);
+                string semanticGroup = pair.Setting.IsPartOfCloneGroup()
+                    ? $"clone:{pair.Setting.CloneGroupId}"
+                    : $"display:{independentOrdinal++}";
+                string key = $"{adapterKey}|{semanticGroup}";
+
+                if (!sourceByGroup.TryGetValue(key, out uint sourceId))
+                {
+                    nextSourceByAdapter.TryGetValue(adapterKey, out sourceId);
+                    sourceByGroup[key] = sourceId;
+                    nextSourceByAdapter[adapterKey] = sourceId + 1;
+                }
+
+                pair.Mapped.SourceId = sourceId;
+            }
+        }
+
+        internal static bool TryMapDisplaySettingsForApply(
+            IEnumerable<DisplaySetting> settings,
+            List<DisplayConfigHelper.DisplayConfigInfo> activeDisplayConfigs,
+            List<DisplayConfigHelper.DisplayConfigInfo> addressDisplayConfigs,
+            out List<DisplayConfigHelper.DisplayConfigInfo> mappedDisplayConfigs,
+            Action<DisplaySetting, DisplayConfigHelper.CurrentAddressResolutionStatus> unsafeResolution = null)
+        {
+            mappedDisplayConfigs = new List<DisplayConfigHelper.DisplayConfigInfo>();
+            var pendingSettings = (settings ?? Enumerable.Empty<DisplaySetting>()).ToList();
+            if (pendingSettings.Count > 0 && (addressDisplayConfigs == null || addressDisplayConfigs.Count == 0))
+            {
+                foreach (var setting in pendingSettings)
+                    unsafeResolution?.Invoke(setting, DisplayConfigHelper.CurrentAddressResolutionStatus.InsufficientEvidence);
+                return false;
+            }
+
+            bool allSafe = true;
+            var mappedPairs = new List<(DisplaySetting Setting, DisplayConfigHelper.DisplayConfigInfo Mapped)>();
+            foreach (var setting in pendingSettings)
+            {
+                if (!TryMapDisplaySettingForApply(setting, activeDisplayConfigs, addressDisplayConfigs, out var mapped, out var resolutionStatus))
+                {
+                    allSafe = false;
+                    unsafeResolution?.Invoke(setting, resolutionStatus);
+                    continue;
+                }
+
+                mappedDisplayConfigs.Add(mapped);
+                mappedPairs.Add((setting, mapped));
+            }
+
+            AssignDesiredSourceGroups(mappedPairs);
+            return allSafe;
+        }
+
+        internal static DisplayConfigHelper.DisplayConfigInfo MapDisplaySettingForApply(
+            DisplaySetting setting,
+            List<DisplayConfigHelper.DisplayConfigInfo> activeDisplayConfigs,
+            List<DisplayConfigHelper.DisplayConfigInfo> addressDisplayConfigs)
+        {
+            TryMapDisplaySettingForApply(setting, activeDisplayConfigs, addressDisplayConfigs, out var mapped, out _);
+            if (mapped != null)
+                AssignDesiredSourceGroups(new[] { (setting, mapped) });
+            return mapped;
+        }
+        internal static Task<bool> ApplyWallpaperOffUiAsync(
+            WallpaperSettings settings,
+            Func<WallpaperSettings, bool> apply = null) =>
+            Task.Run(() => (apply ?? WallpaperHelper.Apply)(settings));
+        public Task<ProfileApplyResult> ApplyProfileAsync(Profile profile, ApplySource source = ApplySource.Unknown) => _applyAuthority.EnqueueAsync(() => ApplyProfileCoreAsync(profile, source));
+
+        private async Task<ProfileApplyResult> ApplyProfileCoreAsync(Profile profile, ApplySource source)
         {
             try
             {
@@ -759,53 +1138,35 @@ namespace DisplayProfileManager.Core
 
                 // Capture Pre-Apply Snapshot
                 List<DisplayConfigHelper.DisplayConfigInfo> preApplySnapshot = null;
-                if (!_rollingBack && _settingsManager.ShouldRollbackAfterApplyFailure())
-                    preApplySnapshot = DisplayConfigHelper.GetDisplayConfigs();
+                if (!_rollingBack && _applyRuntime.ShouldRollbackAfterApplyFailure())
+                    preApplySnapshot = _applyRuntime.GetDisplayConfigs();
 
                 // Map Display Configurations
                 ProfileApplyResult result = new ProfileApplyResult { AudioSuccess = true, DpiChanged = true };
                 var mapWatch = Stopwatch.StartNew();
                 var displayConfigs = new List<DisplayConfigHelper.DisplayConfigInfo>();
-                List<DisplayConfigHelper.DisplayConfigInfo> liveDisplayConfigs = null;
+                var displayAddressAuthorizations = new List<DisplayApplyAddressAuthorization>();
+                bool displayAddressResolutionSafe = true;
                 if (profile.DisplaySettings.Count > 0)
                 {
-                    liveDisplayConfigs = DisplayConfigHelper.GetDisplayConfigs();
-                    foreach (var setting in profile.DisplaySettings)
-                    {
-                        var live = DisplayConfigHelper.ResolveLiveDisplay(setting, liveDisplayConfigs);
-
-                        displayConfigs.Add(new DisplayConfigHelper.DisplayConfigInfo
-                        {
-                            // Identity
-                            DeviceName = live?.DeviceName ?? setting.DeviceName,
-                            FriendlyName = setting.ReadableDeviceName,
-                            AdapterId = DisplayConfigHelper.GetLUIDFromString(setting.AdapterId),
-                            SourceId = setting.SourceId,
-                            TargetId = live?.TargetId ?? setting.TargetId,
-                            PathIndex = setting.PathIndex,
-                            // State
-                            IsEnabled = setting.IsEnabled,
-                            IsPrimary = setting.IsPrimary,
-                            // Layout
-                            DisplayPositionX = setting.DisplayPositionX,
-                            DisplayPositionY = setting.DisplayPositionY,
-                            // Configuration
-                            Width = setting.Width,
-                            Height = setting.Height,
-                            RefreshRate = setting.Frequency,
-                            Rotation = (DisplayConfigHelper.DisplayConfigRotation)setting.Rotation,
-                            IsHdrSupported = setting.IsHdrSupported,
-                            IsHdrEnabled = setting.IsHdrEnabled,
-                            IsAcmEnabled = setting.IsAcmEnabled,
-                            ColorProfile = setting.ColorProfile
-                        });
-                    }
+                    var activeDisplayConfigs = _applyRuntime.GetDisplayConfigs();
+                    var addressDisplayConfigs = _applyRuntime.GetAllPathDisplayAddresses();
+                    displayAddressResolutionSafe = DisplayApplyAuthorization.TryMapDisplaySettingsForApply(
+                        profile.DisplaySettings,
+                        activeDisplayConfigs,
+                        addressDisplayConfigs,
+                        out displayConfigs,
+                        out displayAddressAuthorizations,
+                        (setting, resolutionStatus) => _logger.Error(
+                            $"Cannot safely resolve current display address for '{setting.ReadableDeviceName}' ({resolutionStatus}); refusing topology mutation."));
                 }
                 mapWatch.Stop();
 
                 // Apply Display Topology
                 var topologyWatch = Stopwatch.StartNew();
-                bool topologyApplied = DisplayConfigHelper.ApplyDisplayTopology(displayConfigs);
+                bool topologyApplied = displayAddressResolutionSafe && _applyRuntime.ApplyDisplayTopology(displayConfigs);
+                if (!displayAddressResolutionSafe)
+                    _logger.Warn($"Topology apply blocked for '{profile.Name}' because one or more display addresses were unsafe to resolve.");
                 if (ShouldForceApplyFailureAt(1))
                     topologyApplied = false;
                 if (!topologyApplied)
@@ -815,24 +1176,24 @@ namespace DisplayProfileManager.Core
                 // Apply Display Configuration
                 var configWatch = Stopwatch.StartNew();
                 if (topologyApplied)
-        {
-            var displayResult = await DisplayConfigHelper.ApplyDisplayConfigDetailed(displayConfigs);
-            result.DisplayConfigApplied = displayResult.Success;
-            result.AdvancedColorSuccess = displayResult.AdvancedColorSuccess;
-            result.ColorProfileSuccess = displayResult.ColorProfileSuccess;
-        }
+                {
+                    var displayResult = await _applyRuntime.ApplyDisplayConfigDetailed(displayConfigs);
+                    result.DisplayConfigApplied = displayResult.Success;
+                    result.AdvancedColorSuccess = displayResult.AdvancedColorSuccess;
+                    result.ColorProfileSuccess = displayResult.ColorProfileSuccess;
+                }
                 configWatch.Stop();
 
                 if (topologyApplied && ShouldForceApplyFailureAt(2))
                     result.DisplayConfigApplied = false;
 
                 // Handle Display-Stage Failure
-                if (!result.DisplayConfigApplied && !_rollingBack && _settingsManager.ShouldAbortOnApplyFailure())
+                if (!result.DisplayConfigApplied && !_rollingBack && _applyRuntime.ShouldAbortOnApplyFailure())
                 {
                     _logger.Warn($"Aborting apply of '{profile.Name}' — display configuration failed");
                     result.Success = false;
 
-                    if (_settingsManager.ShouldRollbackAfterApplyFailure())
+                    if (_applyRuntime.ShouldRollbackAfterApplyFailure())
                         await RollbackFailedApplyAsync(previousProfileId, preApplySnapshot, profile.Name);
 
                     return result;
@@ -840,24 +1201,11 @@ namespace DisplayProfileManager.Core
 
                 // Apply DPI Settings
                 var dpiWatch = Stopwatch.StartNew();
-                bool allDpiChanged = true;
-                var dpiLiveConfigs = DisplayConfigHelper.GetDisplayConfigs();
-                var dpiTargets = profile.DisplaySettings
-                    .Where(s => s.IsEnabled)
-                    .Select(setting => new { setting, live = DisplayConfigHelper.ResolveLiveDisplay(setting, dpiLiveConfigs) })
-                    .Where(x => x.live != null)
-                    .GroupBy(x => x.live.DeviceName)
-                    .Select(g => g.First())
-                    .ToList();
-                foreach (var target in dpiTargets)
-                {
-                    if (!DpiHelper.SetDPIScaling(target.live.DeviceName, target.setting.DpiScaling, target.live))
-                    {
-                        _logger.Warn($"Failed to set DPI scaling for {target.live.DeviceName}");
-                        allDpiChanged = false;
-                    }
-                }
-                result.DpiChanged = allDpiChanged;
+                var dpiLiveConfigs = _applyRuntime.GetDisplayConfigs();
+                result.DpiChanged = DisplayApplyAuthorization.ApplyDpiSettings(
+                    displayAddressAuthorizations,
+                    dpiLiveConfigs,
+                    _applyRuntime.SetDpiScaling);
                 dpiWatch.Stop();
 
                 // Apply Wallpaper Settings
@@ -866,10 +1214,11 @@ namespace DisplayProfileManager.Core
                 {
                     try
                     {
-                        WallpaperHelper.Apply(profile.WallpaperSettings);
+                        result.WallpaperSuccess = await ApplyWallpaperOffUiAsync(profile.WallpaperSettings);
                     }
                     catch (Exception ex)
                     {
+                        result.WallpaperSuccess = false;
                         _logger.Warn(ex, "Wallpaper apply failed");
                     }
                 }
@@ -922,11 +1271,14 @@ namespace DisplayProfileManager.Core
 
                     finalizeWatch.Start();
                     _currentProfileId = profile.Id;
-                    await _settingsManager.SetCurrentProfileIdAsync(profile.Id);
+                    result.CurrentProfilePersisted = await _settingsManager.SetCurrentProfileIdAsync(profile.Id);
+                    if (!result.CurrentProfilePersisted)
+                        _logger.Warn($"Profile '{profile.Name}' applied, but the current-profile marker could not be persisted");
                     finalizeWatch.Stop();
 
                     // Self-Heal Missing Hardware Info
-                    var profilesToPersist = BackfillHardwareInfoAcrossProfiles(profile, liveDisplayConfigs);
+                    var postApplyLiveConfigs = DisplayConfigHelper.GetDisplayConfigs();
+                    var profilesToPersist = BackfillHardwareInfoAcrossProfiles(profile, postApplyLiveConfigs);
                     foreach (var changedProfile in profilesToPersist)
                         await SaveProfileAsync(changedProfile);
                 }
@@ -1002,6 +1354,8 @@ namespace DisplayProfileManager.Core
             return changed;
         }
 
+        internal static DisplayConfigHelper.DisplayConfigInfo ResolveHardwareBackfillDisplay(DisplaySetting setting, List<DisplayConfigHelper.DisplayConfigInfo> liveConfigs) => DisplayConfigHelper.ResolveLiveDisplay(setting, liveConfigs);
+
         private List<Profile> BackfillHardwareInfoAcrossProfiles(Profile appliedProfile, List<DisplayConfigHelper.DisplayConfigInfo> liveConfigs)
         {
             var changedProfiles = new List<Profile>();
@@ -1015,27 +1369,27 @@ namespace DisplayProfileManager.Core
             {
                 return changedProfiles;
             }
-            
-            var liveByTargetId = liveConfigs.GroupBy(c => c.TargetId).ToDictionary(g => g.Key, g => g.First());
-            var repairedTargetIds = new HashSet<uint>();
+
+            var repairedTargets = new HashSet<CcdTargetKey>();
             bool appliedChanged = false;
 
             foreach (var setting in appliedProfile.DisplaySettings)
             {
                 if (!HasIncompleteHardwareInfo(setting)) continue;
-                if (!liveByTargetId.TryGetValue(setting.TargetId, out var live)) continue;
+                var live = ResolveHardwareBackfillDisplay(setting, liveConfigs);
+                if (live == null) continue;
 
                 if (BackfillHardwareInfoFromLive(setting, live))
                 {
                     appliedChanged = true;
-                    repairedTargetIds.Add(setting.TargetId);
+                    repairedTargets.Add(CcdAddress.Target(live));
                 }
             }
 
             if (appliedChanged)
                 changedProfiles.Add(appliedProfile);
 
-            if (repairedTargetIds.Count == 0)
+            if (repairedTargets.Count == 0)
             {
                 return changedProfiles;
             }
@@ -1046,9 +1400,9 @@ namespace DisplayProfileManager.Core
 
                 foreach (var setting in other.DisplaySettings)
                 {
-                    if (!repairedTargetIds.Contains(setting.TargetId)) continue;
                     if (!HasIncompleteHardwareInfo(setting)) continue;
-                    if (!liveByTargetId.TryGetValue(setting.TargetId, out var live)) continue;
+                    var live = ResolveHardwareBackfillDisplay(setting, liveConfigs);
+                    if (live == null || !repairedTargets.Contains(CcdAddress.Target(live))) continue;
 
                     if (BackfillHardwareInfoFromLive(setting, live))
                         otherChanged = true;
@@ -1074,7 +1428,10 @@ namespace DisplayProfileManager.Core
 
         public static RollbackTarget SelectRollbackTarget(bool rollbackAfterApplyFailure, bool rollbackToPreviousProfile, bool hasPreviousProfile)
         {
-            if (!rollbackAfterApplyFailure) return RollbackTarget.None;
+            if (!rollbackAfterApplyFailure)
+            {
+                return RollbackTarget.None;
+            }
 
             return rollbackToPreviousProfile && hasPreviousProfile ? RollbackTarget.PreviousProfile : RollbackTarget.Snapshot;
         }
@@ -1099,7 +1456,7 @@ namespace DisplayProfileManager.Core
                 {
                     _logger.Info($"Rolling back to '{previous.Name}' after '{failedProfileName}' apply failed...");
 
-                    var rollbackResult = await ApplyProfileAsync(previous, ApplySource.Unknown);
+                    var rollbackResult = await ApplyProfileCoreAsync(previous, ApplySource.Unknown);
                     if (!rollbackResult.Success)
                         _logger.Error($"Rollback to '{previous.Name}' failed; leaving current desktop state as is");
 
@@ -1155,6 +1512,7 @@ namespace DisplayProfileManager.Core
                 $"Advanced Color: {result.AdvancedColorSuccess},\n" +
                 $"Color Profile: {result.ColorProfileSuccess},\n" +
                 $"DPI: {result.DpiChanged},\n" +
+                $"Wallpaper: {result.WallpaperSuccess},\n" +
                 $"Audio: {result.AudioSuccess}";
 
             return errorDetails;
@@ -1168,7 +1526,10 @@ namespace DisplayProfileManager.Core
 
         public Profile GetProfileByName(string name)
         {
-            if (string.IsNullOrWhiteSpace(name)) return null;
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return null;
+            }
 
             string cleanName = name.Trim();
             return _profiles.FirstOrDefault(p => p.Name.Trim().Equals(cleanName, StringComparison.OrdinalIgnoreCase));
@@ -1176,14 +1537,20 @@ namespace DisplayProfileManager.Core
 
         internal Profile ResolveProfileNameOrId(string nameOrId)
         {
-            if (string.IsNullOrWhiteSpace(nameOrId)) return null;
+            if (string.IsNullOrWhiteSpace(nameOrId))
+            {
+                return null;
+            }
 
             return GetProfile(nameOrId) ?? GetProfileByName(nameOrId);
         }
 
         public Profile GetCurrentProfile()
         {
-            if (string.IsNullOrEmpty(_currentProfileId)) return null;
+            if (string.IsNullOrEmpty(_currentProfileId))
+            {
+                return null;
+            }
 
             return GetProfile(_currentProfileId);
         }
@@ -1211,7 +1578,9 @@ namespace DisplayProfileManager.Core
         internal async Task<bool> AddProfileAsync(Profile profile, Func<Profile, Task<bool>> saveProfile)
         {
             if (!await saveProfile(profile))
+            {
                 return false;
+            }
 
             AddProfile(profile);
             return true;
@@ -1235,11 +1604,15 @@ namespace DisplayProfileManager.Core
         {
             var existingProfile = GetProfile(profile.Id);
             if (existingProfile == null)
+            {
                 return false;
+            }
 
             profile.UpdateLastModified();
             if (!await saveProfile(profile))
+            {
                 return false;
+            }
 
             var index = _profiles.IndexOf(existingProfile);
             _profiles[index] = profile;
@@ -1260,7 +1633,9 @@ namespace DisplayProfileManager.Core
             try
             {
                 if (!await deleteProfileFile(profileId))
+                {
                     return false;
+                }
 
                 DeleteProfile(profileId);
                 return true;
@@ -1323,14 +1698,20 @@ namespace DisplayProfileManager.Core
         private static string Compose(string stem, string marker)
         {
             var composed = stem + marker;
-            if (composed.Length <= MaxProfileNameLength) return composed;
+            if (composed.Length <= MaxProfileNameLength)
+            {
+                return composed;
+            }
 
             var existing = MarkerChain(stem);
             var root = stem.Substring(0, stem.Length - existing.Length);
             var tail = existing + marker;
 
             var room = MaxProfileNameLength - tail.Length - 1;
-            if (room < 1) return composed.Substring(0, MaxProfileNameLength);
+            if (room < 1)
+            {
+                return composed.Substring(0, MaxProfileNameLength);
+            }
 
             return root.Substring(0, Math.Min(room, root.Length)).TrimEnd() + "\u2026" + tail;
         }

@@ -1,0 +1,57 @@
+name: PR Validation
+run-name: "PR #${{ github.event.number }} — ${{ github.head_ref }}"
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+concurrency:
+  group: pr-validation-${{ github.event.number }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore DisplayProfileManager.sln
+
+      - name: Run tests
+        run: dotnet test DisplayProfileManager.Tests/DisplayProfileManager.Tests.csproj --configuration Release --no-restore -p:Platform=x64
+
+      - name: Build application x64
+        run: >
+          msbuild DisplayProfileManager/DisplayProfileManager.csproj
+          /restore
+          /p:Configuration=Release
+          /p:Platform=x64
+          /p:RuntimeIdentifier=win-x64
+          /p:SelfContained=false
+          /p:SolutionDir="${{ github.workspace }}\"
+
+      - name: Build shell extension x64
+        run: >
+          msbuild DisplayProfileManager.ShellExt/DisplayProfileManager.ShellExt.vcxproj
+          /p:Configuration=Release
+          /p:Platform=x64
+          /p:SolutionDir="${{ github.workspace }}\"

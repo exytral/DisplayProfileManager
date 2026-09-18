@@ -67,7 +67,7 @@ namespace DisplayProfileManager.Tests.Tests
 
         [TestMethod]
         [TestCategory("Unit")]
-        public void IsPastCooldown_WellPastSevenDays_ReturnsTrue()
+        public void IsPastCooldown_WellPastCooldown_ReturnsTrue()
         {
             var publishedAt = new JValue(DateTimeOffset.UtcNow.AddDays(-30).ToString("o"));
 
@@ -76,20 +76,20 @@ namespace DisplayProfileManager.Tests.Tests
 
         [TestMethod]
         [TestCategory("Unit")]
-        public void IsPastCooldown_ExactlySevenDaysOld_ReturnsTrue()
+        public void IsPastCooldown_ExactlyThreeDaysOld_ReturnsTrue()
         {
-            var publishedAt = new JValue(DateTimeOffset.UtcNow.AddDays(-7).ToString("o"));
+            var publishedAt = new JValue(DateTimeOffset.UtcNow.AddDays(-3).ToString("o"));
 
-            Assert.IsTrue(UpdateHelper.IsPastCooldown(publishedAt), "A release exactly seven days old has cleared the cooldown window (boundary is inclusive).");
+            Assert.IsTrue(UpdateHelper.IsPastCooldown(publishedAt), "A release exactly three days old has cleared the cooldown window (boundary is inclusive).");
         }
 
         [TestMethod]
         [TestCategory("Unit")]
-        public void IsPastCooldown_JustUnderSevenDays_ReturnsFalse()
+        public void IsPastCooldown_JustUnderThreeDays_ReturnsFalse()
         {
-            var publishedAt = new JValue(DateTimeOffset.UtcNow.AddDays(-7).AddHours(1).ToString("o"));
+            var publishedAt = new JValue(DateTimeOffset.UtcNow.AddDays(-3).AddHours(1).ToString("o"));
 
-            Assert.IsFalse(UpdateHelper.IsPastCooldown(publishedAt), "A release just under seven days old must still be inside the cooldown window.");
+            Assert.IsFalse(UpdateHelper.IsPastCooldown(publishedAt), "A release just under three days old must still be inside the cooldown window.");
         }
 
         [TestMethod]

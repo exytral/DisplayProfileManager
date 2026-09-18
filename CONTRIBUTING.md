@@ -38,6 +38,13 @@ Treat the pull-request description as a compact review record:
 
 For larger pull requests, use a changelog-like breakdown by subsystem or responsibility so reviewers can understand the change without reconstructing it from the commit history.
 
+Pull-request prose is repository-facing and should stand on its own:
+
+- follow `styles/GENERAL.md` terminology; do not use `DPM` as an ordinary noun outside established proper names;
+- describe the submitted change, not internal release or coordination mechanics — omit temporary branches, internal refs or SHAs, workflow/run IDs, and similar process-only detail;
+- avoid repeating the release version inside bullets when the PR title and scope already establish it; use durable wording such as `the development cycle` when chronology is genuinely relevant;
+- report validation outcomes and meaningful limits, not the infrastructure or coordination path used to obtain them.
+
 ## AI assistance
 
 Disclose material AI assistance in the pull request when an AI tool substantially contributed to design, implementation, debugging, review, test work, analysis, documentation, or other relevant project work.

@@ -1,4 +1,4 @@
-﻿using DisplayProfileManager.Core;
+using DisplayProfileManager.Core;
 using DisplayProfileManager.Helpers;
 using DisplayProfileManager.UI;
 using DisplayProfileManager.UI.Windows;
@@ -29,6 +29,7 @@ namespace DisplayProfileManager
         private EventWaitHandle _showWindowEvent;
         private CancellationTokenSource _cancellationTokenSource;
         private bool _ownsInstanceMutex;
+        private IpcAuthorityKind _ipcAuthority = IpcAuthorityKind.Normal;
 
         private bool _hotkeysDisabledForEditing = false;
         private int _profileEditWindowCount = 0;
@@ -48,74 +49,26 @@ namespace DisplayProfileManager
 
             var cli = CliParser.Parse(e.Args);
 
-            if (cli.ShellAction == ShellAction.Unregister)
+            if (cli.ShellAction != ShellAction.None)
             {
-                bool wasRegistered = ShellContextMenuHelper.IsRegistered();
-                bool ok = ShellContextMenuHelper.Unregister();
+                int exitCode = await ShellCommandCoordinator.ExecuteAsync(
+                    cli.ShellAction,
+                    ShellContextMenuHelper.IsRegistered,
+                    ShellContextMenuHelper.Register,
+                    ShellContextMenuHelper.Unregister,
+                    SettingsManager.Instance.LoadSettingsAsync,
+                    SettingsManager.Instance.SetDesktopContextMenuAsync,
+                    ShellContextMenuHelper.RestartExplorer,
+                    message => _logger.Warn(message));
 
-                if (!ok)
-                {
-                    _logger.Error("--unshell: shell extension removal failed. Exiting.");
-                    Shutdown(1);
-                    return;
-                }
-
-                bool loaded = await SettingsManager.Instance.LoadSettingsAsync();
-                if (loaded)
-                    await SettingsManager.Instance.SetDesktopContextMenuAsync(false);
+                if (exitCode == 1)
+                    _logger.Error(cli.ShellAction == ShellAction.Register ? "--shell operation failed. Exiting." : "--unshell operation failed. Exiting.");
+                else if (cli.ShellAction == ShellAction.Register)
+                    _logger.Info(exitCode == 0 ? "--shell: shell extension registered. Exiting." : "--shell: shell extension was already registered. Exiting.");
                 else
-                    _logger.Warn("--unshell: settings failed to load, skipping DesktopContextMenuEnabled save");
+                    _logger.Info(exitCode == 0 ? "--unshell: shell extension removed and Explorer restarted. Exiting." : "--unshell: shell extension was not registered. Exiting.");
 
-                if (wasRegistered)
-                {
-                    if (!ShellContextMenuHelper.RestartExplorer())
-                    {
-                        _logger.Error("--unshell: shell extension was removed, but Explorer restart failed. Exiting.");
-                        Shutdown(1);
-                        return;
-                    }
-
-                    _logger.Info("--unshell: shell extension removed and Explorer restarted. Exiting.");
-                    Shutdown(0);
-                }
-                else
-                {
-                    _logger.Info("--unshell: shell extension was not registered. Exiting.");
-                    Shutdown(2);
-                }
-
-                return;
-            }
-
-            if (cli.ShellAction == ShellAction.Register)
-            {
-                bool wasRegistered = ShellContextMenuHelper.IsRegistered();
-                bool ok = ShellContextMenuHelper.Register();
-
-                if (!ok)
-                {
-                    _logger.Error("--shell: shell extension registration failed. Exiting.");
-                    Shutdown(1);
-                    return;
-                }
-
-                bool loaded = await SettingsManager.Instance.LoadSettingsAsync();
-                if (loaded)
-                    await SettingsManager.Instance.SetDesktopContextMenuAsync(true);
-                else
-                    _logger.Warn("--shell: settings failed to load, skipping DesktopContextMenuEnabled save");
-
-                if (wasRegistered)
-                {
-                    _logger.Info("--shell: shell extension was already registered. Exiting.");
-                    Shutdown(2);
-                }
-                else
-                {
-                    _logger.Info("--shell: shell extension registered. Exiting.");
-                    Shutdown(0);
-                }
-
+                Shutdown(exitCode);
                 return;
             }
 
@@ -123,6 +76,7 @@ namespace DisplayProfileManager
             bool isRefresh = cli.IsRefresh, isTheme = cli.IsTheme, isProfile = cli.IsProfile, isHeadless = cli.IsHeadless, isExit = cli.IsExit;
             string profile = cli.Profile, theme = cli.Theme;
             var commandQueue = cli.CommandQueue;
+            _ipcAuthority = devMode ? IpcAuthorityKind.Dev : IpcAuthorityKind.Normal;
 
             bool isAuthoritative = true;
             if (!devMode)
@@ -130,23 +84,43 @@ namespace DisplayProfileManager
 
             if (isExit)
             {
-                bool sent = !devMode && !isAuthoritative
-                    ? await IpcServer.SendAsync("CMD:EXIT", IpcAuthorityReadyTimeoutMs)
-                    : await IpcServer.SendAsync("CMD:EXIT");
+                if (devMode)
+                {
+                    bool devSent = await IpcServer.SendAsync("CMD:EXIT", IpcAuthorityKind.Dev);
+                    _logger.Info(devSent ? "--dev --exit command sent. Exiting." : "--dev --exit: no active dev instance found. Exiting.");
+                    Shutdown(devSent ? 0 : 2);
+                    return;
+                }
+
+                if (!isAuthoritative)
+                {
+                    bool normalSent = await IpcServer.SendAsync("CMD:EXIT", IpcAuthorityKind.Normal, IpcAuthorityReadyTimeoutMs);
+                    if (normalSent)
+                    {
+                        _logger.Info("--exit command sent to normal instance. Exiting.");
+                        Shutdown(0);
+                    }
+                    else
+                    {
+                        _logger.Error("Normal instance owns the single-instance mutex, but its IPC pipe did not become ready. Exit command not redirected to dev authority.");
+                        Shutdown(1);
+                    }
+
+                    return;
+                }
+
+                bool sent = await IpcServer.SendAsync("CMD:EXIT", IpcAuthorityKind.Normal);
+                if (!sent)
+                    sent = await IpcServer.SendAsync("CMD:EXIT", IpcAuthorityKind.Dev);
 
                 if (sent)
                 {
                     _logger.Info("--exit command sent. Exiting.");
                     Shutdown(0);
                 }
-                else if (!devMode && !isAuthoritative)
-                {
-                    _logger.Error("Active instance owns the single-instance mutex, but its IPC pipe did not become ready. Exit command not executed locally.");
-                    Shutdown(1);
-                }
                 else
                 {
-                    _logger.Info("--exit: no active instance found. Exiting.");
+                    _logger.Info("--exit: no active normal or dev instance found. Exiting.");
                     Shutdown(2);
                 }
 
@@ -182,6 +156,35 @@ namespace DisplayProfileManager
                 WindowActivationHelper.BringExistingInstanceToFront("Display Profile Manager", ShowWindowEventName);
                 Shutdown();
                 return;
+            }
+            if (devMode && commandQueue.Count > 0)
+            {
+                bool sentAny = false;
+                bool allSent = true;
+                foreach (var cmd in commandQueue)
+                {
+                    if (!await IpcServer.SendAsync(cmd, IpcAuthorityKind.Dev))
+                    {
+                        allSent = false;
+                        break;
+                    }
+
+                    sentAny = true;
+                }
+
+                if (allSent)
+                {
+                    _logger.Info("All commands passed to active dev instance. Exiting.");
+                    Shutdown();
+                    return;
+                }
+
+                if (sentAny)
+                {
+                    _logger.Error("Dev IPC authority stopped accepting commands after partial dispatch. Remaining commands will not execute locally.");
+                    Shutdown(1);
+                    return;
+                }
             }
             if (!devMode && commandQueue.Count > 0)
             {
@@ -356,7 +359,7 @@ namespace DisplayProfileManager
             IpcServer.StartListening(_cancellationTokenSource.Token, async received =>
             {
                 await Dispatcher.InvokeAsync(async () => await HandleIpcMessageAsync(received)).Task.Unwrap();
-            });
+            }, _ipcAuthority);
         }
 
         private async Task HandleIpcMessageAsync(string receivedValue)
@@ -402,7 +405,7 @@ namespace DisplayProfileManager
                 var profile = _profileManager.ResolveProfileNameOrId(targetProfile);
                 if (profile == null)
                 {
-                    _logger.Warn($"IPC: Profile '{targetProfile}' not found.");
+                    _logger.Warn($"IPC: Profile '{targetProfile}' not found");
                     return;
                 }
 
@@ -637,7 +640,7 @@ namespace DisplayProfileManager
 
                 if (profile == null)
                 {
-                    _logger.Warn($"Profile '{profileNameOrId}' not found.");
+                    _logger.Warn($"Profile '{profileNameOrId}' not found");
                     return false;
                 }
 

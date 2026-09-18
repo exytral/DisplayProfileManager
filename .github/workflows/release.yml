@@ -464,7 +464,7 @@ jobs:
           $tag = "${{ github.ref_name }}"
           $finalTitle = "${tag}: $cumulativeTitle"
 
-          $section | Out-File -FilePath "RELEASE-BODY.md" -Encoding utf8
+          [System.IO.File]::WriteAllText("RELEASE-BODY.md", $section.TrimEnd(), [System.Text.UTF8Encoding]::new($false))
           echo "release_title=$finalTitle" >> $env:GITHUB_OUTPUT
 
       - name: Create release
@@ -537,7 +537,7 @@ jobs:
 
           $releaseTitle = if ($versionTitle) { "$previousVersion`: $versionTitle" } else { "$previousVersion" }
           $bodyPath = "PREVIOUS-RELEASE-BODY.md"
-          $newBody | Out-File -FilePath $bodyPath -Encoding utf8
+          [System.IO.File]::WriteAllText($bodyPath, $newBody.TrimEnd(), [System.Text.UTF8Encoding]::new($false))
 
           $payload = @{
             name = $releaseTitle

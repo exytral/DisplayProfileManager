@@ -9,7 +9,6 @@ namespace DisplayProfileManager.Tests.Helpers
         {
             DeviceName = "\\\\.\\DISPLAY1",
             ReadableDeviceName = "Test Monitor",
-            SourceId = 0,
             CloneGroupId = string.Empty,
             IsEnabled = true,
             DisplayPositionX = 0,
@@ -43,12 +42,6 @@ namespace DisplayProfileManager.Tests.Helpers
         public DisplaySettingBuilder WithTargetId(uint id)
         {
             _setting.TargetId = id;
-            return this;
-        }
-
-        public DisplaySettingBuilder WithSourceId(uint id)
-        {
-            _setting.SourceId = id;
             return this;
         }
 
@@ -114,9 +107,9 @@ namespace DisplayProfileManager.Tests.Helpers
             return this;
         }
 
-        public DisplaySettingBuilder WithAcm(bool enabled)
+        public DisplaySettingBuilder WithWcg(bool enabled)
         {
-            _setting.IsAcmEnabled = enabled;
+            _setting.IsWcgEnabled = enabled;
             return this;
         }
 
@@ -128,14 +121,13 @@ namespace DisplayProfileManager.Tests.Helpers
 
         // Sets coherent set of Original* fields as one semantic unit rather than dozen setters
         public DisplaySettingBuilder WithSavedPreCloneState(
-            int positionX, int positionY, uint sourceId, bool isPrimary,
+            int positionX, int positionY, bool isPrimary,
             int width, int height, int frequency, int rotation, uint dpiScaling,
-            bool hdrEnabled, bool acmEnabled, string colorProfile)
+            bool hdrEnabled, bool wcgEnabled, string colorProfile)
         {
             _setting.OriginalSettings = true;
             _setting.OriginalPositionX = positionX;
             _setting.OriginalPositionY = positionY;
-            _setting.OriginalSourceId = sourceId;
             _setting.OriginalIsPrimary = isPrimary;
             _setting.OriginalWidth = width;
             _setting.OriginalHeight = height;
@@ -143,7 +135,7 @@ namespace DisplayProfileManager.Tests.Helpers
             _setting.OriginalRotation = rotation;
             _setting.OriginalDpiScaling = dpiScaling;
             _setting.OriginalIsHdrEnabled = hdrEnabled;
-            _setting.OriginalIsAcmEnabled = acmEnabled;
+            _setting.OriginalIsWcgEnabled = wcgEnabled;
             _setting.OriginalColorProfile = colorProfile;
             return this;
         }

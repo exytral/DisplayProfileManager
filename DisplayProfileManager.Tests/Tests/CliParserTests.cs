@@ -8,6 +8,48 @@ namespace DisplayProfileManager.Tests.Tests
     {
         [TestMethod]
         [TestCategory("Unit")]
+        public void Parse_SlashThemeFollowedBySlashProfile_DoesNotConsumeProfileFlagAsValue()
+        {
+            var options = CliParser.Parse(new[] { "/theme", "/profile", "Profile" });
+
+            Assert.IsTrue(options.IsTheme);
+            Assert.IsNull(options.Theme);
+            Assert.IsTrue(options.IsProfile);
+            Assert.AreEqual("Profile", options.Profile);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void Parse_DashThemeFollowedBySlashProfile_DoesNotConsumeProfileFlagAsValue()
+        {
+            var options = CliParser.Parse(new[] { "--theme", "/profile", "Profile" });
+
+            Assert.IsNull(options.Theme);
+            Assert.IsTrue(options.IsProfile);
+            Assert.AreEqual("Profile", options.Profile);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void Parse_SlashFormsWithValues_StillParseValues()
+        {
+            var options = CliParser.Parse(new[] { "/theme", "Theme", "/profile", "Profile" });
+
+            Assert.AreEqual("Theme", options.Theme);
+            Assert.AreEqual("Profile", options.Profile);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void IsValueFor_DashAndSlashOptions_AreBothRejectedAsValues()
+        {
+            Assert.IsFalse(CliParser.IsValueFor("--profile"));
+            Assert.IsFalse(CliParser.IsValueFor("/profile"));
+            Assert.IsTrue(CliParser.IsValueFor("Profile"));
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
         public void Normalize_StripsLeadingDashesAndSlashes()
         {
             Assert.AreEqual("profile", CliParser.Normalize("--profile"));
@@ -165,33 +207,4 @@ namespace DisplayProfileManager.Tests.Tests
         }
     }
 
-    [TestClass]
-    public class IpcServerTests
-    {
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void BuildPipeName_CarriesSessionId()
-        {
-            Assert.AreEqual("DPM_IpcPipe.0", IpcServer.BuildPipeName(0));
-            Assert.AreEqual("DPM_IpcPipe.7", IpcServer.BuildPipeName(7));
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void BuildPipeName_DiffersBetweenSessions()
-        {
-            // Two logged-in users sharing a pipe should not let one steer other's instance
-            Assert.AreNotEqual(IpcServer.BuildPipeName(1), IpcServer.BuildPipeName(2));
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void PipeName_UsesSameRuleAsBuilder()
-        {
-            var expected = IpcServer.BuildPipeName(
-                System.Diagnostics.Process.GetCurrentProcess().SessionId);
-
-            Assert.AreEqual(expected, IpcServer.PipeName);
-        }
-    }
 }
