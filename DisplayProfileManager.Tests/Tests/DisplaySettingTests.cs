@@ -36,11 +36,11 @@ namespace DisplayProfileManager.Tests.Tests
 
         [TestMethod]
         [TestCategory("Unit")]
-        public void DisplaySetting_IsAcmEnabled_DefaultIsFalse()
+        public void DisplaySetting_IsWcgEnabled_DefaultIsFalse()
         {
             var setting = new DisplaySetting();
 
-            Assert.IsFalse(setting.IsAcmEnabled);
+            Assert.IsFalse(setting.IsWcgEnabled);
         }
 
         [TestMethod]

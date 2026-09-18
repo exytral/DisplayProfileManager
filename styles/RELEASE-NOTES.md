@@ -167,6 +167,7 @@ Usually omit:
 - transparent profile-schema or persistence-format migrations that require no user action and preserve existing behavior
 - repository, attribution, license-notice, or packaging bookkeeping that does not change how users install or use the application
 - routine maintenance that does not meaningfully affect users
+- routine test counts, coverage totals, validation mechanics, and test-suite bookkeeping; keep that evidence in pull requests or the technical changelog unless testing itself changes user-visible behavior
 - repeated download tables and requirements from historical release sections
 
 Include a schema or compatibility item when users must take action, compatibility is intentionally changed, or the persisted-format change itself is meaningfully user-facing.

@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using DisplayProfileManager.Core;
@@ -105,6 +105,7 @@ namespace DisplayProfileManager.Tests.Tests
                 loadedField.SetValue(sm, originalValue);
             }
         }
+
         [TestMethod]
         [TestCategory("Unit")]
         public async Task SetDefaultProfileIdAsync_SaveFails_RestoresPreviousInMemoryValue()
@@ -147,5 +148,46 @@ namespace DisplayProfileManager.Tests.Tests
             }
         }
 
+        [TestMethod]
+        [TestCategory("Unit")]
+        public async Task SetCurrentProfileIdAsync_SaveFails_RestoresPreviousInMemoryValue()
+        {
+            var sm = SettingsManager.Instance;
+            string previous = sm.Settings.CurrentProfileId;
+            sm.Settings.CurrentProfileId = "previous-profile";
+
+            try
+            {
+                bool result = await sm.SetCurrentProfileIdAsync("new-profile", () => Task.FromResult(false));
+
+                Assert.IsFalse(result);
+                Assert.AreEqual("previous-profile", sm.Settings.CurrentProfileId);
+            }
+            finally
+            {
+                sm.Settings.CurrentProfileId = previous;
+            }
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public async Task SetCurrentProfileIdAsync_SaveSucceeds_KeepsNewInMemoryValue()
+        {
+            var sm = SettingsManager.Instance;
+            string previous = sm.Settings.CurrentProfileId;
+            sm.Settings.CurrentProfileId = "previous-profile";
+
+            try
+            {
+                bool result = await sm.SetCurrentProfileIdAsync("new-profile", () => Task.FromResult(true));
+
+                Assert.IsTrue(result);
+                Assert.AreEqual("new-profile", sm.Settings.CurrentProfileId);
+            }
+            finally
+            {
+                sm.Settings.CurrentProfileId = previous;
+            }
+        }
     }
 }

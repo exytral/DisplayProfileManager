@@ -101,9 +101,15 @@ namespace DisplayProfileManager.Tests.Helpers
             return this;
         }
 
-        public DisplayConfigInfoBuilder WithAcm(bool enabled)
+        public DisplayConfigInfoBuilder WithWcg(bool enabled)
         {
-            _info.IsAcmEnabled = enabled;
+            _info.IsWcgEnabled = enabled;
+            return this;
+        }
+
+        public DisplayConfigInfoBuilder WithAdvancedColorAvailability(bool available)
+        {
+            _info.IsAdvancedColorInfoAvailable = available;
             return this;
         }
 

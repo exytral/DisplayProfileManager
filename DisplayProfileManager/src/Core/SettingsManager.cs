@@ -316,10 +316,18 @@ namespace DisplayProfileManager.Core
             }
         }
 
-        public async Task<bool> SetCurrentProfileIdAsync(string profileId)
+        public Task<bool> SetCurrentProfileIdAsync(string profileId) => SetCurrentProfileIdAsync(profileId, SaveSettingsAsync);
+
+        internal async Task<bool> SetCurrentProfileIdAsync(string profileId, Func<Task<bool>> saveSettings)
         {
-            _settings.CurrentProfileId = profileId;
-            return await SaveSettingsAsync();
+            string previousProfileId = _settings.CurrentProfileId;
+            _settings.CurrentProfileId = profileId ?? string.Empty;
+
+            if (await saveSettings())
+                return true;
+
+            _settings.CurrentProfileId = previousProfileId;
+            return false;
         }
 
         public Task<bool> SetDefaultProfileIdAsync(string profileId) => SetDefaultProfileIdAsync(profileId, SaveSettingsAsync);

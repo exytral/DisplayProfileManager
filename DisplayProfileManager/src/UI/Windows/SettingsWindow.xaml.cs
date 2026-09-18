@@ -806,7 +806,7 @@ namespace DisplayProfileManager.UI.Windows
 
                     libraryPanel.Children.Add(new TextBlock
                     {
-                        Text = $" v{library.Version} ({library.License}) - {library.Description}",
+                        Text = AboutHelper.Libraries.FormatLibraryDetails(library.Version, library.License, library.Description),
                         Style = (Style)FindResource("PrimaryTextBlockStyle"),
                         FontSize = 12,
                         Foreground = (Brush)FindResource("TertiaryTextBrush"),

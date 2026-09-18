@@ -134,6 +134,7 @@ namespace DisplayProfileManager.Helpers
                         appResources.MergedDictionaries.Remove(_currentColorTheme);
 
                     string resolvedTheme = string.Equals(theme, "System", StringComparison.OrdinalIgnoreCase) ? (IsSystemUsingDarkTheme() ? "Dark" : "Light") : theme;
+                    bool useAutomaticForeground = _packagedThemes.Contains(resolvedTheme, StringComparer.OrdinalIgnoreCase) && !IsUserTheme(resolvedTheme);
                     if (_themes.TryGetValue(resolvedTheme, out var dict))
                         _currentColorTheme = dict;
                     else
@@ -146,13 +147,14 @@ namespace DisplayProfileManager.Helpers
                     try
                     {
                         appResources.MergedDictionaries.Add(_currentColorTheme);
-                        ApplyAccentForeground();
+                        ApplyButtonForegroundOwnership(appResources, useAutomaticForeground, SystemColors.AccentColor);
                     }
                     catch (Exception ex)
                     {
                         _logger.Error(ex, $"Theme '{resolvedTheme}' failed to merge -> falling back to Light");
                         _currentColorTheme = _themes["Light"];
                         appResources.MergedDictionaries.Add(_currentColorTheme);
+                        ApplyButtonForegroundOwnership(appResources, !IsUserTheme("Light"), SystemColors.AccentColor);
                     }
                     ThemeChanged?.Invoke(null, EventArgs.Empty);
                 });
@@ -271,14 +273,16 @@ namespace DisplayProfileManager.Helpers
             }
         }
 
-        private static void ApplyAccentForeground()
+        internal static void ApplyButtonForegroundOwnership(ResourceDictionary appResources, bool useAutomaticForeground, Color accent)
         {
+            appResources.Remove("ButtonForegroundBrush");
+            if (!useAutomaticForeground) return;
+
             try
             {
-                var accent = SystemColors.AccentColor;
                 double luma = (0.2126 * accent.R + 0.7152 * accent.G + 0.0722 * accent.B) / 255.0;
                 var foreground = luma > 0.55 ? Colors.Black : Colors.White;
-                Application.Current.Resources["ButtonForegroundBrush"] = new SolidColorBrush(foreground);
+                appResources["ButtonForegroundBrush"] = new SolidColorBrush(foreground);
             }
             catch (Exception ex)
             {
@@ -309,6 +313,8 @@ namespace DisplayProfileManager.Helpers
         {
             foreach (var name in _themeOrder)
             {
+                if (IsUserTheme(name)) continue;
+
                 _themes[name] = new ResourceDictionary
                 {
                     Source = new Uri($"/DisplayProfileManager;component/src/UI/Themes/{name}.xaml", UriKind.Relative)

@@ -154,6 +154,29 @@ namespace DisplayProfileManager.Tests.Tests
 
         [TestMethod]
         [TestCategory("Unit")]
+        public void BackfillHardwareInfoFromLive_UsesPreferredNativeMetadataInsteadOfCurrentSignalSize()
+        {
+            var setting = new DisplaySettingBuilder()
+                .WithNativeResolution(0, 0)
+                .Build();
+            var live = new DisplayConfigHelper.DisplayConfigInfo
+            {
+                TargetId = 1,
+                Width = 4096,
+                Height = 2160,
+                NativeWidth = 3840,
+                NativeHeight = 2160
+            };
+
+            var changed = BackfillHardwareInfoFromLive(setting, live);
+
+            Assert.IsTrue(changed);
+            Assert.AreEqual(3840, setting.NativeWidth);
+            Assert.AreEqual(2160, setting.NativeHeight);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
         public void BackfillHardwareInfoFromLive_PopulatedNative_IsPreserved()
         {
             var setting = new DisplaySettingBuilder()

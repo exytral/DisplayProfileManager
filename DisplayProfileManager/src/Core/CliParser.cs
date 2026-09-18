@@ -42,12 +42,33 @@ namespace DisplayProfileManager.Core
                 string arg = Normalize(args[i]);
 
                 // Return shell actions to application layer
-                if (arg == "unshell") { options.ShellAction = ShellAction.Unregister; return options; }
-                if (arg == "shell") { options.ShellAction = ShellAction.Register; return options; }
+                if (arg == "unshell")
+                {
+                    options.ShellAction = ShellAction.Unregister;
+                    return options;
+                }
+                if (arg == "shell")
+                {
+                    options.ShellAction = ShellAction.Register;
+                    return options;
+                }
 
-                if (arg == "dev") { options.DevMode = true; continue; }
-                if (arg == "tray") { options.StartInTray = true; continue; }
-                if (arg == "exit") {options.IsExit = true; options.CommandQueue.Add("CMD:EXIT"); continue; }
+                if (arg == "dev")
+                {
+                    options.DevMode = true;
+                    continue;
+                }
+                if (arg == "tray")
+                {
+                    options.StartInTray = true;
+                    continue;
+                }
+                if (arg == "exit")
+                {
+                    options.IsExit = true;
+                    options.CommandQueue.Add("CMD:EXIT");
+                    continue;
+                }
 
                 bool HasValue() => i + 1 < args.Length && IsValueFor(args[i + 1]);
                 if (IsRefresh(arg))
@@ -101,6 +122,8 @@ namespace DisplayProfileManager.Core
             return normalized[0] == flag[0] && flag.StartsWith(normalized, StringComparison.Ordinal);
         }
 
-        public static bool IsValueFor(string nextArg) => !string.IsNullOrEmpty(nextArg) && !nextArg.StartsWith("-", StringComparison.Ordinal);
+        public static bool IsOptionToken(string value) => !string.IsNullOrEmpty(value) && (value.StartsWith("-", StringComparison.Ordinal) || value.StartsWith("/", StringComparison.Ordinal));
+
+        public static bool IsValueFor(string nextArg) => !string.IsNullOrEmpty(nextArg) && !IsOptionToken(nextArg);
     }
 }

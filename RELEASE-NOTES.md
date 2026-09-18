@@ -4,7 +4,7 @@
 
 ### 🖥️ Display Profiles
 
-Manage complex multi-monitor desktop configurations from preset profiles. Configure per-monitor enable/disable state, primary display, resolution, refresh rate, rotation, DPI, HDR/ACM, and color profiles; extend or clone displays in any combination; and reliably restore configurations when displays change, wake from deep sleep, or an apply fails. Capture and restore wallpaper, switch default playback and recording devices, and attach helper scripts to run after display configuration has finished.
+Manage complex multi-monitor desktop configurations from preset profiles. Configure per-monitor enable/disable state, primary display, resolution, refresh rate, rotation, DPI, HDR/WCG, and color profiles; extend or clone displays in any combination; and reliably restore configurations when displays change, wake from deep sleep, or an apply fails. Capture and restore wallpaper, switch default playback and recording devices, and attach helper scripts to run after display configuration has finished.
 
 ### 💻 CLI
 
@@ -24,6 +24,43 @@ Switch profiles with global hotkeys, the system tray, or the desktop classic rig
 
 ---
 
+## 2.2.2 — Wallpaper restoration and multi-adapter correctness
+
+### 🖼️ Wallpaper
+
+- **Reliable wallpaper mode switching** — Solid Color, Picture, Slideshow, and Desktop Spotlight now establish their own Windows wallpaper mode instead of inheriting unrelated state from the previous profile. Picture keeps per-monitor assignments and background color; Slideshow restores background color, fitment, source, timing, and shuffle/order.
+- **Desktop Spotlight restoration** — Spotlight restores Windows provider mode with Fill presentation over the active monitor set. If Windows is slow to repaint, the application can reuse an already verified Windows Spotlight provider image while Windows remains responsible for future content and freshness.
+
+### 🖥️ Display and color
+
+- **Multi-adapter display addressing** — display source and target IDs stay paired with the live Windows adapter during operations, while profiles keep only durable display identity/address hints. Ambiguous current mappings fail safely instead of selecting an endpoint by stale adapter or enumeration order.
+- **Live HDR/WCG capability** — profiles keep the requested HDR/WCG state but no longer persist capability flags that can become stale. Capability is read from the live target when editing or applying a profile.
+- **Windows 11 24H2 Advanced Color correctness** — profiles restore one effective Advanced Color destination: SDR, WCG, or HDR. HDR transitions no longer issue an irrelevant second WCG mutation, and unsupported requested HDR remains a non-blocking color-stage failure rather than a display-layout rollback.
+- **Preferred native resolution** — stored native display dimensions now use Windows' preferred/best target mode instead of the currently active signal timing.
+
+### 🛡️ Reliability
+
+- **Ordered profile switching** — profile applies from the window, tray, hotkeys, CLI, startup, and IPC no longer overlap inside one running process, including rollback work.
+- **Safer managed profiles** — malformed or conflicting profile identities in the managed Profiles folder are preserved and skipped rather than migrated or overwritten. Older recognized profile shapes still receive the required migration, while unsupported future schemas remain untouched.
+- **Current-profile marker warnings** — if the profile itself applies but saving its current-profile ID to `Settings.json` fails, the apply remains successful, a warning is surfaced, and the previous persisted settings value is restored in memory.
+- **Shorter update settling window** — optional update checking now advertises newer releases after three days instead of seven, while continuing to leave update installation entirely under user control.
+
+
+
+### 💻 CLI and integration
+
+- **Normal/development command isolation** — normal and `--dev` instances use separate IPC endpoints, with bare `--exit` retaining normal-first, development-fallback behavior.
+- **Slash-prefixed CLI options** — slash-form flags are accepted without being mistaken for values belonging to the preceding option.
+- **Desktop context menu parsing** — the Explorer extension uses strict bounded native JSON parsing, including escaped/Unicode profile names and independent rejection of malformed profile files.
+- **Shell state consistency** — enabling the desktop context menu rolls back a new registration if settings cannot be saved; disabling it keeps successful external teardown authoritative for installer safety.
+- **Multi-script import** — multiple helper scripts can be selected and imported at once; successful imports remain available when another selected file fails, and failures are summarized together.
+
+### 🎨 Themes
+
+- **Custom button foregrounds** — custom themes retain ownership of their declared button foreground instead of being shadowed by packaged-theme accent contrast behavior.
+
+
+---
 ## 2.2.1 — Stability and correctness
 
 ### 🛡️ Reliability
@@ -48,7 +85,7 @@ Switch profiles with global hotkeys, the system tray, or the desktop classic rig
 
 ### 📦 Packaging
 
-- **Upgrade shutdown handling** — upgrades now wait for the installed DPM process to finish exiting before replacing files, preventing the redundant automatic/force-close prompt that could appear after a graceful shutdown request.
+- **Upgrade shutdown handling** — upgrades now wait for the installed application process to finish exiting before replacing files, preventing the redundant automatic/force-close prompt that could appear after a graceful shutdown request.
 - **Standalone Builders** — DPM Shortcut Builder now includes the COM support required for `.lnk` creation, while both Builder downloads are versioned ZIPs containing the standalone executable, Python source, Builder license, and third-party notices.
 
 ---
@@ -138,10 +175,10 @@ Switch profiles with global hotkeys, the system tray, or the desktop classic rig
 ### 🖥️ Display
 
 - **ACM support** — Auto Color Management can be configured per display when supported and is forced on while HDR is active. Dedicated Windows 11 24H2+ support is used where available.
-- **Clone group fixes** — any display can be explicitly selected as the clone source, primary ownership transfers correctly, and "Break Clone" restores the attached display's saved pre-clone state.
+- **Clone group fixes** — any display can be explicitly selected as the clone source, attached displays inherit the source configuration including rotation, primary ownership transfers correctly, and "Break Clone" restores the attached display's saved pre-clone state.
 - **Clone group details** — clone groups are rendered correctly in the Details panel.
 - **Rotation "Not Applied"** — rotation can be left unchanged when applying a profile.
-- **Native resolution markers** — native resolution and peak refresh rate are marked with `★` (star).
+- **Native resolution markers** — the stored native-resolution value and peak refresh rate are marked with `★` (star).
 
 ### 🛡️ Reliability
 

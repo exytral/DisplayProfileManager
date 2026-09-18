@@ -16,34 +16,17 @@ namespace DisplayProfileManager.Tests.Tests
         {
             var source = new DisplaySettingBuilder().WithPosition(0, 0).WithResolution(1920, 1080).Build();
             var member = new DisplaySettingBuilder()
-                .WithSavedPreCloneState(2560, 0, sourceId: 3, isPrimary: false,
+                .WithSavedPreCloneState(2560, 0, isPrimary: false,
                     width: 2560, height: 1440, frequency: 144, rotation: 1, dpiScaling: 125,
-                    hdrEnabled: false, acmEnabled: false, colorProfile: null)
+                    hdrEnabled: false, wcgEnabled: false, colorProfile: null)
                 .Build();
-            uint maxSourceId = 0;
 
-            DisplaySettingControl.RestoreAttachedMemberState(member, source, ref maxSourceId);
+            DisplaySettingControl.RestoreAttachedMemberState(member, source);
 
             Assert.AreEqual(2560, member.DisplayPositionX);
             Assert.AreEqual(0, member.DisplayPositionY);
         }
 
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void RestoreAttachedMemberState_WithSavedState_RestoresSourceId()
-        {
-            var source = new DisplaySettingBuilder().Build();
-            var member = new DisplaySettingBuilder()
-                .WithSavedPreCloneState(0, 0, sourceId: 7, isPrimary: false,
-                    width: 1920, height: 1080, frequency: 60, rotation: 1, dpiScaling: 100,
-                    hdrEnabled: false, acmEnabled: false, colorProfile: null)
-                .Build();
-            uint maxSourceId = 4;
-
-            DisplaySettingControl.RestoreAttachedMemberState(member, source, ref maxSourceId);
-
-            Assert.AreEqual(7u, member.SourceId);
-        }
 
         [TestMethod]
         [TestCategory("Unit")]
@@ -51,13 +34,12 @@ namespace DisplayProfileManager.Tests.Tests
         {
             var source = new DisplaySettingBuilder().Build();
             var member = new DisplaySettingBuilder()
-                .WithSavedPreCloneState(0, 0, sourceId: 1, isPrimary: false,
+                .WithSavedPreCloneState(0, 0, isPrimary: false,
                     width: 2560, height: 1440, frequency: 144, rotation: 2, dpiScaling: 125,
-                    hdrEnabled: false, acmEnabled: false, colorProfile: null)
+                    hdrEnabled: false, wcgEnabled: false, colorProfile: null)
                 .Build();
-            uint maxSourceId = 0;
 
-            DisplaySettingControl.RestoreAttachedMemberState(member, source, ref maxSourceId);
+            DisplaySettingControl.RestoreAttachedMemberState(member, source);
 
             Assert.AreEqual(2560, member.Width);
             Assert.AreEqual(1440, member.Height);
@@ -72,17 +54,16 @@ namespace DisplayProfileManager.Tests.Tests
         {
             var source = new DisplaySettingBuilder().Build();
             var member = new DisplaySettingBuilder()
-                .WithSavedPreCloneState(0, 0, sourceId: 1, isPrimary: false,
+                .WithSavedPreCloneState(0, 0, isPrimary: false,
                     width: 1920, height: 1080, frequency: 60, rotation: 1, dpiScaling: 100,
-                    hdrEnabled: true, acmEnabled: true, colorProfile: "sRGB.icm")
+                    hdrEnabled: true, wcgEnabled: true, colorProfile: "sRGB.icm")
                 .Build();
-            uint maxSourceId = 0;
 
-            DisplaySettingControl.RestoreAttachedMemberState(member, source, ref maxSourceId);
+            DisplaySettingControl.RestoreAttachedMemberState(member, source);
 
             Assert.AreEqual("sRGB.icm", member.ColorProfile);
             Assert.IsTrue(member.IsHdrEnabled);
-            Assert.IsTrue(member.IsAcmEnabled);
+            Assert.IsTrue(member.IsWcgEnabled);
         }
 
         [TestMethod]
@@ -91,13 +72,12 @@ namespace DisplayProfileManager.Tests.Tests
         {
             var source = new DisplaySettingBuilder().Build();
             var member = new DisplaySettingBuilder()
-                .WithSavedPreCloneState(0, 0, sourceId: 1, isPrimary: true,
+                .WithSavedPreCloneState(0, 0, isPrimary: true,
                     width: 1920, height: 1080, frequency: 60, rotation: 1, dpiScaling: 100,
-                    hdrEnabled: false, acmEnabled: false, colorProfile: null)
+                    hdrEnabled: false, wcgEnabled: false, colorProfile: null)
                 .Build();
-            uint maxSourceId = 0;
 
-            DisplaySettingControl.RestoreAttachedMemberState(member, source, ref maxSourceId);
+            DisplaySettingControl.RestoreAttachedMemberState(member, source);
 
             Assert.IsTrue(member.IsPrimary);
         }
@@ -109,13 +89,12 @@ namespace DisplayProfileManager.Tests.Tests
             var source = new DisplaySettingBuilder().Build();
             var member = new DisplaySettingBuilder()
                 .Primary(true)
-                .WithSavedPreCloneState(0, 0, sourceId: 1, isPrimary: false,
+                .WithSavedPreCloneState(0, 0, isPrimary: false,
                     width: 1920, height: 1080, frequency: 60, rotation: 1, dpiScaling: 100,
-                    hdrEnabled: false, acmEnabled: false, colorProfile: null)
+                    hdrEnabled: false, wcgEnabled: false, colorProfile: null)
                 .Build();
-            uint maxSourceId = 0;
 
-            DisplaySettingControl.RestoreAttachedMemberState(member, source, ref maxSourceId);
+            DisplaySettingControl.RestoreAttachedMemberState(member, source);
 
             Assert.IsFalse(member.IsPrimary);
         }
@@ -126,18 +105,16 @@ namespace DisplayProfileManager.Tests.Tests
         {
             var source = new DisplaySettingBuilder().Build();
             var member = new DisplaySettingBuilder()
-                .WithSavedPreCloneState(2560, 0, sourceId: 3, isPrimary: true,
+                .WithSavedPreCloneState(2560, 0, isPrimary: true,
                     width: 2560, height: 1440, frequency: 144, rotation: 1, dpiScaling: 125,
-                    hdrEnabled: true, acmEnabled: true, colorProfile: "sRGB.icm")
+                    hdrEnabled: true, wcgEnabled: true, colorProfile: "sRGB.icm")
                 .Build();
-            uint maxSourceId = 0;
 
-            DisplaySettingControl.RestoreAttachedMemberState(member, source, ref maxSourceId);
+            DisplaySettingControl.RestoreAttachedMemberState(member, source);
 
             Assert.IsTrue(member.OriginalSettings);
             Assert.IsNull(member.OriginalPositionX);
             Assert.IsNull(member.OriginalPositionY);
-            Assert.IsNull(member.OriginalSourceId);
             Assert.IsNull(member.OriginalIsPrimary);
             Assert.IsNull(member.OriginalWidth);
             Assert.IsNull(member.OriginalHeight);
@@ -145,26 +122,10 @@ namespace DisplayProfileManager.Tests.Tests
             Assert.IsNull(member.OriginalRotation);
             Assert.IsNull(member.OriginalDpiScaling);
             Assert.IsNull(member.OriginalIsHdrEnabled);
-            Assert.IsNull(member.OriginalIsAcmEnabled);
+            Assert.IsNull(member.OriginalIsWcgEnabled);
             Assert.IsNull(member.OriginalColorProfile);
         }
 
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void RestoreAttachedMemberState_SavedSourceIdPresent_DoesNotIncrementMaxSourceId()
-        {
-            var source = new DisplaySettingBuilder().Build();
-            var member = new DisplaySettingBuilder()
-                .WithSavedPreCloneState(0, 0, sourceId: 9, isPrimary: false,
-                    width: 1920, height: 1080, frequency: 60, rotation: 1, dpiScaling: 100,
-                    hdrEnabled: false, acmEnabled: false, colorProfile: null)
-                .Build();
-            uint maxSourceId = 4;
-
-            DisplaySettingControl.RestoreAttachedMemberState(member, source, ref maxSourceId);
-
-            Assert.AreEqual(4u, maxSourceId);
-        }
 
         // Without saved pre-clone state (independent layout derived)
 
@@ -176,9 +137,8 @@ namespace DisplayProfileManager.Tests.Tests
             var member = new DisplaySettingBuilder()
                 .WithNativeResolution(2560, 1440)
                 .Build();
-            uint maxSourceId = 0;
 
-            DisplaySettingControl.RestoreAttachedMemberState(member, source, ref maxSourceId);
+            DisplaySettingControl.RestoreAttachedMemberState(member, source);
 
             Assert.AreEqual(2560, member.Width);
             Assert.AreEqual(1440, member.Height);
@@ -186,19 +146,6 @@ namespace DisplayProfileManager.Tests.Tests
             Assert.AreEqual(0, member.DisplayPositionY);
         }
 
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void RestoreAttachedMemberState_NoSavedState_IncrementsMaxSourceId()
-        {
-            var source = new DisplaySettingBuilder().Build();
-            var member = new DisplaySettingBuilder().Build();
-            uint maxSourceId = 4;
-
-            DisplaySettingControl.RestoreAttachedMemberState(member, source, ref maxSourceId);
-
-            Assert.AreEqual(5u, maxSourceId);
-            Assert.AreEqual(5u, member.SourceId);
-        }
 
         [TestMethod]
         [TestCategory("Unit")]
@@ -212,9 +159,8 @@ namespace DisplayProfileManager.Tests.Tests
                     ["1920x1080"] = new List<int> { 144, 120, 60 }
                 })
                 .Build();
-            uint maxSourceId = 0;
 
-            DisplaySettingControl.RestoreAttachedMemberState(member, source, ref maxSourceId);
+            DisplaySettingControl.RestoreAttachedMemberState(member, source);
 
             Assert.AreEqual(144, member.Frequency);
         }
@@ -227,9 +173,8 @@ namespace DisplayProfileManager.Tests.Tests
             var member = new DisplaySettingBuilder()
                 .WithAvailableDpiScaling(new List<uint> { 150, 125, 100 })
                 .Build();
-            uint maxSourceId = 0;
 
-            DisplaySettingControl.RestoreAttachedMemberState(member, source, ref maxSourceId);
+            DisplaySettingControl.RestoreAttachedMemberState(member, source);
 
             Assert.AreEqual(150u, member.DpiScaling);
         }
@@ -242,9 +187,8 @@ namespace DisplayProfileManager.Tests.Tests
             var member = new DisplaySettingBuilder()
                 .WithResolution(1920, 1080)
                 .Build();
-            uint maxSourceId = 0;
 
-            DisplaySettingControl.RestoreAttachedMemberState(member, source, ref maxSourceId);
+            DisplaySettingControl.RestoreAttachedMemberState(member, source);
 
             Assert.AreEqual(1920, member.Width);
             Assert.AreEqual(1080, member.Height);
@@ -258,9 +202,8 @@ namespace DisplayProfileManager.Tests.Tests
             var member = new DisplaySettingBuilder()
                 .WithDpi(100)
                 .Build();
-            uint maxSourceId = 0;
 
-            DisplaySettingControl.RestoreAttachedMemberState(member, source, ref maxSourceId);
+            DisplaySettingControl.RestoreAttachedMemberState(member, source);
 
             Assert.AreEqual(100u, member.DpiScaling);
         }

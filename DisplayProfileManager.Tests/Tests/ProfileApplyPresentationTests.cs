@@ -53,5 +53,19 @@ namespace DisplayProfileManager.Tests.Tests
 
             Assert.AreEqual("DPI", args.WarningSummary);
         }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void GetApplyWarningSummary_CurrentProfilePersistenceFailure_ReportsSecondaryWarning()
+        {
+            var result = new ProfileManager.ProfileApplyResult
+            {
+                DpiChanged = true,
+                AudioSuccess = true,
+                CurrentProfilePersisted = false
+            };
+
+            Assert.AreEqual("Current Profile Marker", ProfileManager.GetApplyWarningSummary(result));
+        }
     }
 }

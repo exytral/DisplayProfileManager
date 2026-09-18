@@ -82,8 +82,8 @@ Logs are written to `%AppData%\DisplayProfileManager\Logs\DisplayProfileManager-
 
 ### Core Patterns
 
-- **Singletons**: `ProfileManager`, `SettingsManager`, and `ScriptManager` own process-global state. Their construction mechanisms differ; do not infer that mutable manager state or profile application is globally serialized.
-- **Async/Await**: File I/O and display apply operations are asynchronous.
+- **Singletons**: `ProfileManager`, `SettingsManager`, and `ScriptManager` own process-global state. Their construction mechanisms differ; profile application is serialized separately by the process-wide FIFO `ProfileApplyAuthority`.
+- **Async/Await**: File I/O and display apply operations are asynchronous. Wallpaper COM/settling work runs off the WPF UI thread while remaining inside the owning FIFO profile-apply request.
 - **P/Invoke**: Windows Display Configuration, DPI, and audio APIs are wrapped by dedicated helper classes.
 - **MVVM**: ViewModels expose binding-friendly UI state.
 - **Logging**: NLog provides structured application logging.
@@ -100,14 +100,14 @@ The application has two primary runtime flows: startup and command handling, and
 - **WindowActivationHelper** (`Helpers/WindowActivationHelper.cs`) — stateless Win32 wrapper for locating, restoring, raising, and foregrounding an existing application window.
 - **ShellContextMenuHelper** (`Helpers/ShellContextMenuHelper.cs`) — managed registration boundary for the native shell extension. Registers and unregisters `ShellExt.dll` as a per-user COM in-process server under HKCU and refreshes Explorer when an existing registration is removed. This helper does not implement the Explorer menu itself.
 - **ShellExt** (`DisplayProfileManager.ShellExt/`) — native C++ COM shell extension loaded by Explorer. Reads only the profile data required for its menu directly from AppData and launches profile application through `--headless` without requiring the main UI to run.
-- **UpdateHelper** (`Helpers/UpdateHelper.cs`) — performs the opt-in GitHub release check, parses release versions, applies the seven-day release-age cooldown, and supplies update state to the About panel, status bar, and notification path.
+- **UpdateHelper** (`Helpers/UpdateHelper.cs`) — performs the opt-in GitHub release check, parses release versions, applies the three-day release-age cooldown, and supplies update state to the About panel, status bar, and notification path.
 
 #### Profile application flow
 
-- **ProfileManager** — process-global manager for profile CRUD, loading, migration, and application. `ApplyProfileAsync(Profile, ApplySource)` coordinates the complete profile-application pipeline and carries its source and elapsed apply duration to the profile-applied event.
-- **DisplayConfigHelper** — primary Windows Display Configuration API layer. Owns topology, defer/wait, layout, HDR/ACM, color-profile application, and live display identity resolution.
-- **DpiHelper** — applies system-wide DPI scaling after display layout and advanced color state are committed, using a live display identity resolved for the current topology.
-- **WallpaperHelper** — captures and reapplies Windows desktop wallpaper state, including per-monitor Solid Color, Picture, Slideshow, and Spotlight modes, and correlates current live monitor interfaces for `IDesktopWallpaper` calls.
+- **ProfileManager** — process-global manager for profile CRUD, loading, migration, and application. `schemaVersion` is the profile-format authority: positive legacy-shape markers may lower the effective historical schema before ordered migration, unsupported future schemas fail closed, and persistence accepts only the current schema. `ApplyProfileAsync(Profile, ApplySource)` enters every source through one process-wide FIFO `ProfileApplyAuthority`, coordinates the complete profile-application pipeline, and carries its source and elapsed apply duration to the profile-applied event.
+- **DisplayConfigHelper** — primary Windows Display Configuration API layer. Owns topology, defer/wait, layout, Advanced Color (SDR/WCG/HDR), color-profile application, preferred-mode native-resolution metadata, and live display identity/address resolution.
+- **DpiHelper** — applies system-wide DPI scaling after display layout and advanced color state are committed. `ProfileManager` supplies a fresh post-topology display endpoint only after the strict pre-topology mapper authorized that adapter-qualified target for the current apply.
+- **WallpaperHelper** - captures Windows desktop wallpaper state and applies an explicit destination-mode transition plan for Solid Color, per-monitor Picture, Slideshow, and Desktop Spotlight. It joins active CCD targets (`viewGdiDeviceName` -> `monitorDevicePath`) to attached `IDesktopWallpaper` monitor IDs and establishes the Windows personalization source mode explicitly. Spotlight selection remains authoritative through provider/mode state; when Windows does not repaint promptly, a verified Client.CBS Spotlight provider-owned image may be applied as an immediate repaint bridge and is verified separately from mode authority.
 - **AudioHelper** — owns native playback/recording endpoint enumeration and switches configured defaults through WASAPI/COM integration.
 - **ScriptManager** — owns the application-managed Scripts folder, script import and type conversion, and execution of enabled script entries after the display stages and other profile side effects complete.
 - **ScriptHelper** (`Helpers/ScriptHelper.cs`) — provides process-launch support for the script types accepted by `ScriptManager`.
@@ -203,7 +203,7 @@ DisplayProfileManager/
 - **Newtonsoft.Json 13.0.4** — JSON serialization for profiles and settings.
 - **NLog 6.2.0** — application logging with daily file rotation.
 - **System.Management 10.0.12** — Windows system-management APIs used by the application.
-- **MSTest 4.3.3** — test framework metapackage for the unit-test project.
+- **MSTest 4.4.0** — test framework metapackage for the unit-test project.
 - **PackageReference** — SDK-style project dependency management.
 
 ### Load-bearing project settings
@@ -217,8 +217,8 @@ DisplayProfileManager/
 
 - **Base Windows support** — follow Microsoft's current .NET 10 supported-Windows matrix. Windows 10 support is limited to LTSC/Enterprise releases; installer success on another Windows build does not establish product/runtime support.
 - **Windows 10 version 1709+** provides the legacy Advanced Color APIs used for HDR support. This is an API availability floor, not a broader base-OS support claim.
-- **Windows 11 22H2+** is required for ACM on supported displays.
-- **Windows 11 24H2+** provides the dedicated HDR and ACM APIs used by `SetHdrState` and `SetWcgState`; earlier supported systems use the legacy Advanced Color path.
+- **Windows 11 22H2+** provides Auto Color Management for eligible SDR displays through the legacy Advanced Color provider path.
+- **Windows 11 24H2+** provides the dedicated HDR and WCG CCD setters used by `SetHdrState` and `SetWcgState`. The application models the active destination as SDR, WCG, or HDR; earlier supported systems retain the legacy generic Advanced Color/ACM provider path.
 - **Privileges** — the application runs as a standard user (`asInvoker`). Administrator rights are required only when configuring Task Scheduler auto-start.
 - **Architectures** — AnyCPU is the default project target; x86, x64, and ARM64 builds are supported.
 
@@ -230,10 +230,10 @@ The application uses the Windows Display Configuration API (`SetDisplayConfig`) 
 2. **`ApplyDisplayConfig`** — captures all-paths target presence once, builds a stabilization wait set from enabled displays present in that snapshot, defers that set before the normal layout attempt, and calls `ApplyDisplayLayout` with the full requested configuration. A layout-stage `ERROR_GEN_FAILURE` (31) causes the same wait set to be deferred again and the full layout retried once, after which advanced color state and color profiles are applied.
     - **`DeferDisplayLayoutAsync`** — waits every 250 ms for up to 10 seconds for the supplied displays to become active. `ApplyDisplayConfig` supplies the enabled displays that were present in the all-paths snapshot; displays absent from that snapshot do not enter the wait set. The timeout is a maximum, not a mandatory delay.
     - **`ApplyDisplayLayout`** — issues a fresh `QueryDisplayConfig` because raw IDs from the pre-topology snapshot are stale after topology changes, then applies position, resolution, refresh rate, rotation, and SourceId normalization through `SDC_USE_SUPPLIED_DISPLAY_CONFIG`. `QDC_VIRTUAL_REFRESH_RATE_AWARE` and `SDC_VIRTUAL_REFRESH_RATE_AWARE` are used only on Windows 11 and later; supported Windows 10 systems use the non-VRR-aware path. The call is skipped when all live layout checks already match. Rotation is skipped when `profile.Rotation == 0` (`Not Applied`).
-    - **`ApplyAdvancedColorState`** — queries live display configuration again after topology apply to obtain current `RawTargetId` values. For each enabled HDR-capable display, HDR is changed only when the live state differs. On Windows 11 24H2+, HDR and ACM use separate APIs and HDR forces ACM on while enabled; when HDR is disabled, ACM follows its own configured state. `SetHdrState` uses `DisplayConfigSetHdrState` (type 16) on 24H2+ and falls back to the legacy advanced-color path earlier. `SetAcmState` uses `SetWcgState` (type 17) on 24H2+; before 24H2, ACM is unavailable on HDR-capable displays and uses the legacy advanced-color path only for SDR-only displays.
-    - **`ApplyColorProfiles`** — for each enabled display with a non-null `ColorProfile`, builds a transient `DisplaySetting` from live configuration to supply the correct `AdapterLuid` and `SourceId`, then calls `ColorProfileHelper.ApplyColorProfile`.
-3. **DPI** — applies `DpiHelper.SetDPIScaling` after layout, HDR, and color are committed. Display identity is resolved fresh at DPI-apply time so the operation does not rely on a stale display identity after topology or display-state changes. When the caller already has a resolved `DisplayConfigInfo`, `SetDPIScaling` uses it directly rather than re-matching by device-name string. The method refuses when no scaling information is available and snaps an in-range unsupported value to the nearest ladder step.
-4. **Wallpaper** — applies the profile's `WallpaperSettings` when wallpaper is enabled.
+    - **`ApplyAdvancedColorState`** — queries live display configuration again after topology apply to obtain current `RawTargetId` values. On Windows 11 24H2+, HDR capability comes only from `HighDynamicRangeSupported`, WCG capability comes only from `WideColorSupported`, and policy limitation suppresses both configurable capabilities. `activeColorMode` is interpreted as the effective SDR, WCG, or HDR destination. Desired HDR rows resolve to HDR regardless of any compatibility WCG bit: entering HDR issues only the HDR setter, while HDR-to-SDR/WCG disables HDR before explicitly establishing the required SDR-side WCG state when that capability exists. Native HDR/WCG setter return codes are the mutation success/failure authority; the apply path does not add synchronous readback sleeps before later color-profile or DPI stages. Exact effective-mode matches are no-ops. Earlier supported systems retain the legacy generic Advanced Color/ACM provider behavior.
+    - **`ApplyColorProfiles`** — for each enabled display with a non-null `ColorProfile`, builds a transient `DisplaySetting` carrying the current adapter-qualified target; `ColorProfileHelper.ApplyColorProfile` reacquires the fresh live `SourceId` from that target before the native color-profile call.
+3. **DPI** — applies `DpiHelper.SetDPIScaling` after layout, HDR, and color are committed. The pre-topology strict mapper carries a per-row adapter-qualified target authorization into this stage. DPI reobserves fresh post-topology display state and reacquires only that authorized target key so current `SourceId` and device-name data are fresh; ambiguous, conflicting, insufficient-evidence, absent, or disappeared rows cannot gain a target through stale IDs, path order, or permissive continuity guesses. When the caller already has that fresh `DisplayConfigInfo`, `SetDPIScaling` uses it directly. The method refuses when no scaling information is available and snaps an in-range unsupported value to the nearest ladder step.
+4. **Wallpaper** — applies `WallpaperSettings` through the destination-owned transition plan when wallpaper is enabled. Picture assignments and Slideshow sources are preflighted before destructive ownership changes; any unresolved requested Picture assignment prevents full success. Solid/Picture/Slideshow explicitly establish and verify their `BackgroundType` ownership after COM state is applied. Spotlight first returns desktop rendering ownership to Windows, establishes provider/mode state, normalizes Fill presentation, and verifies rendered provider content over the exact current-active monitor domain. If Windows does not repaint promptly, the application may use only an existing verified Client.CBS provider-owned current/landscape image as a repaint bridge before reasserting and verifying provider/mode; Windows remains responsible for Spotlight content delivery and freshness. Hard destination-establishment failures are surfaced through `WallpaperSuccess` and trigger a best-effort prior-owner restore.
 5. **Audio** — applies the configured playback and recording devices only when audio is enabled and the corresponding `ApplyPlaybackDevice` or `ApplyCaptureDevice` flag is enabled.
 6. **Scripts** — executes a script only when script execution is enabled and that script's own `IsEnabled` flag is enabled.
 
@@ -242,10 +242,11 @@ The application uses the Windows Display Configuration API (`SetDisplayConfig`) 
 ### Critical implementation notes
 
 - **Never use `ChangeDisplaySettingsEx` for topology or resolution changes.** Display topology and layout changes go through `DisplayConfigHelper`; `ApplyDisplayLayout` handles resolution atomically inside `SetDisplayConfig`.
-- **SourceId normalization is handled inside `ApplyDisplayTopology` and `ApplyDisplayLayout` via `BuildSourceIdMap`.** Do not normalize saved profile IDs in `ApplyProfileAsync`. Profiles retain their stored SourceId values so logging and clone-group detection continue to use the original data.
-- **Source IDs are assigned per clone group per adapter, not per path.** `MutatePathsForTopology` derives the clone group from the profile's SourceId and renumbers `sourceInfo.id` across active paths. Assigning a different source ID to each member of one clone group describes extend rather than clone.
+- **SourceId is runtime topology state.** Before topology, the apply mapper synthesizes adapter-local source groups from `CloneGroupId`; independent displays receive distinct groups. `ApplyDisplayTopology` and `ApplyDisplayLayout` normalize those groups through `BuildSourceIdMap`.
+- **Apply-time address resolution is separate from profile topology intent.** Before topology, `QDC_ALL_PATHS` supplies adapter-qualified observations for active and inactive-but-present endpoints. Resolution uses a unique numeric `TargetId` when identity is absent or agrees, otherwise follows one unique manufacturer/product EDID match, then permits the same unique numeric target as the generic port/location fallback when EDID does not resolve uniquely. Duplicate adapter-qualified endpoints sharing that numeric target remain ambiguous. `CloneGroupId` expresses clone/extend intent; adapter LUID, raw target ID, source ID, and path index are live execution data. DPI may refresh only the adapter-qualified target authorized before topology.
+- **Source IDs are assigned per clone group per adapter, not per path.** The apply mapper translates `CloneGroupId` into transient adapter-local source groups, and topology/layout then assign the Windows source IDs needed for the current session. Identical clone labels on different adapters never imply a cross-adapter shared source.
 - **Clone groups must be set in `ApplyDisplayTopology` with `SDC_TOPOLOGY_SUPPLIED`.** Once the mode array is used for layout, changing clone groups would invalidate mode indices.
-- **HDR and ACM are distinct.** `IsHdrEnabled` and `IsAcmEnabled` represent separate API states. HDR forces ACM on during apply, but ACM remains independently configurable when HDR is off. On pre-24H2 systems, the shared legacy toggle resets to `Off` before applying `Acm` intent so Windows initializes ACM rather than re-engaging HDR.
+- **24H2 Advanced Color capability is mode-specific.** `HighDynamicRangeSupported` controls HDR availability and `WideColorSupported` controls WCG availability; `AdvancedColorLimitedByPolicy` suppresses both configurable capabilities. `AdvancedColorSupported` is not a substitute for either dedicated capability bit. The active destination remains exactly SDR, WCG, or HDR. `DisplayConfigSetDeviceInfo` success/failure from the requested HDR/WCG setter is authoritative for mutation; do not add warning-only synchronous readback polling that stalls downstream stages without governing success. Pre-24H2, live HDR capability selects the HDR compatibility path, while SDR-side WCG intent uses ACM only on non-HDR-capable providers.
 - **HDR requires a live `RawTargetId`.** Always query live display configuration after topology apply, match by base `TargetId` (lower 16 bits), and use `activeDisplay.RawTargetId` for `DisplayConfigSetDeviceInfo`.
 - **Disconnected-display detection must distinguish deep sleep from absence.** `ApplyDisplayConfig` captures `GetAllPathTargetIds` once using `QDC_ALL_PATHS`, then excludes enabled profile displays that are absent from that snapshot from the stabilization wait.
 
@@ -255,7 +256,7 @@ The display recovery settings control what happens after a display stage fails.
 
 - `abortOnApplyFailure` stops the pipeline when topology or layout fails instead of continuing through DPI, wallpaper, audio, and scripts.
 - `rollbackAfterApplyFailure` enables rollback after an aborted apply.
-- `rollbackToPreviousProfile` selects the recovery target. When enabled and a previous profile exists, DPM reapplies that profile. When no previous profile exists, recovery falls back to the pre-apply display snapshot. When disabled, the snapshot is used directly.
+- `rollbackToPreviousProfile` selects the recovery target. When enabled and a previous profile exists, the application reapplies that profile. When no previous profile exists, recovery falls back to the pre-apply display snapshot. When disabled, the snapshot is used directly.
 - All three recovery settings default to `true`.
 - Both topology and layout failures reach the same recovery gate. A topology failure skips defer and layout, records `DisplayConfigApplied` as false, and still reaches recovery.
 - Snapshot recovery captures the pre-apply display state before any mutation and preserves clone topology so the existing display pipeline can restore it.
@@ -263,7 +264,7 @@ The display recovery settings control what happens after a display stage fails.
 - Previous-profile rollback applies the entire profile pipeline, while snapshot rollback restores display state only.
 - Rollback reuses `ApplyProfileAsync` with a `_rollingBack` guard so a failed rollback reports the failure instead of recursively entering the abort/recovery path.
 
-Advanced Color, Color Profile, DPI, and Audio are non-blocking secondary stages. `ProfileApplyResult.Success` remains controlled by the display/layout stage. Secondary failures are represented separately and, on otherwise successful applies, summarized in application order for status and normal successful-apply notification presentation. They do not independently make the profile apply fail, trigger rollback, or create blocking error UI.
+Advanced Color, Color Profile, DPI, Wallpaper, and Audio are non-blocking secondary stages. `ProfileApplyResult.Success` remains controlled by the display/layout stage. Secondary failures are represented separately and, on otherwise successful applies, summarized in application order for status and normal successful-apply notification presentation. They do not independently make the profile apply fail, trigger rollback, or create blocking error UI.
 
 ### Debug Flags
 
@@ -273,7 +274,7 @@ A `debugFlags` object in `Settings.json` exposes controlled failure paths with n
 | ----------------------- | ------------------------------------------------------------------------------ | -------------------------------------- |
 | `forceTopologyRecovery` | Treats a successful topology apply as `ERROR_GEN_FAILURE` so recovery executes | A wiped display-configuration database |
 | `forceApplyFailure`     | Forces the selected display stage to fail — `1` topology, `2` layout, `0` off  | A real apply failure                   |
-| `skipSpotlightRepaint`  | Sets Spotlight without scheduling the repaint step                             | Nothing                                |
+| `skipSpotlightRepaint`  | Skips the verified provider-owned Spotlight repaint bridge                     | Nothing                                |
 | `centerIconGrid`        | Centers the profile-editor icon grid                                           | Nothing                                |
 
 Each active flag logs `[debugFlag: name]` where it acts, and enabled flags are warned about during startup so diagnostic settings are visible in logs.
@@ -296,8 +297,9 @@ Rules:
 - Profiles store the base target ID, masked to its lower 16 bits.
 - Target ID identifies a connector/port, not a physical panel. EDID identity resolves a moved panel when stored target ID and live target disagree.
 - Monitor identity does not depend on WMI.
-- `IDesktopWallpaper` uses interface paths, so `WallpaperHelper.BuildMonitorMap()` joins current GDI names to current interface paths instead of persisting the mapping.
-- Adapter LUIDs are resolved from live configuration on each apply and are not persisted.
+- `IDesktopWallpaper` uses monitor device paths. `WallpaperHelper.BuildMonitorMap()` derives each active GDI source name and exact target `monitorDevicePath` from CCD, intersects that identity with currently attached `IDesktopWallpaper` monitor IDs, and does not use target-number or `EnumDisplayDevices` heuristics.
+- Profiles do not persist adapter LUIDs. CCD source/target operations use the live adapter LUID; a unique manufacturer/product EDID may follow a moved panel, while numeric `TargetId` is a generic port/location fallback only when it identifies exactly one canonical endpoint.
+- `DisplayConfigInfo.TargetId` is the normalized lower-16-bit target identity used by profile matching; `RawTargetId` preserves the exact native target ID required by device-info setter calls.
 - `QDC_ALL_PATHS` can contain inactive alternate routes for the same target. Lookups by target ID must prefer the active path, and callers that clear `Active` must preserve the live route they were using before doing so.
 
 ## Profile and Data Model
@@ -306,20 +308,20 @@ Rules:
 
 `Profile` top-level properties, in current declaration order:
 
-| Property            | Type                   | Default  | Description                                                                                                                                        |
-| ------------------- | ---------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Id`                | `string` (GUID)        | new GUID | Unique identifier                                                                                                                                  |
-| `Name`              | `string`               | `""`     | Display name                                                                                                                                       |
-| `Description`       | `string`               | `""`     | Optional description                                                                                                                               |
-| `Icon`              | `string`               | `null`   | Bare custom icon filename relative to `%AppData%\DisplayProfileManager\Icons\`, or `null` for none                                            |
-| `CreatedDate`       | `DateTime`             | now      | Creation timestamp                                                                                                                                 |
-| `LastModifiedDate`  | `DateTime`             | now      | Last save timestamp                                                                                                                                |
-| `SchemaVersion`     | `int`                  | `0`      | Profile schema version. Missing or malformed values recover to `0` and trigger migration. Current version is `5`.                                  |
-| `DisplaySettings`   | `List<DisplaySetting>` | `[]`     | Per-monitor display configuration                                                                                                                  |
-| `WallpaperSettings` | `WallpaperSettings`    | `null`   | Stored wallpaper state; its nested `Enabled` value controls whether the wallpaper stage applies                                                    |
-| `AudioSettings`     | `AudioSetting`         | default  | Playback/recording configuration; nested `Enabled` gates the audio stage and per-endpoint flags select which defaults are changed                  |
-| `ScriptSettings`    | `ScriptSettings`       | default  | Nested script enablement plus the stored `List<Script>` entries                                                                                    |
-| `HotkeyConfig`      | `HotkeyConfig`         | default  | Global hotkey assigned to the profile                                                                                                              |
+| Property            | Type                   | Default  | Description                                                                                                                       |
+| ------------------- | ---------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `Id`                | `string` (GUID)        | new GUID | Unique identifier                                                                                                                 |
+| `Name`              | `string`               | `""`     | Display name                                                                                                                      |
+| `Description`       | `string`               | `""`     | Optional description                                                                                                              |
+| `Icon`              | `string`               | `null`   | Bare custom icon filename relative to `%AppData%\DisplayProfileManager\Icons\`, or `null` for none                                |
+| `CreatedDate`       | `DateTime`             | now      | Creation timestamp                                                                                                                |
+| `LastModifiedDate`  | `DateTime`             | now      | Last save timestamp                                                                                                               |
+| `SchemaVersion`     | `int`                  | `0`      | Profile schema version. Missing or malformed values recover to `0` and trigger migration. Current version is `6`.                 |
+| `DisplaySettings`   | `List<DisplaySetting>` | `[]`     | Per-monitor display configuration                                                                                                 |
+| `WallpaperSettings` | `WallpaperSettings`    | `null`   | Stored wallpaper state; its nested `Enabled` value controls whether the wallpaper stage applies                                   |
+| `AudioSettings`     | `AudioSetting`         | default  | Playback/recording configuration; nested `Enabled` gates the audio stage and per-endpoint flags select which defaults are changed |
+| `ScriptSettings`    | `ScriptSettings`       | default  | Nested script enablement plus the stored `List<Script>` entries                                                                   |
+| `HotkeyConfig`      | `HotkeyConfig`         | default  | Global hotkey assigned to the profile                                                                                             |
 
 Each `DisplaySetting` entry, in current declaration order:
 
@@ -330,13 +332,10 @@ Each `DisplaySetting` entry, in current declaration order:
 | `DeviceName`, `DeviceString`        | GDI device path and adapter string                                                     |
 | `ReadableDeviceName`                | CCD friendly display name, with GDI name fallback for adapters that do not provide one |
 | `ManufacturerName`, `ProductCodeID` | EDID-derived panel identity used with `TargetId` when resolving a live display         |
-| `AdapterLuid`                       | `[JsonIgnore]` live adapter LUID used for color-profile P/Invoke calls                 |
-| `AdapterId`                         | GPU adapter LUID stored as a hexadecimal string                                        |
-| `TargetId`                          | Base target ID, stored as the lower 16 bits and used for stable port identity          |
-| `SourceId`                          | Adapter source ID; shared by members of a clone group                                  |
-| `CloneGroupId`                      | Clone-group identifier; empty string represents extended/independent mode              |
+| `AdapterLuid`                       | `[JsonIgnore]` live adapter LUID used by adapter-qualified native calls                |
+| `TargetId`                          | Captured lower-16-bit connector/address hint; current target is resolved before apply   |
+| `CloneGroupId`                      | Durable clone relationship; empty string represents extended/independent mode            |
 | `IsCloneSource`                     | Marks the source display within an active clone group                                  |
-| `PathIndex`                         | Display path enumeration index                                                         |
 
 **State**
 
@@ -353,15 +352,16 @@ Each `DisplaySetting` entry, in current declaration order:
 
 **Configuration**
 
-| Property                         | Description                                                                              |
-| -------------------------------- | ---------------------------------------------------------------------------------------- |
-| `Width`, `Height`                | Desired resolution                                                                       |
-| `Frequency`                      | Desired refresh rate                                                                     |
-| `Rotation`                       | Screen orientation; `0` means `Not Applied`, `1` = 0°, `2` = 90°, `3` = 180°, `4` = 270° |
-| `DpiScaling`                     | Desired Windows DPI scaling                                                              |
-| `IsHdrSupported`, `IsHdrEnabled` | HDR capability and desired HDR state                                                     |
-| `IsAcmEnabled`                   | Desired ACM state; HDR forces ACM on during apply                                        |
-| `ColorProfile`                   | ICC/ICM filename from the system color store, or `null` for `Not Applied`                |
+| Property                       | Description                                                                                                                             |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `Width`, `Height`              | Desired resolution                                                                                                                      |
+| `Frequency`                    | Desired refresh rate                                                                                                                    |
+| `Rotation`                     | Screen orientation; `0` means `Not Applied`, `1` = 0°, `2` = 90°, `3` = 180°, `4` = 270°                                                |
+| `DpiScaling`                   | Desired Windows DPI scaling                                                                                                             |
+| `IsHdrSupported`               | `[JsonIgnore]` live HDR capability from the resolved CCD target                                                                         |
+| `IsWcgSupported`               | `[JsonIgnore]` live WCG capability from the resolved CCD target                                                                         |
+| `IsHdrEnabled`, `IsWcgEnabled` | Desired Advanced Color state; together they resolve to one SDR/WCG/HDR destination, with HDR taking precedence if both bits are present |
+| `ColorProfile`                 | ICC/ICM filename from the system color store, or `null` for `Not Applied`                                                               |
 
 **Clone** — see [Clone settings](#clone-settings) for the `[JsonIgnore]` `Original*` fields; those fields sit here in declaration order between Configuration and Native.
 
@@ -407,10 +407,10 @@ The tray notification title has a smaller hard limit than the tray tooltip. Prof
 
 Clone groups enable display mirroring with multiple monitors showing identical content.
 
-- **Clone-group IDs** are encoded in `DISPLAYCONFIG_PATH_SOURCE_INFO.modeInfoIdx`: lower 16 bits are the clone group ID (`modeInfoIdx & 0xFFFF`), and upper 16 bits are the source-mode index (`modeInfoIdx >> 16`). `ResetModeAndSetCloneGroup()` is used for Phase 1; Phase 2 assigns the field directly. In `ApplyDisplayLayout`, all members of a clone group share one source-mode entry keyed by normalized `SourceId`. Do not consume a separate mode entry per display.
-- `GetCurrentDisplaySettingsAsync()` detects clone groups by `SourceId`, not by `DeviceName + SourceId`.
+- **Clone-group IDs** are encoded in `DISPLAYCONFIG_PATH_SOURCE_INFO.modeInfoIdx`: lower 16 bits are the clone group ID (`modeInfoIdx & 0xFFFF`), and upper 16 bits are the source-mode index (`modeInfoIdx >> 16`). `ResetModeAndSetCloneGroup()` is used for Phase 1; Phase 2 assigns the field directly. In `ApplyDisplayLayout`, all members of a durable `CloneGroupId` relationship share one transient adapter-qualified source-mode entry. Do not consume a separate mode entry per display.
+- `GetCurrentDisplaySettingsAsync()` detects clone relationships from the live adapter-qualified CCD `SourceId`, then stores only `CloneGroupId` / `IsCloneSource` semantics in the profile model.
 - **`CreateCloneGroup()`** saves all attached-member pre-clone state before making changes. The primary-transfer block runs after the save loop because it clears `IsPrimary` on attached members.
-- **`BreakCloneGroup()`** restores each attached member's complete saved display state. Restored fields include position, SourceId, resolution, refresh rate, DPI scaling, rotation, color profile, HDR, ACM, and primary state. If no saved clone settings exist, it falls back to native resolution and a position to the right of the source.
+- **`BreakCloneGroup()`** restores each attached member's complete saved display state. Restored fields include primary state, position, resolution, refresh rate, rotation, DPI scaling, HDR, WCG, and color profile. If no saved clone settings exist, it falls back to native resolution and a position to the right of the source.
 - **`BreakCloneGroup()`** is order-independent. It partitions members by `IsCloneSource` rather than assuming the first item is the source. After a clone is broken, saved attached-member primary state is restored when appropriate; the source does not unconditionally become primary when another display already owns primary.
 - **`BreakCloneGroup()`** retains `IsCloneSource` until the rebuild completes. `GetDisplaySettings()` uses it to route parameters correctly during the rebuild and emits `IsCloneSource = false` for settings whose `CloneGroupId` is empty.
 - **`CloneGroupMembers`** is public so `ProfileEditWindow.RebuildDisplayControls()` can capture member device names for sort-order preservation before rebuilding controls.
@@ -430,7 +430,7 @@ bool useOwnParams = !originalSetting.IsCloneSource && string.IsNullOrEmpty(origi
 | After `BreakCloneGroup()` — attached | `false`         | `""`           | `true`         | reads restored model values       |
 | Independent display                  | `false`         | `""`           | `true`         | reads its own values              |
 
-Fields that respect `useOwnParams` when restored parameters are active are `Width`, `Height`, `Frequency`, `Rotation`, `DpiScaling`, `IsHdrEnabled`, `IsAcmEnabled`, and `ColorProfile`. Identity, enabled state, layout position, HDR capability, native dimensions, and capability collections come from the model directly.
+Fields that respect `useOwnParams` when restored parameters are active are `Width`, `Height`, `Frequency`, `Rotation`, `DpiScaling`, `IsHdrEnabled`, `IsWcgEnabled`, and `ColorProfile`. Identity, enabled state, layout position, HDR capability, native dimensions, and capability collections come from the model directly.
 
 `IsPrimary` is read from the original setting rather than inferred from list position. `IsCloneSource` in output is `originalSetting.IsCloneSource && !string.IsNullOrEmpty(originalSetting.CloneGroupId)`, so independent displays never inherit the clone-source flag.
 
@@ -442,21 +442,27 @@ The following `DisplaySetting` fields are `[JsonIgnore]` and therefore exist onl
 | ---------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `OriginalSettings`                       | Marks an attached member whose restored values should be read from the model after a clone is broken. |
 | `OriginalPositionX`, `OriginalPositionY` | Virtual-desktop position before cloning.                                                              |
-| `OriginalSourceId`                       | Adapter SourceId before cloning.                                                                      |
 | `OriginalIsPrimary`                      | Primary state before cloning.                                                                         |
 | `OriginalWidth`, `OriginalHeight`        | Resolution before cloning.                                                                            |
 | `OriginalFrequency`                      | Refresh rate before cloning.                                                                          |
 | `OriginalRotation`                       | Rotation before cloning.                                                                              |
 | `OriginalDpiScaling`                     | DPI scaling before cloning.                                                                           |
 | `OriginalIsHdrEnabled`                   | HDR state before cloning.                                                                             |
-| `OriginalIsAcmEnabled`                   | ACM state before cloning.                                                                             |
+| `OriginalIsWcgEnabled`                   | WCG state before cloning.                                                                             |
 | `OriginalColorProfile`                   | Color profile filename before cloning.                                                                |
 
 These values are copied through `GetDisplaySettings()` so they survive the control rebuild immediately following `CreateCloneGroup()`. They are not written to `.dpm` files; profiles saved while cloned therefore use the fallback path when the clone is later broken after reload. Saved profile data retains the ordinary per-display values needed for restoration after save and reopen — only the `Original*` state is editor-session-only.
 
 ### Schema Migration
 
-`ProfileManager.LoadProfilesAsync` compares each profile's `SchemaVersion` with `CurrentSchemaVersion` (`5`). Profiles below the current version are passed to `MigrateProfileAsync`. `SchemaVersion` defaults to `0` in `Profile.cs`, so profiles without the field are migrated automatically on load, and `LastModifiedDate` is preserved during the migration save.
+`ProfileManager.LoadProfilesAsync` compares each profile's `SchemaVersion` with `CurrentSchemaVersion` (`6`). Profiles below the current version are passed to `MigrateProfileAsync`. `SchemaVersion` defaults to `0` in `Profile.cs`, so profiles without the field are migrated automatically on load, and `LastModifiedDate` is preserved during the migration save.
+
+**Version 5 → 6**
+
+- Stored `isAcmEnabled` input is translated at deserialization into `isWcgEnabled`.
+- Rows with `isHdrEnabled == true` canonicalize `isWcgEnabled` to `false`.
+- Existing wallpaper state is invalidated and replaced with a fresh disabled `WallpaperSettings`.
+- Stored `NativeWidth` / `NativeHeight` values are invalidated, then preferred/native dimensions are backfilled from safely resolved `QDC_ALL_PATHS` endpoints, including inactive-but-present targets. Unresolved targets and preferred-mode query failures remain `0x0` for deferred hardware self-healing.
 
 **Version 4 → 5**
 
@@ -474,8 +480,7 @@ These values are copied through `GetDisplaySettings()` so they survive the contr
 
 **Version 2 → 3**
 
-- `ColorProfile` is backfilled from the current OS display association by `TargetId`.
-- Displays unavailable during migration are skipped.
+- `ColorProfile` is backfilled from the current OS display association by `TargetId`; displays unavailable during migration are skipped.
 
 **Version 1 → 2**
 
@@ -483,15 +488,14 @@ These values are copied through `GetDisplaySettings()` so they survive the contr
 
 **Version 0 → 1**
 
-- `NativeWidth` and `NativeHeight` are backfilled from live display configuration.
 - `ReadableDeviceName` is updated from live CCD data.
-- Displays unavailable during migration are skipped and their native dimensions can be repaired later by deferred hardware self-healing.
+- Displays unavailable during migration are skipped.
 
 #### Deferred Hardware Self-Healing
 
 Migration is a one-time format upgrade. Native dimensions and EDID identity can remain incomplete when a display is unavailable during migration and are repaired when a later profile apply sees the same `TargetId` live:
 
-- `NativeWidth == 0` / `NativeHeight == 0` — native (EDID preferred-timing) dimensions.
+- `NativeWidth == 0` / `NativeHeight == 0` — preferred/native display dimensions.
 - Empty `ManufacturerName` / `ProductCodeID` — EDID panel identity.
 
 When `ApplyProfileAsync` applies a profile whose live display map includes one of these `TargetId`s, `ProfileManager` backfills the incomplete hardware information on the applied profile, then backfills other loaded profiles that reference the same `TargetId`, saving only profiles that actually changed. The check is `TargetId`-centric because more than one profile can reference the same physical monitor/port. It runs only as part of an actual profile apply (and the existing boot-time migration pass), not on ordinary profile, tray, or editor reloads. No persistent pending-repair queue is used.
@@ -531,7 +535,7 @@ Migration blocks are described newest-first here but execute in ascending order.
 
 ## CLI
 
-All flags accept any number of leading dashes or none at all — `--profile`, `-profile`, and `profile` are equivalent. The argument string is lowercased and leading dashes are stripped before matching.
+All flags accept any number of leading dashes, a leading slash, or no prefix — `--profile`, `-profile`, `/profile`, and `profile` are equivalent. The argument string is lowercased and leading `-` or `/` characters are stripped before matching.
 
 `--tray`, `--exit`, `--shell`, `--unshell`, and `--dev` are matched exactly. All other flags use prefix matching; an unambiguous prefix resolves to the full flag name.
 
@@ -607,7 +611,7 @@ Update checking is disabled by default through `checkForUpdates` in `Settings.js
 When enabled:
 
 - **Startup** checks the latest GitHub release tag and compares it with the running informational version.
-- A release is advertised only after its seven-day settling window.
+- A release is advertised only after its three-day settling window.
 - A missing or invalid `published_at` value is treated as old enough to advertise.
 - Newer releases are shown in the status bar and About panel.
 - A newer release also triggers a tray notification containing a release-page link; update notifications retain that link when activated.
@@ -642,7 +646,7 @@ When enabled:
 When a profile is selected, the panel shows:
 
 - profile name and description, with a custom icon when assigned.
-- per-monitor resolution, refresh rate, rotation, HDR/ACM, color profile, and DPI.
+- per-monitor resolution, refresh rate, rotation, HDR/WCG, color profile, and DPI.
 - disabled-monitor and disabled-clone-group badges.
 - the primary display marker and clone-group indicators with member names.
 - **Display → Wallpaper → Audio → Scripts** sections, with enabled/disabled state reflected in their secondary text.
@@ -662,8 +666,8 @@ When a profile is selected, the panel shows:
 - **Profile and hotkey fields** occupy the left column, with the profile name and hotkey on separate rows. The profile name has the Default checkbox beside its label. The hotkey row has its enable checkbox beside the label and a right-aligned Clear button. Hotkey controls remain inactive until a key combination is assigned; assigning a key automatically enables the hotkey, which can then be disabled explicitly. Global hotkeys are disabled while the profile editor is open.
 - **Description** occupies the full right column alongside the Profile and hotkey fields and spans both rows.
 - **Icon picker** appears below the profile and hotkey area. It imports `.ico` files into the icon sandbox and immediately selects the imported icon in the editor; the profile assignment is committed only when the profile is saved. Clearing an assignment does not delete the underlying file.
-- **Displays** — shows per-monitor resolution, refresh rate, rotation, HDR/ACM, DPI, and color profile controls. **Load** replaces the stored display settings with the current live configuration; new profiles are initialized from the current live desktop when being created, while existing profiles retain their stored display settings until explicitly loaded. **Identify** temporarily overlays each physical monitor with its number. The Clone action selects a display to mirror, with the initiating display becoming the clone source and the selected display becoming the mirror; grouped displays share resolution and refresh controls. Break Clone splits a group back into independent displays while restoring the saved attached-member state.
-- **Wallpaper** — includes the section enable toggle and **Load** action, followed by the wallpaper preview and mode-specific controls. Solid Color and Picture provide a color picker; Picture also provides fitment. Slideshow provides fitment, interval, shuffle/order, and source-folder controls. Spotlight provides only a preview.
+- **Displays** — shows per-monitor resolution, refresh rate, rotation, HDR/WCG, DPI, and color profile controls. **Load** replaces the stored display settings with the current live configuration; new profiles are initialized from the current live desktop when being created, while existing profiles retain their stored display settings until explicitly loaded. **Identify** temporarily overlays each physical monitor with its number. The Clone action selects a display to mirror, with the initiating display becoming the clone source and the selected display becoming the mirror; grouped displays share resolution and refresh controls. Break Clone splits a group back into independent displays while restoring the saved attached-member state.
+- **Wallpaper** - includes the section enable toggle and **Load** action, followed by the wallpaper preview and mode-specific controls. Solid Color provides a color picker; Picture provides color and fitment. Slideshow provides color, fitment, interval, shuffle/order, and source-folder controls. Spotlight provides only a preview.
 - **Audio** — includes the section enable toggle and playback and recording device dropdown menus. The dropdown menus enumerate current devices when opened and preserve saved endpoints that are no longer available.
 - **Scripts** — includes a section-level Enable toggle and per-script rows containing the script checkbox, file name, arguments, and delete button. The section can be enabled only when at least one non-deleted script is individually enabled, and both the section toggle and the individual script's `IsEnabled` flag must be enabled for that script to execute. Missing script files are shown with `(Not Found)`. **Clear All Scripts** marks all non-deleted scripts for removal while allowing individual rows to be restored.
 
@@ -755,11 +759,11 @@ The grid fills the available width exactly at the default editor size. The `cent
 
 **Build and output:** `ShellExt.dll` is written to `bin\<Platform>\<Configuration>\` rather than an SDK target-framework subdirectory. The native project retains the explicit output-path configuration consumed by `Setup.iss` and release packaging.
 
-**Registration:** the DLL is not self-registering. `ShellContextMenuHelper` registers the COM class per-user under HKCU and records the DLL path. `--shell` registers and enables the setting; `--unshell` removes the registration and refreshes Explorer when an existing registration is removed. Explorer can therefore load the extension while DPM is not running.
+**Registration:** the DLL is not self-registering. `ShellContextMenuHelper` registers the COM class per-user under HKCU and records the DLL path. `--shell` registers and enables the setting; `--unshell` removes the registration and refreshes Explorer when an existing registration is removed. Explorer can therefore load the extension while the application is not running.
 
-**Explorer boundary:** `DllGetClassObject` exposes the `DpmContextMenu` class factory and `DllCanUnloadNow` reports DLL lifetime state. `IShellExtInit::Initialize` accepts only the desktop namespace, so the submenu does not appear in ordinary Explorer folder views. Command execution launches DPM with `--headless` rather than applying profiles inside the DLL.
+**Explorer boundary:** `DllGetClassObject` exposes the `DpmContextMenu` class factory and `DllCanUnloadNow` reports DLL lifetime state. `IShellExtInit::Initialize` accepts only the desktop namespace, so the submenu does not appear in ordinary Explorer folder views. Command execution launches the application with `--headless` rather than applying profiles inside the DLL.
 
-**Data boundary:** `JsonReader` extracts only `currentProfileId` from `Settings.json` and `id`, `name`, and `icon` from profile files. It is a small flat-string reader rather than a general JSON parser; invalid or unreadable profiles are skipped so one bad file does not prevent other profiles from appearing.
+**Data boundary:** `JsonReader` validates a strict bounded native JSON subset and extracts only `currentProfileId` from `Settings.json` plus `id`, `name`, and `icon` from profile files. Malformed, duplicate-key, invalid-UTF-8, over-limit, or unreadable profile files are rejected independently so one bad file does not prevent other profiles from appearing.
 
 **Menu contract:** `ReadProfiles` sorts profiles by name using `StrCmpLogicalW` natural ordering, and that vector order is also the command-index order used by `QueryContextMenu` and `InvokeCommand`. The cascading `Display Profiles` item consumes no command ID; only profile leaf items map to verb offsets.
 
@@ -772,39 +776,62 @@ The test project (`DisplayProfileManager.Tests/`) is a separate MSTest v4 projec
 ```text
 DisplayProfileManager.Tests/
 ├── Helpers/
-│   ├── DisplayConfigInfoBuilder.cs             Builder for DisplayConfigHelper.DisplayConfigInfo test fixtures
-│   └── DisplaySettingBuilder.cs                Builder for DisplaySetting test fixtures
+│   ├── DisplayConfigInfoBuilder.cs                  DisplayConfigInfo fixture builder
+│   └── DisplaySettingBuilder.cs                     DisplaySetting fixture builder
 └── Tests/
-    ├── CliParserTests.cs                       Flag normalization, prefix matching, and refresh/exit spelling
-    ├── CloneRestorationTests.cs                BreakCloneGroup restoration of saved attached-member state
-    ├── ColorProfileHelperTests.cs              ICC CICP HDR parsing
-    ├── DisplayConfigInfoTests.cs               Default-construction invariants for DisplayConfigInfo
-    ├── DisplayConfigNormalizationTests.cs      BuildSourceIdMap contiguous-renumbering behavior
-    ├── DisplayConfigPathSourceInfoTests.cs     modeInfoIdx clone-group/source-mode-index bit packing
-    ├── DisplayConfigQueryRetryTests.cs         CCD size/query retry behavior across topology churn
-    ├── DisplayConfigVirtualModeTopologyTests.cs Production topology preparation for virtual/non-virtual source-info handling
-    ├── DisplayGroupHelperTests.cs              Grouping display settings into UI clone/independent groups
-    ├── DisplaySettingTests.cs                  CloneGroupId/IsPartOfCloneGroup and other field defaults
-    ├── EdidDecodeTests.cs                      EDID manufacturer ID decoding
-    ├── GetLUIDFromStringTests.cs               Hex-string LUID parsing
-    ├── HotkeyConfigTests.cs                    HotkeyConfig construction, validity, and equality
-    ├── KeyConverterTests.cs                    WPF Key <-> virtual-key code conversion and modifier bit mapping
-    ├── NaturalStringComparerTests.cs           Natural sort ordering for embedded numbers and copy suffixes
-    ├── ProfileApplyPresentationTests.cs        Secondary-failure warning aggregation, order, and presentation helpers
-    ├── ProfileDeserializationRecoveryTests.cs  DeserializeProfile tolerance for malformed optional members
-    ├── ProfileHardwareSelfHealingTests.cs      Deferred hardware self-healing detection and backfill
-    ├── ProfileManagerTests.cs                  Profile CRUD, lookup, and manager-level behavior (largest suite)
-    ├── ProfileSchemaTests.cs                   Current profile schema and migration behavior
-    ├── ProfileTests.cs                         Profile model construction and field defaults
-    ├── ScriptTests.cs                          Script model/string behavior and the production script-sandbox resolver
-    ├── SettingsManagerTests.cs                 Tolerant settings deserialization and save guards
-    ├── UpdateHelperTests.cs                    Release-version parsing, release-age cooldown behavior, and version-tag normalization
-    └── WallpaperSettingTests.cs                Wallpaper position normalization and Slideshow config scope
+    ├── AboutHelperTests.cs                          About dependency resolution
+    ├── AdapterQualifiedCcdTests.cs                  Adapter-qualified target/source addressing
+    ├── AdvancedColorCaptureTests.cs                 Advanced Color capture availability and intent preservation
+    ├── AdvancedColorEditorPresentationTests.cs      HDR/WCG editor state and presentation
+    ├── AdvancedColorWallpaperFailureTests.cs        Advanced Color capability plus wallpaper failure boundaries
+    ├── AdvancedColorWallpaperOutcomeTests.cs        Advanced Color read paths and wallpaper apply outcomes
+    ├── CliParserTests.cs                            CLI flag/value parsing
+    ├── CloneRestorationTests.cs                     Clone break/restoration behavior
+    ├── ColorProfileHelperTests.cs                   ICC CICP HDR parsing
+    ├── DisplayConfigAdvancedColorTests.cs           Native Advanced Color ABI/effective-mode behavior
+    ├── DisplayConfigInfoTests.cs                    DisplayConfigInfo construction invariants
+    ├── DisplayConfigNormalizationTests.cs           Source-ID normalization
+    ├── DisplayConfigPathSourceInfoTests.cs          source-info union packing
+    ├── DisplayConfigQueryRetryTests.cs              CCD topology-race retries
+    ├── DisplayConfigVirtualModeTopologyTests.cs     Virtual/non-virtual topology preparation
+    ├── DisplayGroupHelperTests.cs                   UI clone/independent grouping
+    ├── DisplaySettingTests.cs                       DisplaySetting defaults and clone-state helpers
+    ├── EdidDecodeTests.cs                           EDID manufacturer decoding
+    ├── HotkeyConfigTests.cs                         Hotkey construction, validity, and equality
+    ├── IpcServerTests.cs                            Session/dev pipe routing and listener isolation
+    ├── KeyConverterTests.cs                         WPF key/virtual-key conversion
+    ├── NaturalStringComparerTests.cs                Natural profile-name ordering
+    ├── ProfileApplyAuthorityTests.cs                FIFO apply serialization and rollback ownership
+    ├── ProfileApplyPresentationTests.cs             Secondary apply-warning presentation
+    ├── ProfileDeserializationRecoveryTests.cs       Optional-member recovery
+    ├── ProfileDpiAddressAuthorityTests.cs           Strict display-address authority through DPI orchestration
+    ├── ProfileHardwareSelfHealingTests.cs           Deferred hardware identity backfill
+    ├── ProfileManagedIdentityTests.cs               Managed profile path/ID authority
+    ├── ProfileManagerTests.cs                       Profile CRUD, lookup, and manager behavior
+    ├── ProfileSchemaTests.cs                        Profile schema reconciliation and migration
+    ├── ProfileShapeCleanupTests.cs                  Durable profile display shape and transient-address retirement
+    ├── ProfileTests.cs                              Profile model construction and defaults
+    ├── ScriptImportTests.cs                         Multi-script import batching and partial failure
+    ├── ScriptTests.cs                               Script model and sandbox resolution
+    ├── SettingsManagerTests.cs                      Settings recovery and persistence guards
+    ├── ShellCommandCoordinatorTests.cs              Shell registration/teardown transaction behavior
+    ├── SpotlightPresentationTests.cs                Spotlight presentation and provider-owned repaint
+    ├── ThemeHelperTests.cs                          Theme foreground ownership
+    ├── UpdateHelperTests.cs                         Release-version and cooldown behavior
+    ├── WallpaperActiveDomainSettlementTests.cs      Spotlight live-domain and slideshow settlement
+    ├── WallpaperIdentityOwnershipEditorTests.cs     Wallpaper identity, ownership, and editor state
+    ├── WallpaperRecoverySchemaApplyTests.cs         Wallpaper rollback and apply UX
+    ├── WallpaperSettingTests.cs                     Wallpaper model/mode behavior
+    └── WallpaperSpotlightRecoveryEditorTests.cs     Spotlight recovery, rollback, and editor HDR memory
+
+DisplayProfileManager.ShellExt.Tests/
+├── DisplayProfileManager.ShellExt.Tests.vcxproj    Native x64 test project
+└── JsonReaderTests.cpp                             Bounded native JSON parser tests
 ```
 
 ### Categories
 
-Every test carries `[TestCategory("Unit")]`. It is the only category.
+Every managed test carries `[TestCategory("Unit")]`. It is the only managed-test category.
 
 ### Builder Pattern
 
@@ -819,7 +846,6 @@ new DisplayConfigInfoBuilder()
 new DisplaySettingBuilder()
     .WithDeviceName("\\.\DISPLAY1")
     .WithTargetId(1)
-    .WithSourceId(0)
     .WithCloneGroup("clone-1")
     .Build()
 ```
@@ -837,7 +863,7 @@ Always use builders for fixture construction. Direct `new DisplaySetting { ... }
 - **Scope** — unit tests should avoid filesystem I/O and other machine-specific dependencies when practical. Controlled filesystem access is acceptable when inherent to an existing production seam if the test remains deterministic, self-contained, and independent of pre-existing machine state; do not redesign production architecture solely to eliminate such access. Tests should not directly depend on registry access, P/Invoke, or live display hardware. Reflection and controlled in-memory singleton manipulation remain acceptable when required to isolate pure behavior.
 - **What to test** — non-obvious invariants and behavior with meaningful regression value. Do not test framework behavior or trivial getters.
 
-The current test suite contains **314 tests**.
+The managed C#/.NET MSTest suite contains **567 discovered test cases** from **544 `[TestMethod]` declarations**; 7 data-driven methods expand to 30 total `[DataRow]` cases. The native C++ ShellExt test suite runs separately and currently contains **24 checks**.
 
 ## Adding a Contributor
 

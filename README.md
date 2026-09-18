@@ -15,7 +15,7 @@ A lightweight Windows desktop application for managing display profiles — save
 ### 🖥️ Display Profiles
 
 - 🗂️ **Custom display profiles** — save, edit, and switch desktop presets
-- 📺 **Full per-monitor control** — configure enable/disable state, primary display, resolution, refresh rate, rotation, DPI, HDR/ACM, and color profile
+- 📺 **Full per-monitor control** — configure enable/disable state, primary display, resolution, refresh rate, rotation, DPI, HDR/WCG, and color profile
 - 🪞 **Flexible monitor layouts** — extend or clone displays in any combination
 - 🛡️ **Apply failure recovery** — stop on display-configuration failure and safely roll back to the previous profile or a desktop snapshot
 - 🖼️ **Custom profile icons** — assign a `.ico` icon to profiles, displayed in profile lists and menus
@@ -23,8 +23,8 @@ A lightweight Windows desktop application for managing display profiles — save
 ### 🖼️ Wallpaper
 
 - 📷 **Wallpaper capture and apply** — save and restore Solid Color, per-monitor Pictures, Slideshow settings, and Windows Spotlight
-- 🎛️ **Picture options** — adjust wallpaper fitment and background color
-- ⚙️ **Slideshow options** — customize the source folder, interval, and shuffle/order
+- 🎛️ **Picture options** — adjust background color and wallpaper fitment
+- ⚙️ **Slideshow options** — customize the background color, source folder, fitment, interval, and shuffle/order
 - 🔎 **Windows Spotlight** — capture and restore Spotlight wallpaper state
 
 ### 🔊 Audio & Scripts
@@ -70,8 +70,8 @@ A lightweight Windows desktop application for managing display profiles — save
 - **Windows:** A [Windows client release supported by .NET 10](https://learn.microsoft.com/en-us/dotnet/core/install/windows#supported-versions). Windows 10 support is limited to LTSC/Enterprise releases.
 - **Runtime:** [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0)
 - **HDR:** Windows 10 version 1709 or later provides the legacy Advanced Color API path
-- **ACM:** Windows 11 22H2 or later on supported displays
-- **Dedicated HDR/ACM APIs:** Windows 11 24H2 or later
+- **ACM/WCG:** Windows 11 22H2 or later provides Auto Color Management on eligible SDR displays
+- **Dedicated HDR/WCG APIs:** Windows 11 24H2 or later
 
 > The feature-version floors above do not expand the base operating-system support established by the .NET 10 support matrix.
 
@@ -102,7 +102,7 @@ Display Profile Manager uses MIT + Commons Clause — see [LICENSE](LICENSE) for
 
 **This Project**
 
-- **[@vivittel](https://github.com/vivittel)** ([PR #1](https://github.com/vivittel/DisplayProfileManager/pull/1)) — Partial HDR and advanced color state detection fixes
+- **[@vivittel](https://github.com/vivittel)** ([PR #1](https://github.com/vivittel/DisplayProfileManager/pull/1)) — Windows 11 24H2 HDR/WCG detection and dedicated Advanced Color API foundation
 
 **Upstream**
 

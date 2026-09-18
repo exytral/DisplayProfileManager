@@ -10,22 +10,35 @@ using DisplayProfileManager.Helpers;
 
 namespace DisplayProfileManager.Core
 {
+    internal enum IpcAuthorityKind
+    {
+        Normal,
+        Dev
+    }
+
     public static class IpcServer
     {
         private static readonly Logger _logger = LoggerHelper.GetLogger();
 
         private const string PipeNameBase = "DPM_IpcPipe";
-        public static string PipeName { get; } = BuildPipeName(Process.GetCurrentProcess().SessionId);
-        public static string BuildPipeName(int sessionId) => $"{PipeNameBase}.{sessionId}";
+        private const string DevPipeNameBase = "DPM_IpcPipe.Dev";
+        public static string PipeName { get; } = BuildPipeName(Process.GetCurrentProcess().SessionId, IpcAuthorityKind.Normal);
+        internal static string DevPipeName { get; } = BuildPipeName(Process.GetCurrentProcess().SessionId, IpcAuthorityKind.Dev);
+        public static string BuildPipeName(int sessionId) => BuildPipeName(sessionId, IpcAuthorityKind.Normal);
+        internal static string BuildPipeName(int sessionId, IpcAuthorityKind authority) => $"{(authority == IpcAuthorityKind.Dev ? DevPipeNameBase : PipeNameBase)}.{sessionId}";
 
-        public static void StartListening(CancellationToken token, Func<string, Task> onMessage)
+        internal static IpcAuthorityKind[] GetProbeOrder(bool devMode, bool isExit) => devMode ? new[] { IpcAuthorityKind.Dev } : isExit ? new[] { IpcAuthorityKind.Normal, IpcAuthorityKind.Dev } : new[] { IpcAuthorityKind.Normal };
+
+        public static void StartListening(CancellationToken token, Func<string, Task> onMessage) => StartListening(token, onMessage, IpcAuthorityKind.Normal);
+
+        internal static void StartListening(CancellationToken token, Func<string, Task> onMessage, IpcAuthorityKind authority)
         {
             Task.Run(async () =>
             {
                 NamedPipeServerStream server = null;
                 try
                 {
-                    server = CreateServer();
+                    server = CreateServer(authority);
 
                     while (!token.IsCancellationRequested)
                     {
@@ -50,7 +63,7 @@ namespace DisplayProfileManager.Core
                         {
                             _logger.Error(ex, "IPC pipe listener error");
                             server.Dispose();
-                            server = CreateServer();
+                            server = CreateServer(authority);
                         }
                     }
                 }
@@ -59,14 +72,17 @@ namespace DisplayProfileManager.Core
             }, token);
         }
 
-        public static Task<bool> SendAsync(string message) => SendAsync(message, 2000);
+        public static Task<bool> SendAsync(string message) => SendAsync(message, IpcAuthorityKind.Normal, 2000);
 
-        internal static async Task<bool> SendAsync(string message, int connectTimeoutMilliseconds)
+        internal static Task<bool> SendAsync(string message, int connectTimeoutMilliseconds) => SendAsync(message, IpcAuthorityKind.Normal, connectTimeoutMilliseconds);
+
+        internal static async Task<bool> SendAsync(string message, IpcAuthorityKind authority, int connectTimeoutMilliseconds = 2000)
         {
             NamedPipeClientStream client = null;
             try
             {
-                client = new NamedPipeClientStream(".", PipeName, PipeDirection.Out);
+                string pipeName = authority == IpcAuthorityKind.Dev ? DevPipeName : PipeName;
+                client = new NamedPipeClientStream(".", pipeName, PipeDirection.Out);
                 await client.ConnectAsync(connectTimeoutMilliseconds);
 
                 using (var writer = new StreamWriter(client))
@@ -84,6 +100,7 @@ namespace DisplayProfileManager.Core
             }
         }
 
-        private static NamedPipeServerStream CreateServer() => new NamedPipeServerStream(PipeName, PipeDirection.In, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+        private static NamedPipeServerStream CreateServer(IpcAuthorityKind authority) =>
+            new NamedPipeServerStream(authority == IpcAuthorityKind.Dev ? DevPipeName : PipeName, PipeDirection.In, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
     }
 }

@@ -1,4 +1,4 @@
-﻿using DisplayProfileManager.Helpers;
+using DisplayProfileManager.Helpers;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -61,15 +61,16 @@ namespace DisplayProfileManager.Core
                 target.OriginalSettings = source.OriginalSettings;
                 target.OriginalPositionX = source.OriginalPositionX;
                 target.OriginalPositionY = source.OriginalPositionY;
-                target.OriginalSourceId = source.OriginalSourceId;
                 target.OriginalIsPrimary = source.OriginalIsPrimary;
                 target.OriginalWidth = source.OriginalWidth;
                 target.OriginalHeight = source.OriginalHeight;
                 target.OriginalFrequency = source.OriginalFrequency;
                 target.OriginalRotation = source.OriginalRotation;
                 target.OriginalDpiScaling = source.OriginalDpiScaling;
+                target.IsHdrSupported = source.IsHdrSupported;
+                target.IsWcgSupported = source.IsWcgSupported;
                 target.OriginalIsHdrEnabled = source.OriginalIsHdrEnabled;
-                target.OriginalIsAcmEnabled = source.OriginalIsAcmEnabled;
+                target.OriginalIsWcgEnabled = source.OriginalIsWcgEnabled;
                 target.OriginalColorProfile = source.OriginalColorProfile;
             }
 
@@ -98,18 +99,12 @@ namespace DisplayProfileManager.Core
         public string ProductCodeID { get; set; } = string.Empty;
         [JsonIgnore]
         public DisplayConfigHelper.LUID AdapterLuid { get; set; }
-        [JsonProperty("adapterId")]
-        public string AdapterId { get; set; } = string.Empty;
         [JsonProperty("targetId")]
         public uint TargetId { get; set; } = 0;
-        [JsonProperty("sourceId")]
-        public uint SourceId { get; set; } = 0;
         [JsonProperty("cloneGroupId")]
         public string CloneGroupId { get; set; } = string.Empty;
         [JsonProperty("isCloneSource")]
         public bool IsCloneSource { get; set; } = false;
-        [JsonProperty("pathIndex")]
-        public uint PathIndex { get; set; } = 0;
 
         // State
         [JsonProperty("isEnabled")]
@@ -134,12 +129,14 @@ namespace DisplayProfileManager.Core
         public int Rotation { get; set; } = 1;
         [JsonProperty("dpiScaling")]
         public uint DpiScaling { get; set; } = 100;
-        [JsonProperty("isHdrSupported")]
+        [JsonIgnore]
         public bool IsHdrSupported { get; set; } = false;
+        [JsonIgnore]
+        public bool IsWcgSupported { get; set; } = false;
         [JsonProperty("isHdrEnabled")]
         public bool IsHdrEnabled { get; set; } = false;
-        [JsonProperty("isAcmEnabled")]
-        public bool IsAcmEnabled { get; set; } = false;
+        [JsonProperty("isWcgEnabled")]
+        public bool IsWcgEnabled { get; set; } = false;
         [JsonProperty("colorProfile")]
         public string ColorProfile { get; set; } = null;
 
@@ -147,7 +144,6 @@ namespace DisplayProfileManager.Core
         [JsonIgnore] public bool OriginalSettings { get; set; } = false;
         [JsonIgnore] public int? OriginalPositionX { get; set; } = null;
         [JsonIgnore] public int? OriginalPositionY { get; set; } = null;
-        [JsonIgnore] public uint? OriginalSourceId { get; set; } = null;
         [JsonIgnore] public bool? OriginalIsPrimary { get; set; } = null;
         [JsonIgnore] public int? OriginalWidth { get; set; } = null;
         [JsonIgnore] public int? OriginalHeight { get; set; } = null;
@@ -155,7 +151,7 @@ namespace DisplayProfileManager.Core
         [JsonIgnore] public int? OriginalRotation { get; set; } = null;
         [JsonIgnore] public uint? OriginalDpiScaling { get; set; } = null;
         [JsonIgnore] public bool? OriginalIsHdrEnabled { get; set; } = null;
-        [JsonIgnore] public bool? OriginalIsAcmEnabled { get; set; } = null;
+        [JsonIgnore] public bool? OriginalIsWcgEnabled { get; set; } = null;
         [JsonIgnore] public string OriginalColorProfile { get; set; } = null;
 
         // Native
@@ -180,6 +176,7 @@ namespace DisplayProfileManager.Core
 
         public bool IsPartOfCloneGroup() => !string.IsNullOrEmpty(CloneGroupId);
 
+        [JsonIgnore]
         public bool HasEdidIdentity => !string.IsNullOrEmpty(ManufacturerName) && !string.IsNullOrEmpty(ProductCodeID);
 
         public bool MatchesEdid(DisplayConfigHelper.DisplayConfigInfo config)

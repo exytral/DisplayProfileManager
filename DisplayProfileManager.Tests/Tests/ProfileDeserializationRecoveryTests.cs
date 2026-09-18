@@ -92,7 +92,7 @@ namespace DisplayProfileManager.Tests.Tests
         [TestCategory("Unit")]
         public void DeserializeProfile_MalformedNameOnly_ProfileDeserializesButIsBlankName()
         {
-            // Actual rejection happens downstream via ProfileManager's IsNullOrWhiteSpace(Name) check.
+            // Actual rejection happens downstream via ProfileManager's IsNullOrWhiteSpace(Name) check
             var json = @"{
                 ""name"": [ 1, 2, 3 ],
                 ""description"": ""Kept intact""

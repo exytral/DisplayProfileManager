@@ -1,4 +1,4 @@
-using DisplayProfileManager.Core;
+﻿using DisplayProfileManager.Core;
 using System;
 using System.Diagnostics;
 using System.Linq;
@@ -37,28 +37,27 @@ namespace DisplayProfileManager.Helpers
         public static class Libraries
         {
             public const string NewtonsoftName = "Newtonsoft.Json";
-            public static string NewtonsoftVersion => GetLoadedVersion(NewtonsoftName);
+            public static string NewtonsoftVersion => GetAssemblyVersion(NewtonsoftName);
             public const string NewtonsoftLicense = "MIT";
             public const string NewtonsoftUrl = "https://www.newtonsoft.com/json";
 
             public const string NLogName = "NLog";
-            public static string NLogVersion => GetLoadedVersion(NLogName);
+            public static string NLogVersion => GetAssemblyVersion(NLogName);
             public const string NLogLicense = "BSD-3-Clause";
             public const string NLogUrl = "https://nlog-project.org/";
 
             public const string SystemManagementName = "System.Management";
-            public static string SystemManagementVersion => GetLoadedVersion(SystemManagementName);
+            public static string SystemManagementVersion => GetAssemblyVersion(SystemManagementName);
             public const string SystemManagementLicense = "MIT";
             public const string SystemManagementUrl = "https://github.com/dotnet/runtime";
 
-            private static string GetLoadedVersion(string assemblyName)
+            private static string GetAssemblyVersion(string assemblyName)
             {
                 try
                 {
                     var asm = AppDomain.CurrentDomain.GetAssemblies()
-                        .FirstOrDefault(a => a.GetName().Name == assemblyName);
-
-                    if (asm == null) return string.Empty;
+                        .FirstOrDefault(a => string.Equals(a.GetName().Name, assemblyName, StringComparison.Ordinal))
+                        ?? Assembly.Load(new AssemblyName(assemblyName));
 
                     var info = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
                     if (!string.IsNullOrEmpty(info))
@@ -72,6 +71,12 @@ namespace DisplayProfileManager.Helpers
                 {
                     return string.Empty;
                 }
+            }
+
+            internal static string FormatLibraryDetails(string version, string license, string description)
+            {
+                var versionText = string.IsNullOrWhiteSpace(version) ? string.Empty : $" v{version.Trim()}";
+                return $"{versionText} ({license}) - {description}";
             }
         }
 
@@ -88,7 +93,7 @@ namespace DisplayProfileManager.Helpers
             public const string VivittelUrl = "https://github.com/vivittel";
             public const string VivittelLinkUrl = "https://github.com/vivittel/DisplayProfileManager";
             public const string VivittelLinkLabel = "PR #1";
-            public const string VivittelDesc = "HDR and advanced color state detection fixes";
+            public const string VivittelDesc = "Windows 11 24H2 HDR/WCG detection and HDR verification foundation";
             
             // Upstream
             public const string Zac15987Name = "@zac15987";

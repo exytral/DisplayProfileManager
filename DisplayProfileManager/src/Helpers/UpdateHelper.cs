@@ -22,7 +22,7 @@ namespace DisplayProfileManager.Helpers
         private const string ReleasesApi = "https://api.github.com/repos/exytral/DisplayProfileManager/releases/latest";
         private const string ReleasesPage = "https://github.com/exytral/DisplayProfileManager/releases/latest";
 
-        private const int ReleaseDaysCooldown = 7;
+        private const int ReleaseDaysCooldown = 3;
 
         public static async Task<UpdateCheckResult> CheckAsync()
         {

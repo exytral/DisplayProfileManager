@@ -1,4 +1,4 @@
-﻿using DisplayProfileManager.Core;
+using DisplayProfileManager.Core;
 using DisplayProfileManager.Helpers;
 using NLog;
 using System;
@@ -105,6 +105,11 @@ namespace DisplayProfileManager.UI.Windows
                 prefillWatch.Stop();
                 _logger.Info($"Prefilled {TextHelper.Plural(currentSettings.Count, "display")} in {prefillWatch.ElapsedMilliseconds} ms");
             }
+            catch (ProfileManager.AdvancedColorCaptureUnavailableException ex)
+            {
+                StatusTextBlock.Text = "Advanced Color state unavailable - display prefill deferred";
+                _logger.Warn(ex.Message);
+            }
             catch (Exception ex)
             {
                 _logger.Warn(ex, "Could not prefill display settings for a new profile");
@@ -152,11 +157,17 @@ namespace DisplayProfileManager.UI.Windows
 
             if (settings.Count == 0) return;
 
+            var displayConfigs = DisplayConfigHelper.GetDisplayConfigs();
+            foreach (var setting in settings)
+            {
+                var live = DisplayConfigHelper.ResolveLiveDisplay(setting, displayConfigs);
+                ReconcileAdvancedColorCapabilities(setting, live);
+            }
+
             var displayGroups = DisplayGroupHelper.GroupDisplaysForUI(settings);
             var cloneGroupCount = displayGroups.Count(g => g.IsCloneGroup);
             var cloneGroupDisplayCount = displayGroups.Where(g => g.IsCloneGroup).Sum(g => g.AllMembers.Count);
 
-            var displayConfigs = DisplayConfigHelper.GetDisplayConfigs();
             int monitorIndex = 1;
             foreach (var group in displayGroups)
             {
@@ -179,6 +190,14 @@ namespace DisplayProfileManager.UI.Windows
                 _logger.Info($"Loaded {TextHelper.Plural(settings.Count, "display")}");
                 StatusTextBlock.Text = $"Loaded {TextHelper.Plural(settings.Count, "display")}";
             }
+        }
+
+        internal static void ReconcileAdvancedColorCapabilities(DisplaySetting setting, DisplayConfigHelper.DisplayConfigInfo live)
+        {
+            if (setting == null || live == null || !live.IsAdvancedColorInfoAvailable) return;
+
+            setting.IsHdrSupported = live.IsHdrSupported;
+            setting.IsWcgSupported = live.IsWcgSupported;
         }
 
         private void PopulateFields()
@@ -801,7 +820,10 @@ namespace DisplayProfileManager.UI.Windows
 
         private static AudioHelper.AudioDeviceInfo EnsureUnavailableDevice(ObservableCollection<AudioHelper.AudioDeviceInfo> target, string deviceId, string deviceName, AudioHelper.DeviceType type)
         {
-            if (string.IsNullOrEmpty(deviceId)) return null;
+            if (string.IsNullOrEmpty(deviceId))
+            {
+                return null;
+            }
 
             var existing = target.FirstOrDefault(d => d.Id == deviceId);
             if (existing != null)
@@ -921,7 +943,7 @@ namespace DisplayProfileManager.UI.Windows
             }
             catch (OperationCanceledException)
             {
-                _logger.Debug("Audio device load canceled.");
+                _logger.Debug("Audio device load canceled");
             }
             catch (Exception ex)
             {
@@ -1086,9 +1108,18 @@ namespace DisplayProfileManager.UI.Windows
 
         private static string DescribeInterval(uint seconds)
         {
-            if (seconds < 60) return TextHelper.Plural(seconds, "second");
-            if (seconds < 3600) return TextHelper.Plural(seconds / 60, "minute");
-            if (seconds < 86400) return TextHelper.Plural(seconds / 3600, "hour");
+            if (seconds < 60)
+            {
+                return TextHelper.Plural(seconds, "second");
+            }
+            if (seconds < 3600)
+            {
+                return TextHelper.Plural(seconds / 60, "minute");
+            }
+            if (seconds < 86400)
+            {
+                return TextHelper.Plural(seconds / 3600, "hour");
+            }
             return "1 day";
         }
 
@@ -1116,23 +1147,25 @@ namespace DisplayProfileManager.UI.Windows
             public override string ToString() => Name;
         }
 
+        internal static (bool HasFitment, bool HasColor, bool HasSlideshow) GetWallpaperOptionApplicability(WallpaperMode? mode)
+        {
+            bool hasSlideshow = mode == WallpaperMode.Slideshow;
+            return (
+                HasFitment: mode == WallpaperMode.Picture || hasSlideshow,
+                HasColor: mode == WallpaperMode.Solid || mode == WallpaperMode.Picture || hasSlideshow,
+                HasSlideshow: hasSlideshow);
+        }
+
         private void UpdateWallpaperOptionsEnabled()
         {
             bool enabled = EnableWallpaperCheckBox.IsChecked == true;
+            var applicability = GetWallpaperOptionApplicability(_profile.WallpaperSettings?.Mode);
 
-            var mode = _profile.WallpaperSettings?.Mode;
-
-            bool modeHasFitment = mode == WallpaperMode.Picture;
-            bool modeHasSlideshow = mode == WallpaperMode.Slideshow;
-
-            SetSectionState(WallpaperFitmentPanel, WallpaperFitmentComboBox, modeHasFitment, enabled);
-            SetSectionState(WallpaperIntervalPanel, WallpaperIntervalComboBox, modeHasSlideshow, enabled);
-            SetSectionState(WallpaperShufflePanel, WallpaperShuffleCheckBox, modeHasSlideshow, enabled);
-            SetSectionState(WallpaperSourcePanel, WallpaperSourceButton, modeHasSlideshow, enabled);
-
-            // Solid uses color directly, Fit and Center letterbox against it
-            bool modeHasColor = mode == WallpaperMode.Solid || mode == WallpaperMode.Picture;
-            SetSectionState(WallpaperColorPanel, WallpaperColorButton, modeHasColor, enabled);
+            SetSectionState(WallpaperFitmentPanel, WallpaperFitmentComboBox, applicability.HasFitment, enabled);
+            SetSectionState(WallpaperIntervalPanel, WallpaperIntervalComboBox, applicability.HasSlideshow, enabled);
+            SetSectionState(WallpaperShufflePanel, WallpaperShuffleCheckBox, applicability.HasSlideshow, enabled);
+            SetSectionState(WallpaperSourcePanel, WallpaperSourceButton, applicability.HasSlideshow, enabled);
+            SetSectionState(WallpaperColorPanel, WallpaperColorButton, applicability.HasColor, enabled);
         }
 
         private void ApplyWallpaperOptionsToSnapshot()
@@ -1359,23 +1392,22 @@ namespace DisplayProfileManager.UI.Windows
                 InitialDirectory = scriptsPath,
                 Filter = "Scripts (*.exe;*.ps1;*.bat;*.cmd;*.vbs;*.js;*.py;*.ahk)|*.exe;*.ps1;*.bat;*.cmd;*.vbs;*.js;*.py;*.ahk|All files (*.*)|*.*",
                 Title = "Import Script",
-                DereferenceLinks = false
+                DereferenceLinks = false,
+                Multiselect = true
             };
 
-            if (openFileDialog.ShowDialog() == true)
+            if (openFileDialog.ShowDialog() != true) return;
+
+            int existingCount = _scriptList.Count;
+            var batch = await ScriptManager.Instance.ImportScriptsAsync(openFileDialog.FileNames);
+            string firstImportedFileName = null;
+
+            foreach (var result in batch.Results)
             {
-                // Copy into sandbox; .exe is converted to .lnk
-                string importedFileName = await ScriptManager.Instance.ImportScriptAsync(openFileDialog.FileName);
+                if (!result.Success) continue;
 
-                if (importedFileName == null)
-                {
-                    StatusTextBlock.Text = "Failed to import script";
-                    MessageBox.Show("The selected file could not be imported to the scripts folder.", "Import Failed", MessageBoxButton.OK, MessageBoxImage.Error);
-                    return;
-                }
-
-                string fullPath = System.IO.Path.Combine(scriptsPath, importedFileName);
-
+                firstImportedFileName = firstImportedFileName ?? result.ImportedFileName;
+                string fullPath = System.IO.Path.Combine(scriptsPath, result.ImportedFileName);
                 _scriptList.Add(new ScriptListEntry
                 {
                     FilePath = fullPath,
@@ -1384,20 +1416,35 @@ namespace DisplayProfileManager.UI.Windows
                     IsEnabled = true,
                     IsDeleted = false
                 });
-
-                // Auto-enable scripts when first entry is added
-                if (_scriptList.Count == 1)
-                    EnableScriptsCheckBox.IsChecked = true;
-
-                var sorted = _scriptList.OrderBy(s => System.IO.Path.GetFileName((string)s.FilePath)).ToList();
-
-                _scriptList.Clear();
-                foreach (var item in sorted) _scriptList.Add(item);
-
-                UpdateScriptsVisibility();
-                UpdateScriptControlsState();
-                StatusTextBlock.Text = $"'{importedFileName}' added";
             }
+
+            if (existingCount == 0 && batch.ImportedCount > 0)
+                EnableScriptsCheckBox.IsChecked = true;
+
+            UpdateScriptsVisibility();
+            UpdateScriptControlsState();
+
+            if (batch.FailedCount == 0)
+            {
+                StatusTextBlock.Text = batch.ImportedCount == 1
+                    ? $"'{firstImportedFileName}' added"
+                    : $"{TextHelper.Plural(batch.ImportedCount, "script")} added";
+                return;
+            }
+
+            var failedNames = batch.Results
+                .Where(result => !result.Success)
+                .Select(result => $"- {System.IO.Path.GetFileName(result.SourcePath)}");
+            string failedList = string.Join(Environment.NewLine, failedNames);
+
+            StatusTextBlock.Text = batch.ImportedCount == 0
+                ? $"Failed to import {TextHelper.Plural(batch.FailedCount, "script")}"
+                : $"{TextHelper.Plural(batch.ImportedCount, "script")} added; {TextHelper.Plural(batch.FailedCount, "script")} failed";
+
+            string message = batch.ImportedCount == 0
+                ? $"No scripts were imported.{Environment.NewLine}{Environment.NewLine}Failed:{Environment.NewLine}{failedList}"
+                : $"{TextHelper.Plural(batch.ImportedCount, "script")} imported successfully.{Environment.NewLine}{Environment.NewLine}Failed:{Environment.NewLine}{failedList}";
+            MessageBox.Show(message, "Script import", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
 
         private void RemoveScriptButton_Click(object sender, RoutedEventArgs e)
@@ -1570,12 +1617,61 @@ namespace DisplayProfileManager.UI.Windows
         private CheckBox _primaryCheckBox;
         private CheckBox _enabledCheckBox;
         private CheckBox _hdrCheckBox;
-        private CheckBox _acmCheckBox;
+        private CheckBox _wcgCheckBox;
+        private bool _preHdrWcgEnabled;
+        private bool _hdrSelectionActive;
+        private string _preHdrColorProfile;
+        private bool _hdrColorProfileSelectionChanged;
+        private bool _suppressAdvancedColorEvents;
+        private readonly List<DisplayConfigHelper.DisplayConfigInfo> _displayConfigs;
+        private readonly bool _advancedColorInfoAvailable;
+        private bool _suppressColorProfileEvents;
         private ComboBox _rotationComboBox;
         private ComboBox _dpiComboBox;
         private ComboBox _colorProfileComboBox;
         private TextBlock _colorProfileLabel;
-        private bool _pendingAcmEnabled; // Tracks last explicit ACM choice to be restored when HDR is toggled off
+
+        internal static bool IsWcgControlAvailable(bool usesDedicatedWcgApi, bool isWcgSupported) =>
+            usesDedicatedWcgApi && isWcgSupported;
+
+        private bool UsesDedicatedWcgApi => DisplayConfigHelper.IsWindows24H2OrGreater();
+
+        internal static bool ResolveAdvancedColorInfoAvailability(DisplaySetting setting, List<DisplayConfigHelper.DisplayConfigInfo> displayConfigs)
+        {
+            if (setting == null) throw new ArgumentNullException(nameof(setting));
+            if (displayConfigs == null)
+            {
+                return true;
+            }
+
+            return DisplayConfigHelper.ResolveLiveDisplay(setting, displayConfigs)?.IsAdvancedColorInfoAvailable ?? true;
+        }
+
+        private bool IsSecondaryAdvancedColorSupported() =>
+            UsesDedicatedWcgApi
+                ? IsWcgControlAvailable(true, _setting.IsWcgSupported)
+                : DisplayConfigHelper.IsLegacyAcmSupported(_setting.IsHdrSupported);
+
+        private string GetHdrControlLabel() =>
+            !_advancedColorInfoAvailable
+                ? "HDR (Unavailable)"
+                : (_setting.IsHdrSupported ? "HDR" : "HDR (Not Supported)");
+
+        private string GetHdrControlToolTip() =>
+            !_advancedColorInfoAvailable
+                ? "Advanced Color state is temporarily unavailable; stored HDR intent will be preserved"
+                : (_setting.IsHdrSupported ? "Enable HDR for this monitor" : "This monitor does not support HDR");
+
+        private string GetSecondaryAdvancedColorLabel()
+        {
+            string name = UsesDedicatedWcgApi ? "WCG" : "ACM";
+            return _advancedColorInfoAvailable ? name : $"{name} (Unavailable)";
+        }
+
+        private string GetSecondaryAdvancedColorToolTip() =>
+            !_advancedColorInfoAvailable
+                ? "Advanced Color state is temporarily unavailable; stored intent will be preserved"
+                : (UsesDedicatedWcgApi ? "Wide Color Gamut" : "Auto Color Management (legacy Advanced Color)");
 
         public DisplaySettingControl(DisplaySetting setting, int monitorIndex = 1, bool isCloneGroup = false, List<DisplaySetting> cloneGroupMembers = null, List<DisplayConfigHelper.DisplayConfigInfo> displayConfigs = null)
         {
@@ -1584,10 +1680,14 @@ namespace DisplayProfileManager.UI.Windows
                 setting.ResolveDeviceName(displayConfigs);
 
             _setting = setting;
+            _displayConfigs = displayConfigs;
+            _advancedColorInfoAvailable = ResolveAdvancedColorInfoAvailability(setting, _displayConfigs);
+            _preHdrWcgEnabled = setting.IsWcgEnabled;
+            _hdrSelectionActive = setting.IsHdrEnabled;
+            _preHdrColorProfile = setting.IsHdrEnabled ? null : setting.ColorProfile;
             _monitorIndex = monitorIndex;
             _isCloneGroup = isCloneGroup;
             CloneGroupMembers = cloneGroupMembers ?? new List<DisplaySetting> { setting };
-            _pendingAcmEnabled = setting.IsAcmEnabled;
 
             InitializeControl();
         }
@@ -1670,37 +1770,37 @@ namespace DisplayProfileManager.UI.Windows
 
                 _hdrCheckBox = new CheckBox
                 {
-                    Content = "HDR",
-                    IsChecked = _setting.IsHdrEnabled && _setting.IsHdrSupported,
-                    IsEnabled = _setting.IsHdrSupported,
+                    Content = GetHdrControlLabel(),
+                    IsChecked = _setting.IsHdrEnabled,
+                    IsEnabled = _advancedColorInfoAvailable && _setting.IsHdrSupported,
                     FontSize = 14,
                     Padding = new Thickness(6, 0, 0, 0),
                     Margin = new Thickness(0, 0, 10, 0),
                     VerticalAlignment = VerticalAlignment.Center,
                     Foreground = primaryFg,
-                    ToolTip = _setting.IsHdrSupported ? "Enable HDR for this monitor" : "This monitor does not support HDR"
+                    ToolTip = GetHdrControlToolTip()
                 };
                 _hdrCheckBox.Checked += HdrCheckBox_CheckedChanged;
                 _hdrCheckBox.Unchecked += HdrCheckBox_CheckedChanged;
                 leftContentPanel.Children.Add(_hdrCheckBox);
 
-                bool acmSupported = DisplayConfigHelper.IsAcmSupported(_setting.IsHdrSupported);
-                _acmCheckBox = new CheckBox
+                bool wcgSupported = IsSecondaryAdvancedColorSupported();
+                _wcgCheckBox = new CheckBox
                 {
-                    Content = "ACM",
-                    IsChecked = _setting.IsAcmEnabled || (_setting.IsHdrEnabled && _setting.IsHdrSupported),
-                    IsEnabled = acmSupported && !(_setting.IsHdrEnabled && _setting.IsHdrSupported),
-                    Visibility = acmSupported ? Visibility.Visible : Visibility.Collapsed,
+                    Content = GetSecondaryAdvancedColorLabel(),
+                    IsChecked = _setting.IsHdrEnabled || _setting.IsWcgEnabled,
+                    IsEnabled = _advancedColorInfoAvailable && wcgSupported && !(_setting.IsHdrEnabled && _setting.IsHdrSupported),
+                    Visibility = (!_advancedColorInfoAvailable || wcgSupported) ? Visibility.Visible : Visibility.Collapsed,
                     FontSize = 14,
                     Padding = new Thickness(6, 0, 0, 0),
                     Margin = new Thickness(0, 0, 10, 0),
                     VerticalAlignment = VerticalAlignment.Center,
                     Foreground = primaryFg,
-                    ToolTip = "Auto Color Management"
+                    ToolTip = GetSecondaryAdvancedColorToolTip()
                 };
-                _acmCheckBox.Checked += AcmCheckBox_CheckedChanged;
-                _acmCheckBox.Unchecked += AcmCheckBox_CheckedChanged;
-                leftContentPanel.Children.Add(_acmCheckBox);
+                _wcgCheckBox.Checked += WcgCheckBox_CheckedChanged;
+                _wcgCheckBox.Unchecked += WcgCheckBox_CheckedChanged;
+                leftContentPanel.Children.Add(_wcgCheckBox);
 
                 Grid.SetColumn(leftContentPanel, 1);
                 nameGrid.Children.Add(leftContentPanel);
@@ -1780,37 +1880,37 @@ namespace DisplayProfileManager.UI.Windows
 
                 _hdrCheckBox = new CheckBox
                 {
-                    Content = _setting.IsHdrSupported ? "HDR" : "HDR (Not Supported)",
-                    IsChecked = _setting.IsHdrEnabled && _setting.IsHdrSupported,
-                    IsEnabled = _setting.IsHdrSupported,
+                    Content = GetHdrControlLabel(),
+                    IsChecked = _setting.IsHdrEnabled,
+                    IsEnabled = _advancedColorInfoAvailable && _setting.IsHdrSupported,
                     FontSize = 14,
                     Padding = new Thickness(6, 0, 0, 0),
                     Margin = new Thickness(0, 0, 10, 0),
                     VerticalAlignment = VerticalAlignment.Center,
                     Foreground = primaryFg,
-                    ToolTip = _setting.IsHdrSupported ? "Enable HDR for this monitor" : "This monitor does not support HDR"
+                    ToolTip = GetHdrControlToolTip()
                 };
                 _hdrCheckBox.Checked += HdrCheckBox_CheckedChanged;
                 _hdrCheckBox.Unchecked += HdrCheckBox_CheckedChanged;
                 leftPanel.Children.Add(_hdrCheckBox);
 
-                bool acmSupported = DisplayConfigHelper.IsAcmSupported(_setting.IsHdrSupported);
-                _acmCheckBox = new CheckBox
+                bool wcgSupported = IsSecondaryAdvancedColorSupported();
+                _wcgCheckBox = new CheckBox
                 {
-                    Content = "ACM",
-                    IsChecked = _setting.IsAcmEnabled || (_setting.IsHdrEnabled && _setting.IsHdrSupported),
-                    IsEnabled = acmSupported && !(_setting.IsHdrEnabled && _setting.IsHdrSupported),
-                    Visibility = acmSupported ? Visibility.Visible : Visibility.Collapsed,
+                    Content = GetSecondaryAdvancedColorLabel(),
+                    IsChecked = _setting.IsHdrEnabled || _setting.IsWcgEnabled,
+                    IsEnabled = _advancedColorInfoAvailable && wcgSupported && !(_setting.IsHdrEnabled && _setting.IsHdrSupported),
+                    Visibility = (!_advancedColorInfoAvailable || wcgSupported) ? Visibility.Visible : Visibility.Collapsed,
                     FontSize = 14,
                     Padding = new Thickness(6, 0, 0, 0),
                     Margin = new Thickness(0, 0, 10, 0),
                     VerticalAlignment = VerticalAlignment.Center,
                     Foreground = primaryFg,
-                    ToolTip = "Auto Color Management"
+                    ToolTip = GetSecondaryAdvancedColorToolTip()
                 };
-                _acmCheckBox.Checked += AcmCheckBox_CheckedChanged;
-                _acmCheckBox.Unchecked += AcmCheckBox_CheckedChanged;
-                leftPanel.Children.Add(_acmCheckBox);
+                _wcgCheckBox.Checked += WcgCheckBox_CheckedChanged;
+                _wcgCheckBox.Unchecked += WcgCheckBox_CheckedChanged;
+                leftPanel.Children.Add(_wcgCheckBox);
 
                 Grid.SetColumn(leftPanel, 0);
                 singleGrid.Children.Add(leftPanel);
@@ -2091,19 +2191,25 @@ namespace DisplayProfileManager.UI.Windows
             _primaryCheckBox.Opacity = opacity;
             _rotationComboBox.Opacity = opacity;
 
-            // Hide HDR when display does not support it
-            _hdrCheckBox.Visibility = _setting.IsHdrSupported ? Visibility.Visible : Visibility.Collapsed;
-            _hdrCheckBox.IsEnabled = _setting.IsHdrSupported;
-            _hdrCheckBox.Opacity = opacity;
+            bool advancedColorAvailable = _advancedColorInfoAvailable;
+            _hdrCheckBox.Visibility = (!advancedColorAvailable || _setting.IsHdrSupported) ? Visibility.Visible : Visibility.Collapsed;
+            _hdrCheckBox.IsEnabled = advancedColorAvailable && _setting.IsHdrSupported;
+            _hdrCheckBox.Opacity = advancedColorAvailable ? opacity : UiOpacity.Blocked;
 
-            if (_acmCheckBox != null)
+            if (_wcgCheckBox != null)
             {
                 bool hdrForced = _hdrCheckBox?.IsChecked == true && _setting.IsHdrSupported;
-                bool acmSupported = DisplayConfigHelper.IsAcmSupported(_setting.IsHdrSupported);
+                bool wcgSupported = IsSecondaryAdvancedColorSupported();
 
-                _acmCheckBox.Visibility = acmSupported ? Visibility.Visible : Visibility.Collapsed;
-                _acmCheckBox.IsEnabled = acmSupported && !hdrForced;
-                _acmCheckBox.Opacity = hdrForced ? UiOpacity.Blocked : opacity;
+                _wcgCheckBox.Visibility = (!advancedColorAvailable || wcgSupported) ? Visibility.Visible : Visibility.Collapsed;
+                var wcgPresentation = ResolveWcgControlPresentation(
+                    advancedColorAvailable,
+                    wcgSupported,
+                    hdrForced,
+                    isEnabled);
+
+                _wcgCheckBox.IsEnabled = wcgPresentation.IsEnabled;
+                _wcgCheckBox.Opacity = wcgPresentation.Opacity;
             }
 
             _rotationComboBox.Opacity = isEnabled ? (_rotationComboBox.SelectedIndex == 0 ? UiOpacity.Inactive : 1.0) : UiOpacity.Inactive;
@@ -2210,35 +2316,139 @@ namespace DisplayProfileManager.UI.Windows
             }
         }
 
+        internal static (bool IsEnabled, double Opacity) ResolveWcgControlPresentation(
+            bool advancedColorAvailable,
+            bool wcgSupported,
+            bool hdrForced,
+            bool displayEnabled)
+        {
+            return (
+                IsEnabled: advancedColorAvailable && wcgSupported && !hdrForced,
+                Opacity: !advancedColorAvailable
+                    ? UiOpacity.Blocked
+                    : (displayEnabled ? 1.0 : UiOpacity.Inactive));
+        }
+
+        internal static (bool WcgChecked, bool RememberedWcg) ResolveHdrWcgEditorState(
+            bool hdrOn,
+            bool wasHdrOn,
+            bool currentWcgChecked,
+            bool rememberedWcg)
+        {
+            if (hdrOn)
+            {
+                return (
+                    WcgChecked: true,
+                    RememberedWcg: wasHdrOn ? rememberedWcg : currentWcgChecked);
+            }
+
+            bool restored = wasHdrOn ? rememberedWcg : currentWcgChecked;
+            return (WcgChecked: restored, RememberedWcg: restored);
+        }
+
+        internal static (string SelectedProfile, string RememberedSdrProfile, bool HdrSelectionChanged) ResolveHdrColorProfileEditorState(
+            bool hdrOn,
+            bool wasHdrOn,
+            string currentProfile,
+            string rememberedSdrProfile,
+            bool hdrSelectionChanged,
+            IEnumerable<string> sdrCompatibleProfiles)
+        {
+            if (hdrOn)
+            {
+                return (
+                    SelectedProfile: null,
+                    RememberedSdrProfile: wasHdrOn ? rememberedSdrProfile : currentProfile,
+                    HdrSelectionChanged: wasHdrOn && hdrSelectionChanged);
+            }
+
+            if (!wasHdrOn)
+            {
+                return (currentProfile, currentProfile, false);
+            }
+
+            bool currentCompatible = string.IsNullOrEmpty(currentProfile) ||
+                (sdrCompatibleProfiles?.Any(profile => string.Equals(profile, currentProfile, StringComparison.OrdinalIgnoreCase)) ?? false);
+            string selected = hdrSelectionChanged && currentCompatible
+                ? currentProfile
+                : rememberedSdrProfile;
+            return (selected, selected, false);
+        }
+
+        private void WcgCheckBox_CheckedChanged(object sender, RoutedEventArgs e)
+        {
+            if (_suppressAdvancedColorEvents || _hdrSelectionActive) return;
+
+            _preHdrWcgEnabled = _wcgCheckBox?.IsChecked == true;
+        }
+
         private void HdrCheckBox_CheckedChanged(object sender, RoutedEventArgs e)
         {
             bool hdrOn = _hdrCheckBox.IsChecked == true && _setting.IsHdrSupported;
-
-            if (_acmCheckBox != null)
+            bool wasHdrOn = _hdrSelectionActive;
+            string currentColorProfile = (_colorProfileComboBox?.SelectedItem as ComboBoxItem)?.Tag as string;
+            IEnumerable<string> sdrCompatibleProfiles = Array.Empty<string>();
+            if (!hdrOn && wasHdrOn && _hdrColorProfileSelectionChanged)
             {
-                if (hdrOn)
+                try
                 {
-                    // HDR forces ACM on while preserving pending choice
-                    _acmCheckBox.IsChecked = true;
-                    _acmCheckBox.IsEnabled = false;
+                    sdrCompatibleProfiles = ColorProfileHelper.GetInstalledColorProfilesFiltered(hdrOnly: false);
                 }
-                else
+                catch (Exception)
                 {
-                    _acmCheckBox.IsChecked = _pendingAcmEnabled;
-                    _acmCheckBox.IsEnabled = DisplayConfigHelper.IsAcmSupported(_setting.IsHdrSupported);
+                    sdrCompatibleProfiles = Array.Empty<string>();
                 }
             }
 
-            // Clear color profile on HDR mode switch (cross-mode profile is not valid in new mode)
-            UpdateColorProfileLabel();
-            try { PopulateColorProfileComboBox(clearSelection: true); } catch (Exception) { }
-        }
+            var colorProfileState = ResolveHdrColorProfileEditorState(
+                hdrOn,
+                wasHdrOn,
+                currentColorProfile,
+                _preHdrColorProfile,
+                _hdrColorProfileSelectionChanged,
+                sdrCompatibleProfiles);
 
-        private void AcmCheckBox_CheckedChanged(object sender, RoutedEventArgs e)
-        {
-            // Only record explicit changes; HDR-forced toggles fire while checkbox is disabled
-            if (_hdrCheckBox?.IsChecked != true)
-                _pendingAcmEnabled = _acmCheckBox.IsChecked == true;
+            if (_wcgCheckBox != null)
+            {
+                var state = ResolveHdrWcgEditorState(
+                    hdrOn,
+                    wasHdrOn,
+                    _wcgCheckBox.IsChecked == true,
+                    _preHdrWcgEnabled);
+
+                _suppressAdvancedColorEvents = true;
+                try
+                {
+                    _preHdrWcgEnabled = state.RememberedWcg;
+                    _wcgCheckBox.IsChecked = state.WcgChecked;
+                    _wcgCheckBox.IsEnabled = !hdrOn &&
+                        _advancedColorInfoAvailable &&
+                        IsSecondaryAdvancedColorSupported();
+                }
+                finally
+                {
+                    _suppressAdvancedColorEvents = false;
+                }
+            }
+
+            _hdrSelectionActive = hdrOn;
+            _preHdrColorProfile = colorProfileState.RememberedSdrProfile;
+            _hdrColorProfileSelectionChanged = colorProfileState.HdrSelectionChanged;
+
+            UpdateColorProfileLabel();
+            _suppressColorProfileEvents = true;
+            try
+            {
+                PopulateColorProfileComboBox(clearSelection: true);
+                SelectColorProfile(colorProfileState.SelectedProfile);
+            }
+            catch (Exception) { }
+            finally
+            {
+                _suppressColorProfileEvents = false;
+            }
+
+            UpdateControlStates();
         }
 
         private void CloneButton_Click(object sender, RoutedEventArgs e)
@@ -2308,7 +2518,6 @@ namespace DisplayProfileManager.UI.Windows
         private void CreateCloneGroup(DisplaySettingControl other)
         {
             var newCloneGroupId = "clone-" + Guid.NewGuid().ToString("N").Substring(0, 8);
-            uint sharedSourceId = _setting.SourceId;
             int sharedX = _setting.DisplayPositionX;
             int sharedY = _setting.DisplayPositionY;
 
@@ -2318,7 +2527,6 @@ namespace DisplayProfileManager.UI.Windows
                 member.OriginalSettings = false;
                 member.OriginalPositionX = member.DisplayPositionX;
                 member.OriginalPositionY = member.DisplayPositionY;
-                member.OriginalSourceId = member.SourceId;
                 member.OriginalIsPrimary = member.IsPrimary;
                 member.OriginalWidth = member.Width;
                 member.OriginalHeight = member.Height;
@@ -2326,7 +2534,7 @@ namespace DisplayProfileManager.UI.Windows
                 member.OriginalRotation = member.Rotation;
                 member.OriginalDpiScaling = member.DpiScaling;
                 member.OriginalIsHdrEnabled = member.IsHdrEnabled;
-                member.OriginalIsAcmEnabled = member.IsAcmEnabled;
+                member.OriginalIsWcgEnabled = member.IsWcgEnabled;
                 member.OriginalColorProfile = member.ColorProfile;
             }
 
@@ -2360,7 +2568,6 @@ namespace DisplayProfileManager.UI.Windows
             {
                 member.CloneGroupId = newCloneGroupId;
                 member.IsCloneSource = false;
-                member.SourceId = sharedSourceId;
                 member.DisplayPositionX = sharedX;
                 member.DisplayPositionY = sharedY;
             }
@@ -2371,12 +2578,6 @@ namespace DisplayProfileManager.UI.Windows
         private void BreakCloneGroup()
         {
             var panel = Parent as Panel;
-            uint maxSourceId = 0;
-
-            if (panel != null)
-                foreach (var ctrl in panel.Children.OfType<DisplaySettingControl>())
-                    foreach (var m in ctrl.CloneGroupMembers)
-                        maxSourceId = Math.Max(maxSourceId, m.SourceId);
 
             // Partition by clone role rather than list position
             var sourceMembers = CloneGroupMembers.Where(m => m.IsCloneSource).ToList();
@@ -2400,7 +2601,7 @@ namespace DisplayProfileManager.UI.Windows
             }
 
             foreach (var member in attachedMembers)
-                RestoreAttachedMemberState(member, _setting, ref maxSourceId);
+                RestoreAttachedMemberState(member, _setting);
 
             // Sync representative checkbox before rebuilding controls
             _primaryCheckBox.Checked -= PrimaryCheckBox_Checked;
@@ -2413,13 +2614,12 @@ namespace DisplayProfileManager.UI.Windows
             OnCloneGroupChanged?.Invoke();
         }
 
-        public static void RestoreAttachedMemberState(DisplaySetting member, DisplaySetting cloneSource, ref uint maxSourceId)
+        public static void RestoreAttachedMemberState(DisplaySetting member, DisplaySetting cloneSource)
         {
             member.IsPrimary = member.OriginalIsPrimary ?? false;
 
             if (member.OriginalPositionX.HasValue)
             {
-                member.SourceId = member.OriginalSourceId ?? ++maxSourceId;
                 member.DisplayPositionX = member.OriginalPositionX.Value;
                 member.DisplayPositionY = member.OriginalPositionY ?? 0;
                 member.Width = member.OriginalWidth ?? (member.NativeWidth > 0 ? member.NativeWidth : member.Width);
@@ -2428,16 +2628,19 @@ namespace DisplayProfileManager.UI.Windows
                 member.Rotation = member.OriginalRotation ?? member.Rotation;
                 member.DpiScaling = member.OriginalDpiScaling ?? member.DpiScaling;
                 member.IsHdrEnabled = member.OriginalIsHdrEnabled ?? member.IsHdrEnabled;
-                member.IsAcmEnabled = member.OriginalIsAcmEnabled ?? member.IsAcmEnabled;
+                member.IsWcgEnabled = member.OriginalIsWcgEnabled ?? member.IsWcgEnabled;
                 member.ColorProfile = member.OriginalColorProfile;
             }
             else
             {
                 // Restore sensible independent layout when no pre-clone state was saved
-                member.SourceId = ++maxSourceId;
                 member.DisplayPositionX = cloneSource.DisplayPositionX + cloneSource.Width;
                 member.DisplayPositionY = cloneSource.DisplayPositionY;
-                if (member.NativeWidth > 0) { member.Width = member.NativeWidth; member.Height = member.NativeHeight; }
+                if (member.NativeWidth > 0)
+                {
+                    member.Width = member.NativeWidth;
+                    member.Height = member.NativeHeight;
+                }
                 var resKey = $"{member.Width}x{member.Height}";
                 if (member.AvailableRefreshRates != null && member.AvailableRefreshRates.TryGetValue(resKey, out var rates) && rates.Count > 0)
                     member.Frequency = rates[0];
@@ -2449,7 +2652,6 @@ namespace DisplayProfileManager.UI.Windows
             member.OriginalSettings = true;
             member.OriginalPositionX = null;
             member.OriginalPositionY = null;
-            member.OriginalSourceId = null;
             member.OriginalIsPrimary = null;
             member.OriginalWidth = null;
             member.OriginalHeight = null;
@@ -2457,7 +2659,7 @@ namespace DisplayProfileManager.UI.Windows
             member.OriginalRotation = null;
             member.OriginalDpiScaling = null;
             member.OriginalIsHdrEnabled = null;
-            member.OriginalIsAcmEnabled = null;
+            member.OriginalIsWcgEnabled = null;
             member.OriginalColorProfile = null;
         }
 
@@ -2655,6 +2857,13 @@ namespace DisplayProfileManager.UI.Windows
         private void ColorProfileComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             UpdateColorProfileOpacity();
+            if (_suppressColorProfileEvents) return;
+
+            string selectedProfile = (_colorProfileComboBox.SelectedItem as ComboBoxItem)?.Tag as string;
+            if (_hdrSelectionActive)
+                _hdrColorProfileSelectionChanged = true;
+            else
+                _preHdrColorProfile = selectedProfile;
         }
 
         private void UpdateColorProfileLabel()
@@ -2673,11 +2882,32 @@ namespace DisplayProfileManager.UI.Windows
             _colorProfileComboBox.Opacity = !displayEnabled || notApplied ? UiOpacity.Inactive : 1.0;
         }
 
+        internal static (bool IsHdrEnabled, bool IsWcgEnabled) ResolveAdvancedColorIntentForSave(
+            DisplaySetting originalSetting,
+            bool advancedColorAvailable,
+            bool requestedHdrEnabled,
+            bool requestedWcgEnabled)
+        {
+            if (originalSetting == null) throw new ArgumentNullException(nameof(originalSetting));
+
+            if (!advancedColorAvailable)
+            {
+                return (originalSetting.IsHdrEnabled, originalSetting.IsWcgEnabled);
+            }
+
+            bool hdrEnabled = requestedHdrEnabled && originalSetting.IsHdrSupported;
+            bool wcgEnabled = !hdrEnabled && requestedWcgEnabled;
+            return (hdrEnabled, wcgEnabled);
+        }
+
         public List<DisplaySetting> GetDisplaySettings()
         {
             var settings = new List<DisplaySetting>();
 
-            if (_resolutionComboBox.SelectedItem == null || _dpiComboBox.SelectedItem == null || _refreshRateComboBox.SelectedItem == null) return settings;
+            if (_resolutionComboBox.SelectedItem == null || _dpiComboBox.SelectedItem == null || _refreshRateComboBox.SelectedItem == null)
+            {
+                return settings;
+            }
 
             var resolutionText = _resolutionComboBox.SelectedItem.ToString().Replace(" ★", "").Replace("★", "").Trim();
             var dpiText = _dpiComboBox.SelectedItem.ToString();
@@ -2710,7 +2940,7 @@ namespace DisplayProfileManager.UI.Windows
 
             var isEnabled = _enabledCheckBox.IsChecked == true;
             var isHdrEnabled = _hdrCheckBox.IsChecked == true;
-            var isAcmEnabled = _acmCheckBox?.IsChecked == true;
+            var isWcgEnabled = _wcgCheckBox?.IsChecked == true && !isHdrEnabled;
             var rotation = _rotationComboBox.SelectedIndex == 0 ? 0 : _rotationComboBox.SelectedIndex;
             var colorProfile = (_colorProfileComboBox?.SelectedItem is ComboBoxItem cp) ? cp.Tag as string : null;
 
@@ -2718,6 +2948,11 @@ namespace DisplayProfileManager.UI.Windows
             foreach (var originalSetting in CloneGroupMembers)
             {
                 bool useOriginalSettings = originalSetting.OriginalSettings;
+                var advancedColorIntent = ResolveAdvancedColorIntentForSave(
+                    originalSetting,
+                    ResolveAdvancedColorInfoAvailability(originalSetting, _displayConfigs),
+                    useOriginalSettings ? originalSetting.IsHdrEnabled : isHdrEnabled,
+                    useOriginalSettings ? originalSetting.IsWcgEnabled : isWcgEnabled);
                 var displaySetting = new DisplaySetting
                 {
                     // Identity
@@ -2726,12 +2961,9 @@ namespace DisplayProfileManager.UI.Windows
                     ReadableDeviceName = originalSetting.ReadableDeviceName,
                     ManufacturerName = originalSetting.ManufacturerName,
                     ProductCodeID = originalSetting.ProductCodeID,
-                    AdapterId = originalSetting.AdapterId,
                     TargetId = originalSetting.TargetId,
-                    SourceId = originalSetting.SourceId,
                     CloneGroupId = originalSetting.CloneGroupId,
                     IsCloneSource = originalSetting.IsCloneSource && !string.IsNullOrEmpty(originalSetting.CloneGroupId),
-                    PathIndex = originalSetting.PathIndex,
                     // State
                     IsEnabled = isEnabled,
                     IsPrimary = originalSetting.IsPrimary,
@@ -2745,14 +2977,14 @@ namespace DisplayProfileManager.UI.Windows
                     Rotation = useOriginalSettings ? originalSetting.Rotation : rotation,
                     DpiScaling = useOriginalSettings ? originalSetting.DpiScaling : dpiScaling,
                     IsHdrSupported = originalSetting.IsHdrSupported,
-                    IsHdrEnabled = useOriginalSettings ? (originalSetting.IsHdrEnabled && originalSetting.IsHdrSupported) : (isHdrEnabled && originalSetting.IsHdrSupported),
-                    IsAcmEnabled = useOriginalSettings ? originalSetting.IsAcmEnabled : isAcmEnabled,
+                    IsWcgSupported = originalSetting.IsWcgSupported,
+                    IsHdrEnabled = advancedColorIntent.IsHdrEnabled,
+                    IsWcgEnabled = advancedColorIntent.IsWcgEnabled,
                     ColorProfile = useOriginalSettings ? originalSetting.ColorProfile : colorProfile,
                     // Clone
                     OriginalSettings = originalSetting.OriginalSettings,
                     OriginalPositionX = originalSetting.OriginalPositionX,
                     OriginalPositionY = originalSetting.OriginalPositionY,
-                    OriginalSourceId = originalSetting.OriginalSourceId,
                     OriginalIsPrimary = originalSetting.OriginalIsPrimary,
                     OriginalWidth = originalSetting.OriginalWidth,
                     OriginalHeight = originalSetting.OriginalHeight,
@@ -2760,7 +2992,7 @@ namespace DisplayProfileManager.UI.Windows
                     OriginalRotation = originalSetting.OriginalRotation,
                     OriginalDpiScaling = originalSetting.OriginalDpiScaling,
                     OriginalIsHdrEnabled = originalSetting.OriginalIsHdrEnabled,
-                    OriginalIsAcmEnabled = originalSetting.OriginalIsAcmEnabled,
+                    OriginalIsWcgEnabled = originalSetting.OriginalIsWcgEnabled,
                     OriginalColorProfile = originalSetting.OriginalColorProfile,
                     // Native
                     NativeWidth = originalSetting.NativeWidth,
