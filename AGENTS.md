@@ -798,6 +798,7 @@ DisplayProfileManager.Tests/
     ├── DisplaySettingTests.cs                       DisplaySetting defaults and clone-state helpers
     ├── EdidDecodeTests.cs                           EDID manufacturer decoding
     ├── HotkeyConfigTests.cs                         Hotkey construction, validity, and equality
+    ├── HotkeyEditorPresentationTests.cs              Profile editor hotkey assignment and presentation state
     ├── IpcServerTests.cs                            Session/dev pipe routing and listener isolation
     ├── KeyConverterTests.cs                         WPF key/virtual-key conversion
     ├── NaturalStringComparerTests.cs                Natural profile-name ordering
@@ -863,7 +864,7 @@ Always use builders for fixture construction. Direct `new DisplaySetting { ... }
 - **Scope** — unit tests should avoid filesystem I/O and other machine-specific dependencies when practical. Controlled filesystem access is acceptable when inherent to an existing production seam if the test remains deterministic, self-contained, and independent of pre-existing machine state; do not redesign production architecture solely to eliminate such access. Tests should not directly depend on registry access, P/Invoke, or live display hardware. Reflection and controlled in-memory singleton manipulation remain acceptable when required to isolate pure behavior.
 - **What to test** — non-obvious invariants and behavior with meaningful regression value. Do not test framework behavior or trivial getters.
 
-The managed C#/.NET MSTest suite contains **567 discovered test cases** from **544 `[TestMethod]` declarations**; 7 data-driven methods expand to 30 total `[DataRow]` cases. The native C++ ShellExt test suite runs separately and currently contains **24 checks**.
+The managed C#/.NET MSTest suite contains **573 discovered test cases** from **550 `[TestMethod]` declarations**; 7 data-driven methods expand to 30 total `[DataRow]` cases. The native C++ ShellExt test suite runs separately and currently contains **24 checks**.
 
 ## Adding a Contributor
 

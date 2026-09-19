@@ -125,12 +125,10 @@ namespace DisplayProfileManager.UI.Windows
             HotkeyEditor.HotkeyChanged += (_, __) =>
             {
                 // Auto-enable when key is assigned; auto-disable when key is cleared
-                bool hasKey = HotkeyEditor?.HotkeyConfig?.Key != Key.None;
-                if (hasKey && !(EnableHotkeyCheckBox.IsChecked ?? false))
+                if (HotkeyEditor?.HasHotkey == true)
                     EnableHotkeyCheckBox.IsChecked = true;
 
                 UpdateHotkeyControlsState();
-                UpdateClearHotkeyButtonState();
             };
 
             if (_isEditMode)
@@ -147,6 +145,7 @@ namespace DisplayProfileManager.UI.Windows
                 _pendingIconFilename = null;
                 RefreshIconPreview();
                 _ = PopulateIconGridAsync();
+                UpdateHotkeyControlsState();
             }
         }
 
@@ -242,7 +241,6 @@ namespace DisplayProfileManager.UI.Windows
 
             EnableScriptsCheckBox.IsChecked = _profile.ScriptSettings?.Enabled == true;
             UpdateClearIconButtonState();
-            UpdateClearHotkeyButtonState();
 
             _scriptList.Clear();
             if (_profile.ScriptSettings?.Scripts != null)
@@ -1510,15 +1508,24 @@ namespace DisplayProfileManager.UI.Windows
             ClearAllScriptsButton.Opacity = anyActive ? 1.0 : UiOpacity.Blocked;
         }
 
+        internal static (bool EnableChecked, bool EnableInteractive, double EnableOpacity, bool ClearEnabled) ResolveHotkeyPresentation(bool hasKey, bool enableChecked)
+        {
+            return (
+                EnableChecked: hasKey && enableChecked,
+                EnableInteractive: hasKey,
+                EnableOpacity: hasKey ? 1.0 : UiOpacity.Inactive,
+                ClearEnabled: hasKey);
+        }
+
         private void UpdateHotkeyControlsState()
         {
-            bool hasKey = HotkeyEditor?.HotkeyConfig?.Key != Key.None;
+            bool hasKey = HotkeyEditor?.HasHotkey == true;
+            var presentation = ResolveHotkeyPresentation(hasKey, EnableHotkeyCheckBox.IsChecked == true);
 
-            EnableHotkeyCheckBox.IsHitTestVisible = hasKey;
-            EnableHotkeyCheckBox.Opacity = hasKey ? 1.0 : UiOpacity.Inactive;
-
-            if (!hasKey)
-                EnableHotkeyCheckBox.IsChecked = false;
+            EnableHotkeyCheckBox.IsChecked = presentation.EnableChecked;
+            EnableHotkeyCheckBox.IsHitTestVisible = presentation.EnableInteractive;
+            EnableHotkeyCheckBox.Opacity = presentation.EnableOpacity;
+            ClearHotkeyButton.IsEnabled = presentation.ClearEnabled;
 
             CheckForHotkeyConflicts();
         }
@@ -1556,11 +1563,6 @@ namespace DisplayProfileManager.UI.Windows
         private void EnableHotkeyCheckBox_Checked(object sender, RoutedEventArgs e) => StatusTextBlock.Text = "Global hotkey enabled";
 
         private void EnableHotkeyCheckBox_Unchecked(object sender, RoutedEventArgs e) => StatusTextBlock.Text = "Global hotkey disabled";
-
-        private void UpdateClearHotkeyButtonState()
-        {
-            ClearHotkeyButton.IsEnabled = HotkeyEditor?.HotkeyConfig?.Key != Key.None;
-        }
 
         private void ClearHotkeyButton_Click(object sender, RoutedEventArgs e)
         {

@@ -68,7 +68,9 @@ namespace DisplayProfileManager.UI.Controls
             }
         }
 
-        public bool HasHotkey => _currentHotkey != null && _currentHotkey.Key != Key.None;
+        internal static bool HasAssignedHotkey(HotkeyConfig hotkey) => hotkey != null && hotkey.Key != Key.None;
+
+        public bool HasHotkey => HasAssignedHotkey(_currentHotkey);
 
         public bool IsValid => HasHotkey && !HasConflict && _currentHotkey?.IsValid() == true;
 

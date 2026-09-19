@@ -54,6 +54,7 @@ Switch profiles with global hotkeys, the system tray, or the desktop classic rig
 - **Desktop context menu parsing** — the Explorer extension uses strict bounded native JSON parsing, including escaped/Unicode profile names and independent rejection of malformed profile files.
 - **Shell state consistency** — enabling the desktop context menu rolls back a new registration if settings cannot be saved; disabling it keeps successful external teardown authoritative for installer safety.
 - **Multi-script import** — multiple helper scripts can be selected and imported at once; successful imports remain available when another selected file fails, and failures are summarized together.
+- **Keyboard shortcut editor** — new profiles now present an unassigned shortcut as inactive, and clearing an assigned shortcut immediately refreshes its editor state.
 
 ### 🎨 Themes
 

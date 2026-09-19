@@ -7,7 +7,7 @@ For user-facing release notes, see the [GitHub Releases](https://github.com/exyt
 ---
 
 <a id="2.2.2"></a>
-## [2.2.2] - Unreleased
+## [2.2.2] - 2026-09-18
 
 ### fix — wallpaper and personalization
 
@@ -38,6 +38,7 @@ For user-facing release notes, see the [GitHub Releases](https://github.com/exyt
 - **Shell registration persistence** — `--shell` compensates a newly created registration when desired-state metadata cannot be persisted, while successful `--unshell` teardown remains authoritative even if settings persistence fails.
 - **Custom-theme foreground ownership** — custom themes retain their declared button foreground, including user themes shadowing packaged names; packaged themes retain automatic accent-contrast behavior.
 - **Multi-script profile import** — the profile editor imports multiple selected scripts while preserving per-file validation and partial success, then reports failures once for the batch.
+- **Profile hotkey editor state** — unassigned hotkeys use the editor's null-safe assigned-key state, so new profiles present Enable as inactive and Clear as unavailable; assigning a key still enables it automatically, clearing it disables it, and save normalization cannot persist an enabled hotkey without a key.
 - **About library version resolution** — About resolves referenced assemblies on demand so the shipped `System.Management` version is reported before another code path loads it, while unavailable versions no longer render a dangling `v` prefix.
 
 ### misc — update behavior
@@ -50,7 +51,7 @@ For user-facing release notes, see the [GitHub Releases](https://github.com/exyt
 
 ### test — regression coverage
 
-- **Managed suite — 567 tests** — C#/MSTest coverage exercises profile apply ordering and persistence, managed profile identity/schema migration, adapter-qualified CCD/DPI authorization, live Advanced Color capability and destination semantics, wallpaper transition/rollback ownership, CLI/IPC/shell behavior, themes, script import, and supporting helpers.
+- **Managed suite — 573 tests** — C#/MSTest coverage exercises profile apply ordering and persistence, managed profile identity/schema migration, adapter-qualified CCD/DPI authorization, live Advanced Color capability and destination semantics, wallpaper transition/rollback ownership, CLI/IPC/shell behavior, themes, script import, and supporting helpers.
 - **Native ShellExt suite — 24 checks** — the standalone JsonReader regression executable covers bounded parsing, UTF-8/escape handling, root semantics, malformed-input rejection, and menu-facing profile extraction independently of the managed suite.
 
 ---
