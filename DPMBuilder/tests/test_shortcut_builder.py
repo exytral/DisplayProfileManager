@@ -249,7 +249,7 @@ class ShortcutBuilderTests(unittest.TestCase):
         profile = builder.DpmProfile("profile-id", "Profile", "profile.dpm")
 
         with tempfile.TemporaryDirectory() as temp:
-            folder = Path(temp, "Shortcut")
+            folder = Path(os.path.realpath(temp), "Shortcut")
             folder.mkdir()
             prior = {
                 "Shortcut.ps1": b"old-ps1",
@@ -286,7 +286,7 @@ class ShortcutBuilderTests(unittest.TestCase):
         profile = builder.DpmProfile("profile-id", "Profile", "profile.dpm")
 
         with tempfile.TemporaryDirectory() as temp:
-            folder = Path(temp, "Shortcut")
+            folder = Path(os.path.realpath(temp), "Shortcut")
             folder.mkdir()
             Path(folder, "Shortcut.ps1").write_bytes(b"old-ps1")
             Path(folder, "Shortcut.vbs").write_bytes(b"old-vbs")
@@ -295,7 +295,7 @@ class ShortcutBuilderTests(unittest.TestCase):
             nested = Path(folder, "assets")
             nested.mkdir()
             Path(nested, "nested-sentinel.dat").write_bytes(b"nested-sentinel")
-            final_ps1 = os.path.join(temp, "Shortcut", "Shortcut.ps1")
+            final_ps1 = os.path.join(os.path.realpath(temp), "Shortcut", "Shortcut.ps1")
 
             def fake_create_lnk(lnk_path, ps1_path, icon_source=None):
                 Path(lnk_path).write_text(f"ps1={ps1_path}", encoding="utf-8")
