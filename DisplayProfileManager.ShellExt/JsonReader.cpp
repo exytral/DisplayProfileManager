@@ -1,20 +1,65 @@
 #include "JsonReader.h"
+
 #include <algorithm>
 #include <cstdint>
+#include <set>
+#include <objbase.h>
 #include <cwctype>
-#include <shlwapi.h>
 #include <string_view>
+
+#include <shlwapi.h>
 #include <windows.h>
 
 namespace
 {
+    bool NormalizeCanonicalGuid(const std::wstring& input, std::wstring& normalized)
+    {
+        // Match managed Guid.TryParse followed by canonical D-format filename admission.
+        // A valid persisted D representation is exactly 36 ASCII characters.
+        if (input.size() != 36) return false;
+        constexpr int hyphens[] = {8, 13, 18, 23};
+        for (size_t i = 0; i < input.size(); ++i)
+        {
+            bool separator = false;
+            for (int h : hyphens) if (i == static_cast<size_t>(h)) separator = true;
+            wchar_t c = input[i];
+            if (separator ? (c != L'-') : !((c >= L'0' && c <= L'9') ||
+                (c >= L'a' && c <= L'f') || (c >= L'A' && c <= L'F'))) return false;
+        }
+        normalized = input;
+        std::transform(normalized.begin(), normalized.end(), normalized.begin(),
+            [](wchar_t c) { return c >= L'A' && c <= L'F' ? c + (L'a' - L'A') : c; });
+        return true;
+    }
+
+    bool ValidateProfileIdentity(std::wstring_view fileName, ProfileEntry& entry)
+    {
+        if (fileName.size() != 40 || fileName[36] != L'.' ||
+            (fileName[37] != L'd' && fileName[37] != L'D') ||
+            (fileName[38] != L'p' && fileName[38] != L'P') ||
+            (fileName[39] != L'm' && fileName[39] != L'M')) return false;
+        std::wstring canonicalId;
+        std::wstring fileId;
+        if (!NormalizeCanonicalGuid(entry.id, canonicalId) ||
+            !NormalizeCanonicalGuid(std::wstring(fileName.substr(0, 36)), fileId) ||
+            canonicalId != fileId) return false;
+        entry.id = std::move(canonicalId);
+        return true;
+    }
+
     bool DecodeUtf8(const std::string& bytes, std::wstring& decoded)
     {
         decoded.clear();
-        if (bytes.empty()) return false;
+        if (bytes.empty())
+        {
+            return false;
+        }
 
         int length = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, bytes.data(), static_cast<int>(bytes.size()), nullptr, 0);
-        if (length <= 0) return false;
+        if (length <= 0)
+        {
+            return false;
+        }
 
         decoded.resize(static_cast<size_t>(length));
         return MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, bytes.data(), static_cast<int>(bytes.size()), decoded.data(), length) == length;
@@ -31,7 +76,10 @@ namespace
         bytesRead = 0;
 
         HANDLE hFile = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-        if (hFile == INVALID_HANDLE_VALUE) return false;
+        if (hFile == INVALID_HANDLE_VALUE)
+        {
+            return false;
+        }
 
         LARGE_INTEGER size{};
         if (!GetFileSizeEx(hFile, &size) || size.QuadPart <= 0 || static_cast<unsigned long long>(size.QuadPart) > maxBytes)
@@ -44,7 +92,10 @@ namespace
         DWORD read = 0;
         bool readOk = ReadFile(hFile, bytes.data(), static_cast<DWORD>(bytes.size()), &read, nullptr) && read == bytes.size();
         CloseHandle(hFile);
-        if (!readOk) return false;
+        if (!readOk)
+        {
+            return false;
+        }
 
         bytesRead = bytes.size();
         if (bytes.size() >= 3 && static_cast<unsigned char>(bytes[0]) == 0xEF && static_cast<unsigned char>(bytes[1]) == 0xBB && static_cast<unsigned char>(bytes[2]) == 0xBF)
@@ -62,7 +113,10 @@ namespace
         {
             entry = {};
             bool seenId = false, seenName = false, seenIcon = false;
-            if (!BeginRootObject()) return false;
+            if (!BeginRootObject())
+            {
+                return false;
+            }
 
             if (Consume(L'}'))
             {
@@ -71,27 +125,44 @@ namespace
             do
             {
                 std::wstring key;
-                if (!ParseString(key) || !ConsumeColon()) return false;
+                if (!ParseString(key) || !ConsumeColon())
+                {
+                    return false;
+                }
 
                 if (key == L"id")
                 {
-                    if (seenId || !ParseString(entry.id)) return false;
+                    if (seenId || !ParseString(entry.id))
+                    {
+                        return false;
+                    }
                     seenId = true;
                 }
                 else if (key == L"name")
                 {
-                    if (seenName || !ParseString(entry.name)) return false;
+                    if (seenName || !ParseString(entry.name))
+                    {
+                        return false;
+                    }
                     seenName = true;
                 }
                 else if (key == L"icon")
                 {
-                    if (seenIcon) return false;
+                    if (seenIcon)
+                    {
+                        return false;
+                    }
                     seenIcon = true;
                     if (MatchLiteral(L"null")) entry.icon.clear();
-                    else if (!ParseString(entry.icon)) return false;
+                    else if (!ParseString(entry.icon))
+                    {
+                        return false;
+                    }
                 }
                 else if (!SkipValue(1))
+                {
                     return false;
+                }
             }
             while (ConsumeCommaOrEndObject());
 
@@ -102,7 +173,10 @@ namespace
         {
             currentProfileId.clear();
             bool seen = false;
-            if (!BeginRootObject()) return false;
+            if (!BeginRootObject())
+            {
+                return false;
+            }
 
             if (Consume(L'}'))
             {
@@ -111,16 +185,27 @@ namespace
             do
             {
                 std::wstring key;
-                if (!ParseString(key) || !ConsumeColon()) return false;
+                if (!ParseString(key) || !ConsumeColon())
+                {
+                    return false;
+                }
                 if (key == L"currentProfileId")
                 {
-                    if (seen) return false;
+                    if (seen)
+                    {
+                        return false;
+                    }
                     seen = true;
                     if (MatchLiteral(L"null")) currentProfileId.clear();
-                    else if (!ParseString(currentProfileId)) return false;
+                    else if (!ParseString(currentProfileId))
+                    {
+                        return false;
+                    }
                 }
                 else if (!SkipValue(1))
+                {
                     return false;
+                }
             }
             while (ConsumeCommaOrEndObject());
 
@@ -152,7 +237,10 @@ namespace
         bool Consume(wchar_t expected)
         {
             SkipWhitespace();
-            if (_pos >= _input.size() || _input[_pos] != expected) return false;
+            if (_pos >= _input.size() || _input[_pos] != expected)
+            {
+                return false;
+            }
             ++_pos;
             return true;
         }
@@ -195,12 +283,18 @@ namespace
 
         bool ParseHex4(uint16_t& value)
         {
-            if (_input.size() - _pos < 4) return false;
+            if (_input.size() - _pos < 4)
+            {
+                return false;
+            }
             uint16_t result = 0;
             for (int i = 0; i < 4; ++i)
             {
                 int nibble = HexValue(_input[_pos++]);
-                if (nibble < 0) return false;
+                if (nibble < 0)
+                {
+                    return false;
+                }
                 result = static_cast<uint16_t>((result << 4) | nibble);
             }
             value = result;
@@ -210,7 +304,10 @@ namespace
         bool ParseString(std::wstring& value)
         {
             SkipWhitespace();
-            if (_pos >= _input.size() || _input[_pos++] != L'"') return false;
+            if (_pos >= _input.size() || _input[_pos++] != L'"')
+            {
+                return false;
+            }
 
             value.clear();
             while (_pos < _input.size())
@@ -220,14 +317,20 @@ namespace
                 {
                     return true;
                 }
-                if (c < 0x20) return false;
+                if (c < 0x20)
+                {
+                    return false;
+                }
                 if (c != L'\\')
                 {
                     value.push_back(c);
                     continue;
                 }
 
-                if (_pos >= _input.size()) return false;
+                if (_pos >= _input.size())
+                {
+                    return false;
+                }
                 wchar_t escape = _input[_pos++];
                 switch (escape)
                 {
@@ -242,18 +345,29 @@ namespace
                 case L'u':
                 {
                     uint16_t first;
-                    if (!ParseHex4(first)) return false;
+                    if (!ParseHex4(first))
+                    {
+                        return false;
+                    }
                     if (first >= 0xD800 && first <= 0xDBFF)
                     {
-                        if (_input.size() - _pos < 6 || _input[_pos] != L'\\' || _input[_pos + 1] != L'u') return false;
+                        if (_input.size() - _pos < 6 || _input[_pos] != L'\\' || _input[_pos + 1] != L'u')
+                        {
+                            return false;
+                        }
                         _pos += 2;
                         uint16_t second;
-                        if (!ParseHex4(second) || second < 0xDC00 || second > 0xDFFF) return false;
+                        if (!ParseHex4(second) || second < 0xDC00 || second > 0xDFFF)
+                        {
+                            return false;
+                        }
                         value.push_back(static_cast<wchar_t>(first));
                         value.push_back(static_cast<wchar_t>(second));
                     }
                     else if (first >= 0xDC00 && first <= 0xDFFF)
+                    {
                         return false;
+                    }
                     else
                         value.push_back(static_cast<wchar_t>(first));
                     break;
@@ -269,7 +383,10 @@ namespace
         bool MatchLiteral(std::wstring_view literal)
         {
             SkipWhitespace();
-            if (_input.substr(_pos, literal.size()) != literal) return false;
+            if (_input.substr(_pos, literal.size()) != literal)
+            {
+                return false;
+            }
             _pos += literal.size();
             return true;
         }
@@ -279,7 +396,10 @@ namespace
             SkipWhitespace();
             size_t start = _pos;
             if (_pos < _input.size() && _input[_pos] == L'-') ++_pos;
-            if (_pos >= _input.size()) return false;
+            if (_pos >= _input.size())
+            {
+                return false;
+            }
 
             if (_input[_pos] == L'0') ++_pos;
             else if (_input[_pos] >= L'1' && _input[_pos] <= L'9')
@@ -293,7 +413,10 @@ namespace
                 ++_pos;
                 size_t digits = _pos;
                 while (_pos < _input.size() && iswdigit(_input[_pos])) ++_pos;
-                if (_pos == digits) return false;
+                if (_pos == digits)
+                {
+                    return false;
+                }
             }
 
             if (_pos < _input.size() && (_input[_pos] == L'e' || _input[_pos] == L'E'))
@@ -302,7 +425,10 @@ namespace
                 if (_pos < _input.size() && (_input[_pos] == L'+' || _input[_pos] == L'-')) ++_pos;
                 size_t digits = _pos;
                 while (_pos < _input.size() && iswdigit(_input[_pos])) ++_pos;
-                if (_pos == digits) return false;
+                if (_pos == digits)
+                {
+                    return false;
+                }
             }
 
             return _pos > start;
@@ -310,7 +436,10 @@ namespace
 
         bool SkipObject(unsigned depth)
         {
-            if (depth > MaxJsonDepth || !Consume(L'{')) return false;
+            if (depth > MaxJsonDepth || !Consume(L'{'))
+            {
+                return false;
+            }
             SkipWhitespace();
             if (Consume(L'}'))
             {
@@ -320,19 +449,28 @@ namespace
             while (true)
             {
                 std::wstring key;
-                if (!ParseString(key) || !ConsumeColon() || !SkipValue(depth + 1)) return false;
+                if (!ParseString(key) || !ConsumeColon() || !SkipValue(depth + 1))
+                {
+                    return false;
+                }
                 SkipWhitespace();
                 if (Consume(L'}'))
                 {
                     return true;
                 }
-                if (!Consume(L',')) return false;
+                if (!Consume(L','))
+                {
+                    return false;
+                }
             }
         }
 
         bool SkipArray(unsigned depth)
         {
-            if (depth > MaxJsonDepth || !Consume(L'[')) return false;
+            if (depth > MaxJsonDepth || !Consume(L'['))
+            {
+                return false;
+            }
             SkipWhitespace();
             if (Consume(L']'))
             {
@@ -341,21 +479,33 @@ namespace
 
             while (true)
             {
-                if (!SkipValue(depth + 1)) return false;
+                if (!SkipValue(depth + 1))
+                {
+                    return false;
+                }
                 SkipWhitespace();
                 if (Consume(L']'))
                 {
                     return true;
                 }
-                if (!Consume(L',')) return false;
+                if (!Consume(L','))
+                {
+                    return false;
+                }
             }
         }
 
         bool SkipValue(unsigned depth)
         {
-            if (depth > MaxJsonDepth) return false;
+            if (depth > MaxJsonDepth)
+            {
+                return false;
+            }
             SkipWhitespace();
-            if (_pos >= _input.size()) return false;
+            if (_pos >= _input.size())
+            {
+                return false;
+            }
 
             wchar_t c = _input[_pos];
             if (c == L'"')
@@ -395,7 +545,10 @@ std::wstring ReadCurrentProfileId(const std::wstring& settingsPath)
 {
     std::wstring json;
     size_t bytesRead = 0;
-    if (!ReadFileUtf8(settingsPath, MaxJsonFileBytes, json, bytesRead)) return {};
+    if (!ReadFileUtf8(settingsPath, MaxJsonFileBytes, json, bytesRead))
+    {
+        return {};
+    }
 
     std::wstring currentProfileId;
     return ParseCurrentProfileIdJson(json, currentProfileId) ? currentProfileId : std::wstring{};
@@ -406,20 +559,21 @@ std::vector<ProfileEntry> ReadProfiles(const std::wstring& profilesDir)
     std::vector<ProfileEntry> profiles;
     size_t aggregateBytes = 0;
     size_t filesConsidered = 0;
+    std::set<std::wstring> acceptedIds;
 
     std::wstring pattern = profilesDir + L"\\*.dpm";
     WIN32_FIND_DATAW fd{};
     HANDLE hFind = FindFirstFileW(pattern.c_str(), &fd);
     if (hFind == INVALID_HANDLE_VALUE)
+    {
         return profiles;
+    }
 
     do
     {
-        if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-            continue;
+        if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) continue;
 
-        if (filesConsidered >= MaxProfileFiles)
-            break;
+        if (filesConsidered >= MaxProfileFiles) break;
 
         unsigned long long fileBytes = (static_cast<unsigned long long>(fd.nFileSizeHigh) << 32) | fd.nFileSizeLow;
         if (fileBytes == 0)
@@ -432,20 +586,18 @@ std::vector<ProfileEntry> ReadProfiles(const std::wstring& profilesDir)
             ++filesConsidered;
             continue;
         }
-        if (!ProfileBudgetAllows(static_cast<size_t>(fileBytes), aggregateBytes, filesConsidered))
-            break;
+        if (!ProfileBudgetAllows(static_cast<size_t>(fileBytes), aggregateBytes, filesConsidered)) break;
 
         std::wstring filePath = profilesDir + L"\\" + fd.cFileName;
         std::wstring json;
         size_t bytesRead = 0;
         ++filesConsidered;
-        if (!ReadFileUtf8(filePath, MaxJsonFileBytes, json, bytesRead))
-            continue;
+        if (!ReadFileUtf8(filePath, MaxJsonFileBytes, json, bytesRead)) continue;
         aggregateBytes += bytesRead;
 
         ProfileEntry entry;
-        if (!ParseProfileJson(json, entry))
-            continue;
+        if (!ParseProfileJson(json, entry) || !ValidateProfileIdentity(fd.cFileName, entry)) continue;
+        if (!acceptedIds.insert(entry.id).second) continue;
 
         profiles.push_back(std::move(entry));
     }
@@ -467,4 +619,8 @@ bool ParseProfileJsonForTest(std::wstring_view json, ProfileEntry& entry) { retu
 bool ParseCurrentProfileIdJsonForTest(std::wstring_view json, std::wstring& currentProfileId) { return ParseCurrentProfileIdJson(json, currentProfileId); }
 bool DecodeUtf8ForTest(const std::string& bytes, std::wstring& decoded) { return DecodeUtf8(bytes, decoded); }
 bool ProfileBudgetAllowsForTest(size_t fileBytes, size_t aggregateBytes, size_t filesConsidered) { return ProfileBudgetAllows(fileBytes, aggregateBytes, filesConsidered); }
+#endif
+
+#ifdef DPM_SHELLEXT_TESTS
+bool ValidateProfileIdentityForTest(std::wstring_view filename, ProfileEntry& entry) { return ValidateProfileIdentity(filename, entry); }
 #endif

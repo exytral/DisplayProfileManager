@@ -13,6 +13,24 @@ Run as .pyw to suppress the console window on Windows.
 """
 
 # ---------------------------------------------------------------------------
+# Standard library imports
+# ---------------------------------------------------------------------------
+
+import base64
+import ctypes
+import json
+import os
+import ntpath
+import re
+import shutil
+import tempfile
+import tkinter as tk
+from tkinter import ttk, filedialog, messagebox
+from typing import Dict, List, NamedTuple, Optional
+import warnings
+import winreg
+
+# ---------------------------------------------------------------------------
 # Embedded icons (base64 PNG — generated from bundled .ico files)
 # ---------------------------------------------------------------------------
 
@@ -72,22 +90,6 @@ BUILDER_ICON_32_B64 = (
     "ElWVfD5PoVAgn8/hnD/27LMnv9+4vx6BNXdBX1+fAszfvn3DYX4pQmwkMFEU0igZgwqI"
     "qvPcWZhX71xejLnaev8dL+vWwL2KczVZq9jesfI/JnYGXiJS0eQAAAAASUVORK5CYII="
 )
-
-# ---------------------------------------------------------------------------
-# Standard library imports
-# ---------------------------------------------------------------------------
-
-import base64
-import ctypes
-import json
-import os
-import re
-import shutil
-import warnings
-import winreg
-from typing import Dict, List, NamedTuple, Optional
-import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
 
 # ---------------------------------------------------------------------------
 # DPM profile enumeration
@@ -226,24 +228,58 @@ def _entry_for(name: str, folder: str) -> ShortcutEntry:
 
 
 def validate_name(name: str) -> Optional[str]:
-    """
-    Return an error string if name is not a valid shortcut name, else None.
-    A valid name is non-empty, contains no filesystem-illegal characters,
-    and is not a Windows reserved device name.
-    """
-    name = name.strip()
-    if not name:
-        return "Shortcut name cannot be empty."
-    if _ILLEGAL_RE.search(name):
-        return r'Name contains illegal characters: \ / : * ? " < > |'
-    reserved = {
-        "CON", "PRN", "AUX", "NUL",
-        "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
-        "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
-    }
-    if name.upper() in reserved:
+    """Require an unambiguous single Windows filename component."""
+    if not isinstance(name, str) or not name or name in (".", ".."):
+        return "Shortcut name must be a non-empty filename component."
+    if name != name.strip() or name.endswith((".", " ")):
+        return "Shortcut name cannot have leading/trailing whitespace or trailing dots."
+    if _ILLEGAL_RE.search(name) or any(ord(char) < 32 for char in name):
+        return "Shortcut name contains illegal Windows filename characters."
+    stem = name.split(".", 1)[0].upper()
+    if stem in {"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"} or (
+        len(stem) == 4 and stem[:3] in ("COM", "LPT")
+        and stem[3] in "123456789¹²³"
+    ):
         return f"'{name}' is a reserved Windows device name."
+    if ntpath.basename(name) != name or ntpath.normpath(name) != name:
+        return "Shortcut name must be one exact Windows filename component."
     return None
+
+
+def _shortcut_child(directory: str, name: str) -> str:
+    """Require an immediate root child; reject existing link/reparse aliases."""
+    error = validate_name(name)
+    if error:
+        raise ValueError(error)
+    root = os.path.realpath(directory)
+    if os.path.islink(directory) or (hasattr(os.path, "isjunction") and os.path.isjunction(directory)):
+        raise ValueError("Shortcut root must not be a link.")
+    folder = os.path.join(root, name)
+    if ntpath.normcase(ntpath.dirname(ntpath.normpath(folder))) != ntpath.normcase(ntpath.normpath(root)) or ntpath.normcase(ntpath.basename(ntpath.normpath(folder))) != ntpath.normcase(name):
+        raise ValueError("Shortcut path is not an immediate child.")
+    if os.path.lexists(folder) and (
+        os.path.islink(folder) or (hasattr(os.path, "isjunction") and os.path.isjunction(folder)) or os.path.normcase(os.path.realpath(folder)) != os.path.normcase(folder)
+    ):
+        raise ValueError("Shortcut folder cannot be a link or junction.")
+    return folder
+
+
+
+
+def _reject_recursive_copy_links(folder: str) -> None:
+    """Reject nested links/reparse entries before recursive copying any contents."""
+    pending = [folder]
+    while pending:
+        current = pending.pop()
+        with os.scandir(current) as entries:
+            for entry in entries:
+                metadata = entry.stat(follow_symlinks=False)
+                reparse = bool(getattr(metadata, "st_file_attributes", 0) & 0x400)
+                junction = hasattr(entry, "is_junction") and entry.is_junction()
+                if entry.is_symlink() or junction or reparse:
+                    raise ValueError(f"Shortcut contains a link or reparse entry: {entry.name}")
+                if entry.is_dir(follow_symlinks=False):
+                    pending.append(entry.path)
 
 
 def create_shortcut_folder(
@@ -260,7 +296,7 @@ def create_shortcut_folder(
         raise ValueError(err)
 
     directory = ensure_shortcuts_dir(shortcuts_dir)
-    folder    = os.path.join(directory, name)
+    folder    = _shortcut_child(directory, name)
 
     if os.path.exists(folder):
         raise FileExistsError(f"A shortcut named '{name}' already exists.")
@@ -278,11 +314,12 @@ def delete_shortcut(
     Raises FileNotFoundError if the subfolder does not exist.
     """
     directory = shortcuts_dir or SHORTCUTS_DIR
-    folder    = os.path.join(directory, name)
+    folder    = _shortcut_child(directory, name)
 
     if not os.path.isdir(folder):
         raise FileNotFoundError(f"No shortcut folder found for '{name}'.")
 
+    _shortcut_child(directory, name)
     shutil.rmtree(folder)
 
 
@@ -303,8 +340,8 @@ def rename_shortcut(
         raise ValueError(err)
 
     directory  = shortcuts_dir or SHORTCUTS_DIR
-    old_folder = os.path.join(directory, old_name)
-    new_folder = os.path.join(directory, new_name)
+    old_folder = _shortcut_child(directory, old_name)
+    new_folder = _shortcut_child(directory, new_name)
 
     if not os.path.isdir(old_folder):
         raise FileNotFoundError(f"No shortcut folder found for '{old_name}'.")
@@ -317,6 +354,8 @@ def rename_shortcut(
         if os.path.isfile(old_file):
             os.rename(old_file, new_file)
 
+    _shortcut_child(directory, old_name)
+    _shortcut_child(directory, new_name)
     os.rename(old_folder, new_folder)
     return _entry_for(new_name, new_folder)
 
@@ -326,33 +365,47 @@ def duplicate_shortcut(
     new_name: str,
     shortcuts_dir: Optional[str] = None,
 ) -> ShortcutEntry:
-    """
-    Copy the source shortcut subfolder to a new subfolder named new_name,
-    renaming the .ps1 and .lnk inside to match.
-    Returns the new ShortcutEntry.
-    """
+    """Duplicate a shortcut and regenerate wrappers against the duplicate PS1."""
     err = validate_name(new_name)
     if err:
         raise ValueError(err)
 
-    directory  = shortcuts_dir or SHORTCUTS_DIR
-    src_folder = os.path.join(directory, source_name)
-    dst_folder = os.path.join(directory, new_name)
+    directory = shortcuts_dir or SHORTCUTS_DIR
+    src_folder = _shortcut_child(directory, source_name)
+    dst_folder = _shortcut_child(directory, new_name)
 
     if not os.path.isdir(src_folder):
         raise FileNotFoundError(f"No shortcut folder found for '{source_name}'.")
     if os.path.exists(dst_folder):
         raise FileExistsError(f"A shortcut named '{new_name}' already exists.")
 
+    _shortcut_child(directory, source_name)
+    _shortcut_child(directory, new_name)
+    _reject_recursive_copy_links(src_folder)
     shutil.copytree(src_folder, dst_folder)
+    entry = _entry_for(new_name, dst_folder)
+    source_ps1 = os.path.join(dst_folder, source_name + ".ps1")
+    if not os.path.isfile(source_ps1):
+        shutil.rmtree(dst_folder)
+        raise FileNotFoundError(f"Shortcut '{source_name}' has no .ps1 configuration.")
 
-    for ext in (".ps1", ".lnk"):
-        old_file = os.path.join(dst_folder, source_name + ext)
-        new_file = os.path.join(dst_folder, new_name + ext)
-        if os.path.isfile(old_file):
-            os.rename(old_file, new_file)
+    os.rename(source_ps1, entry.ps1_path)
+    for ext in (".lnk", ".vbs"):
+        copied_wrapper = os.path.join(dst_folder, source_name + ext)
+        if os.path.isfile(copied_wrapper):
+            os.remove(copied_wrapper)
 
-    return _entry_for(new_name, dst_folder)
+    try:
+        with open(entry.ps1_path, "r", encoding="utf-8-sig") as fh:
+            fields = _parse_ps1_fields(fh.read())
+        with open(os.path.join(dst_folder, new_name + ".vbs"), "w", encoding="utf-8") as fh:
+            fh.write(build_vbs(entry.ps1_path))
+        create_lnk(entry.lnk_path, entry.ps1_path, _shortcut_icon_source(fields["target_path"]))
+    except (OSError, RuntimeError) as exc:
+        shutil.rmtree(dst_folder, ignore_errors=True)
+        raise ValueError(str(exc)) from exc
+
+    return entry
 
 
 # ---------------------------------------------------------------------------
@@ -386,10 +439,11 @@ $target = @{
 # --- runtime follows; not edited by builder ---
 
 function Find-DpmExe {
-    if ($dpmExe -and (Test-Path $dpmExe)) { return $dpmExe }
+    if ($dpmExe -and (Test-Path -LiteralPath $dpmExe -PathType Leaf)) { return $dpmExe }
     $candidates = @(
         'C:\Program Files\Display Profile Manager\DisplayProfileManager.exe',
         (Join-Path $PSScriptRoot 'DisplayProfileManager.exe'),
+        (Join-Path $env:LOCALAPPDATA 'Programs\Display Profile Manager\DisplayProfileManager.exe'),
         (Join-Path $env:LOCALAPPDATA 'Programs\DisplayProfileManager\DisplayProfileManager.exe'),
         (Join-Path $env:LOCALAPPDATA 'DisplayProfileManager\DisplayProfileManager.exe')
     )
@@ -401,7 +455,7 @@ function Find-DpmExe {
         }
     } catch { }
     foreach ($c in $candidates) {
-        if (Test-Path $c) { return $c }
+        if (Test-Path -LiteralPath $c -PathType Leaf) { return $c }
     }
     return $null
 }
@@ -459,12 +513,15 @@ public static class DpmMessageBox {
     exit 1
 }
 
+$ownedPreStart = @()
 foreach ($app in $preStart) {
     try {
         if ($app.Delay -gt 0) { Start-Sleep -Seconds $app.Delay }
         $pArgs = @{ FilePath = $app.Path; WindowStyle = 'Normal' }
         if ($app.Args) { $pArgs.ArgumentList = $app.Args }
-        Start-Process @pArgs
+        if ($app.KillOnExit) { $pArgs.PassThru = $true }
+        $preStartProc = Start-Process @pArgs
+        if ($app.KillOnExit -and $preStartProc) { $ownedPreStart += $preStartProc }
     } catch {
         Write-Warning "DPM Shortcut: pre-start '$($app.Path)' failed: $_"
     }
@@ -484,10 +541,12 @@ if ($targetProc) {
     $targetProc.WaitForExit()
 }
 
-foreach ($app in $preStart) {
-    if ($app.KillOnExit) {
-        Get-Process | Where-Object { $_.Path -eq $app.Path } | Stop-Process -Force -ErrorAction SilentlyContinue
-    }
+foreach ($ownedProc in $ownedPreStart) {
+    try {
+        if (-not $ownedProc.HasExited) {
+            Stop-Process -Id $ownedProc.Id -Force -ErrorAction SilentlyContinue
+        }
+    } catch { }
 }
 
 if ($restoreMode -ne 'none') {
@@ -584,6 +643,25 @@ def create_lnk(lnk_path: str, ps1_path: str, icon_source: Optional[str] = None):
 # .vbs wrapper generation  (Steam / launchers that ignore WindowStyle on .lnk)
 # ---------------------------------------------------------------------------
 
+def _vbs_string_expression(text: str) -> str:
+    # WSH decodes .vbs source with the ANSI code page, so non-ASCII UTF-16 units are emitted as ChrW calls
+    parts = []
+    literal = []
+    data = text.encode("utf-16-le", "surrogatepass")
+    for index in range(0, len(data), 2):
+        unit = int.from_bytes(data[index:index + 2], "little")
+        if 0x20 <= unit < 0x7F:
+            literal.append('""' if unit == 0x22 else chr(unit))
+            continue
+        if literal:
+            parts.append('"' + "".join(literal) + '"')
+            literal = []
+        parts.append(f"ChrW({unit})")
+    if literal or not parts:
+        parts.append('"' + "".join(literal) + '"')
+    return " & ".join(parts)
+
+
 def build_vbs(ps1_path: str) -> str:
     """
     Return a VBScript that launches the .ps1 via PowerShell with window
@@ -603,18 +681,92 @@ def build_vbs(ps1_path: str) -> str:
         f'"{POWERSHELL_EXE}" -NonInteractive -ExecutionPolicy Bypass '
         f'-WindowStyle Hidden -File "{ps1_escaped}"'
     )
-    return (
-        'Set oShell = CreateObject("WScript.Shell")\n'
-        f'oShell.Run "{cmd.replace(chr(34), chr(34)+chr(34))}", 0, True\n'
-    )
+    expression = _vbs_string_expression(cmd)
+    if len(f'oShell.Run {expression}, 0, True') <= 900:
+        # Preserve previously reviewed short/ASCII wrapper bytes.
+        return (
+            'Set oShell = CreateObject("WScript.Shell")\n'
+            f'oShell.Run {expression}, 0, True\n'
+        )
+
+    # A VBScript physical line is limited to about 1022 characters. Generate
+    # independent assignments instead of an overlong Run expression or a
+    # single logical statement spread across unlimited continuations.
+    # 28 Unicode scalar values generate at most 56 ChrW UTF-16 operands,
+    # keeping each physical statement comfortably below 900 characters.
+    lines = ['Set oShell = CreateObject("WScript.Shell")']
+    for offset in range(0, len(cmd), 28):
+        segment = _vbs_string_expression(cmd[offset:offset + 28])
+        prefix = 'dpmCommand = ' if offset == 0 else 'dpmCommand = dpmCommand & '
+        statement = prefix + segment
+        if len(statement) > 900:
+            raise ValueError("VBScript command segment exceeds physical-line budget")
+        lines.append(statement)
+    lines.append('oShell.Run dpmCommand, 0, True')
+    return '\n'.join(lines) + '\n'
 
 
 # ---------------------------------------------------------------------------
 # .ps1 generation
 # ---------------------------------------------------------------------------
 
+# PowerShell treats U+0027 and U+2018-U+201B alike as single-quoted string delimiters
+_PS1_SINGLE_QUOTES = "'\u2018\u2019\u201A\u201B"
+_PS1_QUOTE_RE = re.compile(f"[{_PS1_SINGLE_QUOTES}]")
+_PS1_DOUBLED_QUOTE_RE = re.compile(f"([{_PS1_SINGLE_QUOTES}])\\1")
+
+
 def _ps1_escape(s: str) -> str:
-    return s.replace("'", "''")
+    return _PS1_QUOTE_RE.sub(lambda match: match.group(0) * 2, s)
+
+
+def _ps1_unescape(s: str) -> str:
+    return _PS1_DOUBLED_QUOTE_RE.sub(r"\1", s)
+
+
+_PS1_SQ = r"'((?:''|[^'])*)'"
+
+
+def _parse_ps1_fields(text: str) -> dict:
+    def _extract(key: str) -> str:
+        pattern = r"^\$" + re.escape(key) + rf"\s*=\s*{_PS1_SQ}"
+        match = re.search(pattern, text, re.MULTILINE)
+        return _ps1_unescape(match.group(1)) if match else ""
+
+    target_match = re.search(
+        rf"\$target\s*=\s*@\{{[^}}]*Path\s*=\s*{_PS1_SQ}"
+        rf"[^}}]*Args\s*=\s*{_PS1_SQ}"
+        rf"[^}}]*WorkingDirectory\s*=\s*{_PS1_SQ}",
+        text, re.DOTALL,
+    )
+    pre_start = []
+    for match in re.finditer(
+        rf"@\{{\s*Path\s*=\s*{_PS1_SQ}\s*;\s*Args\s*=\s*{_PS1_SQ}\s*;"
+        r"\s*KillOnExit\s*=\s*(\$true|\$false)\s*;\s*Delay\s*=\s*([\d.]+)\s*\}",
+        text,
+    ):
+        pre_start.append({
+            "path": _ps1_unescape(match.group(1)),
+            "args": _ps1_unescape(match.group(2)),
+            "kill_on_exit": match.group(3) == "$true",
+            "delay": float(match.group(4)),
+        })
+
+    return {
+        "profile_id": _extract("profileId"),
+        "restore_mode": _extract("restoreMode"),
+        "restore_id": _extract("restoreId"),
+        "target_path": _ps1_unescape(target_match.group(1)) if target_match else "",
+        "target_args": _ps1_unescape(target_match.group(2)) if target_match else "",
+        "target_workdir": _ps1_unescape(target_match.group(3)) if target_match else "",
+        "pre_start": pre_start,
+    }
+
+
+def _shortcut_icon_source(target_path: str) -> Optional[str]:
+    if target_path and target_path.lower().endswith(".exe") and os.path.isfile(target_path):
+        return target_path
+    return find_dpm_exe()
 
 
 def build_ps1(
@@ -648,17 +800,19 @@ def build_ps1(
         )
     pre_start_block = "\n".join(pre_start_lines)
 
-    ps1 = PS1_TEMPLATE
-    ps1 = ps1.replace("{{SHORTCUT_NAME}}",     shortcut_name)
-    ps1 = ps1.replace("{{PROFILE_ID}}",        _ps1_escape(profile_id))
-    ps1 = ps1.replace("{{PROFILE_NAME}}",      _ps1_escape(profile_name))
-    ps1 = ps1.replace("{{RESTORE_MODE}}",      restore_mode_str)
-    ps1 = ps1.replace("{{RESTORE_ID}}",        restore_id_str)
-    ps1 = ps1.replace("{{TARGET_PATH}}",       _ps1_escape(target_path))
-    ps1 = ps1.replace("{{TARGET_ARGS}}",       _ps1_escape(target_args))
-    ps1 = ps1.replace("{{TARGET_WORKDIR}}",    _ps1_escape(target_workdir))
-    ps1 = ps1.replace("{{PRE_START_ENTRIES}}", pre_start_block)
-    return ps1
+    values = {
+        "SHORTCUT_NAME":     shortcut_name,
+        "PROFILE_ID":        _ps1_escape(profile_id),
+        "PROFILE_NAME":      _ps1_escape(profile_name),
+        "RESTORE_MODE":      _ps1_escape(restore_mode_str),
+        "RESTORE_ID":        _ps1_escape(restore_id_str),
+        "TARGET_PATH":       _ps1_escape(target_path),
+        "TARGET_ARGS":       _ps1_escape(target_args),
+        "TARGET_WORKDIR":    _ps1_escape(target_workdir),
+        "PRE_START_ENTRIES": pre_start_block,
+    }
+    # Single pass so placeholder-like text inside a value is never substituted again
+    return re.sub(r"\{\{([A-Z_]+)\}\}", lambda match: values[match.group(1)], PS1_TEMPLATE)
 
 
 # ---------------------------------------------------------------------------
@@ -670,7 +824,9 @@ def find_dpm_exe() -> Optional[str]:
     local_app  = os.environ.get("LOCALAPPDATA", "")
     script_dir = os.path.dirname(os.path.abspath(__file__))
 
+    # Installer per-user default first; the unspaced and bare LOCALAPPDATA layouts are legacy
     candidates = [
+        os.path.join(local_app, "Programs", "Display Profile Manager", exe_name),
         os.path.join(local_app, "Programs", "DisplayProfileManager", exe_name),
         os.path.join(local_app, "DisplayProfileManager", exe_name),
         os.path.join(script_dir, exe_name),
@@ -855,6 +1011,45 @@ class ScrollableFrame(tk.Frame):
 # ---------------------------------------------------------------------------
 # Configuration panel (right side)
 # ---------------------------------------------------------------------------
+
+
+def _write_utf8(path: str, content: str) -> None:
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(content)
+
+
+def _write_ps1(path: str, content: str) -> None:
+    # Windows PowerShell 5.1 decodes BOM-less scripts with the ANSI code page
+    with open(path, "w", encoding="utf-8-sig") as fh:
+        fh.write(content)
+
+
+def _write_shortcut_artifacts(
+    entry: ShortcutEntry,
+    final_ps1_path: str,
+    ps1_content: str,
+    target_path: str,
+) -> None:
+    try:
+        _write_ps1(entry.ps1_path, ps1_content)
+    except OSError as exc:
+        raise ValueError(f"Failed to write .ps1:\n{exc}") from exc
+
+    vbs_path = os.path.join(entry.folder, entry.name + ".vbs")
+    try:
+        _write_utf8(vbs_path, build_vbs(final_ps1_path))
+    except OSError as exc:
+        raise ValueError(f"Failed to write .vbs:\n{exc}") from exc
+
+    icon_source = _shortcut_icon_source(target_path)
+    try:
+        create_lnk(entry.lnk_path, final_ps1_path, icon_source)
+    except RuntimeError as exc:
+        raise ValueError(str(exc)) from exc
+
+
+def _replace_shortcut_path(source: str, destination: str) -> None:
+    os.replace(source, destination)
 
 class ConfigPanel(tk.Frame):
     """
@@ -1201,13 +1396,13 @@ class ConfigPanel(tk.Frame):
                 var.set(lnk)
 
     def _get_lnk_path(self) -> Optional[str]:
-        name = self._name_var.get().strip()
+        name = self._name_var.get()
         if not name:
             return None
         return os.path.join(SHORTCUTS_DIR, name, name + ".lnk")
 
     def _get_vbs_path(self) -> Optional[str]:
-        name = self._name_var.get().strip()
+        name = self._name_var.get()
         if not name:
             return None
         return os.path.join(SHORTCUTS_DIR, name, name + ".vbs")
@@ -1220,7 +1415,7 @@ class ConfigPanel(tk.Frame):
 
     def _collect_fields(self):
         """Validate and return all field values, or raise ValueError."""
-        name = self._name_var.get().strip()
+        name = self._name_var.get()
         err  = validate_name(name)
         if err:
             raise ValueError(err)
@@ -1239,6 +1434,9 @@ class ConfigPanel(tk.Frame):
             restore_mode = self._profiles[restore_idx - 2].id
 
         target_path = self._target_path.get().strip()
+        if not target_path:
+            raise ValueError("Please select a target application.")
+
         target_args = self._target_args.get().strip()
         target_wd   = self._target_wd.get().strip()
         pre_start   = [
@@ -1263,45 +1461,79 @@ class ConfigPanel(tk.Frame):
                 pre_start=pre_start,
             )
         except RuntimeError as exc:
-            raise ValueError(str(exc))
+            raise ValueError(str(exc)) from exc
 
-        folder = os.path.join(SHORTCUTS_DIR, name)
+        err = validate_name(name)
+        if err:
+            raise ValueError(err)
+
+        directory = ensure_shortcuts_dir()
+        folder = _shortcut_child(directory, name)
+        entry = _entry_for(name, folder)
+        overwrite = os.path.exists(folder)
+        if overwrite and not messagebox.askyesno(
+            "Overwrite?",
+            f"A shortcut named ‘{name}’ already exists. Overwrite?",
+        ):
+            raise ValueError("Canceled.")
+
+        staging_folder = tempfile.mkdtemp(prefix=f".{name}.staging-", dir=directory)
+        if overwrite:
+            try:
+                _shortcut_child(directory, name)
+                _reject_recursive_copy_links(folder)
+                shutil.copytree(folder, staging_folder, dirs_exist_ok=True)
+            except (OSError, ValueError) as exc:
+                shutil.rmtree(staging_folder, ignore_errors=True)
+                raise ValueError(f"Failed to stage existing shortcut:\n{exc}") from exc
+
+        staged_entry = _entry_for(name, staging_folder)
         try:
-            entry = create_shortcut_folder(name)
-        except FileExistsError:
-            if not messagebox.askyesno(
-                "Overwrite?",
-                f"A shortcut named \u2018{name}\u2019 already exists. Overwrite?",
-            ):
-                raise ValueError("Canceled.")
-            entry = _entry_for(name, folder)
+            _write_shortcut_artifacts(
+                staged_entry,
+                entry.ps1_path,
+                ps1_content,
+                target_path,
+            )
+        except ValueError:
+            shutil.rmtree(staging_folder, ignore_errors=True)
+            raise
+
+        if not overwrite:
+            try:
+                _shortcut_child(directory, name)
+                _replace_shortcut_path(staging_folder, folder)
+            except (OSError, ValueError) as exc:
+                shutil.rmtree(staging_folder, ignore_errors=True)
+                raise ValueError(f"Failed to publish shortcut:\n{exc}") from exc
+            return entry
+
+        backup_folder = staging_folder + ".backup"
+        try:
+            _shortcut_child(directory, name)
+            _replace_shortcut_path(folder, backup_folder)
+        except (OSError, ValueError) as exc:
+            shutil.rmtree(staging_folder, ignore_errors=True)
+            raise ValueError(f"Failed to preserve existing shortcut:\n{exc}") from exc
 
         try:
-            with open(entry.ps1_path, "w", encoding="utf-8") as fh:
-                fh.write(ps1_content)
-        except OSError as exc:
-            raise ValueError(f"Failed to write .ps1:\n{exc}")
+            _shortcut_child(directory, name)
+            _replace_shortcut_path(staging_folder, folder)
+        except (OSError, ValueError) as exc:
+            rollback_error = None
+            try:
+                _replace_shortcut_path(backup_folder, folder)
+            except (OSError, ValueError) as rollback_exc:
+                rollback_error = rollback_exc
+            shutil.rmtree(staging_folder, ignore_errors=True)
+            if rollback_error is not None:
+                raise ValueError(
+                    "Failed to publish shortcut and restore the previous shortcut:\n"
+                    f"{exc}\nRollback failed: {rollback_error}"
+                ) from exc
+            raise ValueError(f"Failed to publish shortcut:\n{exc}") from exc
 
-        # .vbs — silent wrapper for launchers that ignore .lnk window style
-        vbs_path = os.path.join(entry.folder, name + ".vbs")
-        try:
-            with open(vbs_path, "w", encoding="utf-8") as fh:
-                fh.write(build_vbs(entry.ps1_path))
-        except OSError as exc:
-            raise ValueError(f"Failed to write .vbs:\n{exc}")
-
-        # Icon: prefer the target .exe; fall back to DPM exe, then PowerShell
-        icon_source = None
-        if target_path and target_path.lower().endswith(".exe") and os.path.isfile(target_path):
-            icon_source = target_path
-        if not icon_source:
-            icon_source = find_dpm_exe()
-
-        try:
-            create_lnk(entry.lnk_path, entry.ps1_path, icon_source)
-        except RuntimeError as exc:
-            messagebox.showwarning("Shortcut warning", str(exc))
-
+        shutil.rmtree(backup_folder, ignore_errors=True)
         return entry
 
     def _on_save(self):
@@ -1358,10 +1590,18 @@ class ConfigPanel(tk.Frame):
     # ── Public API ────────────────────────────────────────────────────────
 
     def load_entry(self, entry: ShortcutEntry):
+        self._clearing = True
         self._current_entry = entry
         self._name_var.set(entry.name)
+        self._target_path.set("")
+        self._target_args.set("")
+        self._target_wd.set("")
+        self._profile_cb.current(0)
+        self._restore_cb.current(0)
         for row in list(self._pre_start_rows):
             self._remove_pre_start(row)
+        self._clearing = False
+
         if os.path.isfile(entry.ps1_path):
             self._parse_ps1_into_fields(entry.ps1_path)
         self._update_launcher_strings()
@@ -1388,57 +1628,32 @@ class ConfigPanel(tk.Frame):
 
     def _parse_ps1_into_fields(self, path: str):
         try:
-            with open(path, "r", encoding="utf-8") as fh:
-                text = fh.read()
+            with open(path, "r", encoding="utf-8-sig") as fh:
+                fields = _parse_ps1_fields(fh.read())
         except OSError:
             return
 
-        def _extract(key):
-            m = re.search(
-                rf"^\${re.escape(key)}\s*=\s*'([^']*)'", text, re.MULTILINE
-            )
-            return m.group(1).replace("''", "'") if m else ""
+        self._target_path.set(fields["target_path"])
+        self._target_args.set(fields["target_args"])
+        self._target_wd.set(fields["target_workdir"])
 
-        tm = re.search(
-            r"\$target\s*=\s*@\{[^}]*Path\s*=\s*'([^']*)'"
-            r"[^}]*Args\s*=\s*'([^']*)'"
-            r"[^}]*WorkingDirectory\s*=\s*'([^']*)'",
-            text, re.DOTALL,
-        )
-        if tm:
-            self._target_path.set(tm.group(1).replace("''", "'"))
-            self._target_args.set(tm.group(2).replace("''", "'"))
-            self._target_wd.set(tm.group(3).replace("''", "'"))
-
-        profile_id = _extract("profileId")
-        for i, p in enumerate(self._profiles):
-            if p.id == profile_id:
+        for i, profile in enumerate(self._profiles):
+            if profile.id == fields["profile_id"]:
                 self._profile_cb.current(i + 1)
                 break
 
-        restore_mode = _extract("restoreMode")
-        restore_id   = _extract("restoreId")
-        if restore_mode == "dynamic":
+        if fields["restore_mode"] == "dynamic":
             self._restore_cb.current(0)
-        elif restore_mode == "none":
+        elif fields["restore_mode"] == "none":
             self._restore_cb.current(1)
         else:
-            for i, p in enumerate(self._profiles):
-                if p.id == restore_id:
+            for i, profile in enumerate(self._profiles):
+                if profile.id == fields["restore_id"]:
                     self._restore_cb.current(i + 2)
                     break
 
-        for m in re.finditer(
-            r"@\{\s*Path\s*=\s*'([^']*)'\s*;\s*Args\s*=\s*'([^']*)'\s*;"
-            r"\s*KillOnExit\s*=\s*(\$true|\$false)\s*;\s*Delay\s*=\s*([\d.]+)\s*\}",
-            text,
-        ):
-            self._add_pre_start(data={
-                "path":         m.group(1).replace("''", "'"),
-                "args":         m.group(2).replace("''", "'"),
-                "kill_on_exit": m.group(3) == "$true",
-                "delay":        float(m.group(4)),
-            })
+        for pre_start in fields["pre_start"]:
+            self._add_pre_start(data=pre_start)
 
 
 # ---------------------------------------------------------------------------
@@ -1459,6 +1674,7 @@ class App(tk.Tk):
         self._load_icons()
         self._build_ui()
         self._load_shortcut_list()
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
 
     def _set_taskbar_icon(self):
         # Tell Windows this process has its own identity so the taskbar shows
@@ -1585,6 +1801,10 @@ class App(tk.Tk):
         )
 
     # ── List interactions ─────────────────────────────────────────────────
+
+    def _on_close(self):
+        if self._check_unsaved():
+            self.destroy()
 
     def _on_list_select(self, _=None):
         sel = self._listbox.curselection()

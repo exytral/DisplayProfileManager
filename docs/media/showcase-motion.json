@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "images": [
+    {
+      "name": "theme-light.png",
+      "path": "main-window/theme-light.png"
+    },
+    {
+      "name": "theme-dark.png",
+      "path": "main-window/theme-dark.png"
+    },
+    {
+      "name": "theme-black.png",
+      "path": "main-window/theme-black.png"
+    },
+    {
+      "name": "theme-rose.png",
+      "path": "main-window/theme-rose.png"
+    }
+  ],
+  "fps": 60,
+  "secondsPerImage": 2,
+  "transitionSeconds": 0.75,
+  "wipe": {
+    "enabled": true,
+    "direction": "up",
+    "alignment": "window"
+  },
+  "motion": {
+    "incoming": {
+      "xPercent": 0,
+      "yPercent": 0,
+      "zoomPercent": 100,
+      "opacityPercent": 100
+    },
+    "outgoing": {
+      "xPercent": 0,
+      "yPercent": 0,
+      "zoomPercent": 100,
+      "opacityPercent": 100
+    }
+  },
+  "easing": {
+    "x1": 0.4,
+    "y1": 0,
+    "x2": 0.2,
+    "y2": 1
+  },
+  "background": "#0e1119"
+}

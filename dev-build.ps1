@@ -1,7 +1,8 @@
 param(
     [string]$Configuration = "Release",
     [ValidateSet("x86", "x64", "ARM64")]
-    [string]$Platform
+    [string]$Platform,
+    [switch]$NoLaunch
 )
 
 if (-not $Platform) {
@@ -25,7 +26,16 @@ $runtimeIdentifier = switch ($Platform) {
     "ARM64" { "win-arm64" }
 }
 
-$vswhere  = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+$programFilesX86 = ${env:ProgramFiles(x86)}
+if (-not $programFilesX86) {
+    $programFilesX86 = Join-Path $env:SystemDrive "Program Files (x86)"
+}
+
+$vswhere = Join-Path $programFilesX86 "Microsoft Visual Studio\Installer\vswhere.exe"
+if (-not (Test-Path $vswhere)) {
+    throw "vswhere.exe not found at $vswhere"
+}
+
 $vsRoot   = & $vswhere -latest -requires Microsoft.Component.MSBuild -property installationPath
 $msbuild  = Join-Path $vsRoot "MSBuild\Current\Bin\MSBuild.exe"
 $sln      = "$PSScriptRoot\DisplayProfileManager.sln"
@@ -75,6 +85,10 @@ if (Test-Path $settings) {
 Write-Host "Unregistering shell extension for build..." -ForegroundColor Cyan
 & $exe --unshell | Out-Null
 $unshellExitCode = $LASTEXITCODE
+if ($unshellExitCode -ne 0 -and $unshellExitCode -ne 2) {
+    Write-Host "Shell extension teardown/reload failed; aborting before rebuild to avoid replacing a DLL that Explorer may still have mapped." -ForegroundColor Red
+    exit 1
+}
 
 # Restore NuGet packages for solution via MSBuild
 Write-Host "Restoring NuGet packages..." -ForegroundColor Cyan
@@ -106,7 +120,7 @@ if ($LASTEXITCODE -ne 0) {
 # Re-register shell extension if previously enabled
 if ($shellMenuWasEnabled) {
     Write-Host "Re-registering shell extension..." -ForegroundColor Cyan
-    & $exe --shell | Out-Null
+    & $exe --shell-dev | Out-Null
 
     if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 2) {
         Write-Host "Shell extension registration failed." -ForegroundColor Red
@@ -115,12 +129,16 @@ if ($shellMenuWasEnabled) {
     }
 }
 
-# Launch dev instance
-if (Test-Path $exe) {
-    Write-Host "Launching dev instance..." -ForegroundColor Cyan
-    Start-Process -FilePath $exe -ArgumentList "--dev"
-} else {
+# Validate the built executable, then launch unless explicitly suppressed
+if (-not (Test-Path $exe)) {
     Write-Host "Error: Executable not found at $exe" -ForegroundColor Red
     Start-Sleep -Seconds 5
     exit 1
+}
+
+if ($NoLaunch) {
+    Write-Host "Skipping dev instance launch." -ForegroundColor DarkGray
+} else {
+    Write-Host "Launching dev instance..." -ForegroundColor Cyan
+    Start-Process -FilePath $exe -ArgumentList "--dev"
 }

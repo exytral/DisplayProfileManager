@@ -111,3 +111,4 @@ UpgradeLog*.htm
 .localhistory/
 .vshistory/
 MigrationBackup/
+DisplayProfileManager.SetupBootstrap/EmbeddedPayload.exe

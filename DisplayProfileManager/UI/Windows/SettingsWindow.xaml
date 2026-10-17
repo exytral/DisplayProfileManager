@@ -1,0 +1,619 @@
+﻿<Window x:Class="DisplayProfileManager.UI.Windows.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:presentation="clr-namespace:DisplayProfileManager.UI.Presentation"
+        xmlns:controls="clr-namespace:DisplayProfileManager.UI.Controls"
+        mc:Ignorable="d"
+        Title="Settings" Width="500" Height="600" MinWidth="450" MinHeight="500"
+        WindowStartupLocation="Manual" ResizeMode="CanResize"
+        WindowStyle="SingleBorderWindow"
+        Loaded="Window_Loaded">
+
+    <WindowChrome.WindowChrome>
+        <WindowChrome 
+            CaptionHeight="32"
+            ResizeBorderThickness="6"
+            CornerRadius="0"
+            GlassFrameThickness="0,32,0,0"
+            UseAeroCaptionButtons="True" />
+    </WindowChrome.WindowChrome>
+
+    <Window.Resources>
+        <Style x:Key="PrimaryButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource ButtonBackgroundBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource ButtonForegroundBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" 
+                                CornerRadius="4" 
+                                BorderBrush="{TemplateBinding BorderBrush}" 
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource ButtonHoverBackgroundBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource ButtonPressedBackgroundBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+            <Setter Property="Background" Value="{DynamicResource SecondaryButtonBackgroundBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource SecondaryButtonForegroundBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SecondaryButtonBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource SecondaryButtonHoverBackgroundBrush}"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource SecondaryButtonPressedBackgroundBrush}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="DangerButtonStyle" TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+            <Setter Property="Background" Value="{DynamicResource DangerButtonBackgroundBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource ButtonForegroundBrush}"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource DangerButtonHoverBackgroundBrush}"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource DangerButtonHoverBackgroundBrush}"/>
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="0.4"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="PrimaryTextBlockStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+        </Style>
+
+        <Style x:Key="SectionHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource PrimaryTextBlockStyle}">
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin" Value="0,0,0,12"/>
+        </Style>
+
+        <Style x:Key="LabelTextBlockStyle" TargetType="TextBlock" BasedOn="{StaticResource PrimaryTextBlockStyle}">
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Margin" Value="0,0,0,4"/>
+        </Style>
+
+        <Style x:Key="WindowControlButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Width" Value="46"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource WindowControlHoverBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource ControlPressedBackgroundBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="WindowCloseButtonStyle" TargetType="Button" BasedOn="{StaticResource WindowControlButtonStyle}">
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource CloseButtonHoverBrush}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource ButtonForegroundBrush}"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource CloseButtonHoverBrush}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource ButtonForegroundBrush}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+
+    <Grid Background="{DynamicResource WindowBackgroundBrush}">
+        <Grid.RowDefinitions>
+            <!-- Title bar area (32px normal, 40px maximized) -->
+            <RowDefinition Name="TitleBarRowDefinition" Height="32"/>
+            <!-- Main Content Area -->
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Title Bar Area -->
+        <Grid Grid.Row="0" Name="TitleBarGrid" Background="{DynamicResource TitleBarBackgroundBrush}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- App Title -->
+            <TextBlock Grid.Column="0"
+                       Text="Settings"
+                       VerticalAlignment="Center"
+                       Margin="12,0,0,0"
+                       FontFamily="Segoe UI"
+                       FontSize="12"
+                       Foreground="{DynamicResource TitleBarTextBrush}"/>
+
+            <!-- Window Control Buttons -->
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <!-- Close Button -->
+                <Button Name="CloseButton"
+                        Content="&#xE8BB;"
+                        Style="{StaticResource WindowCloseButtonStyle}"
+                        Click="CloseButton_Click"
+                        WindowChrome.IsHitTestVisibleInChrome="True"
+                        ToolTip="Close"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- Main Content Area -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Focusable="False" Padding="0,0,15,0" Margin="16,16,1,16" Style="{StaticResource OverlayScrollViewerStyle}" presentation:SmoothScrollBehavior.IsEnabled="True">
+            <StackPanel>
+                <!-- General Section -->
+                <Border Background="{DynamicResource ContentBackgroundBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        Padding="16"
+                        Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="General"
+                                   Style="{StaticResource SectionHeaderStyle}"/>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0"
+                                       Text="Theme"
+                                       Style="{StaticResource LabelTextBlockStyle}"
+                                       VerticalAlignment="Center"/>
+
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,0,0,4">
+                                <Button Name="ImportThemeButton"
+                                        Content="Import"
+                                        Style="{StaticResource SecondaryButtonStyle}"
+                                        Padding="6,3"
+                                        FontSize="12"
+                                        Margin="0,0,6,0"
+                                        ToolTip="Import a .xaml theme file"
+                                        Click="ImportThemeButton_Click"/>
+                                <Button Name="DeleteThemeButton"
+                                        Content="Delete"
+                                        IsEnabled="False"
+                                        Style="{StaticResource DangerButtonStyle}"
+                                        Padding="6,3"
+                                        FontSize="12"
+                                        ToolTip="Delete the selected imported theme"
+                                        Click="DeleteThemeButton_Click"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <ComboBox Name="ThemeComboBox"
+                                  Style="{StaticResource PrimaryComboBoxStyle}"
+                                  DropDownOpened="ThemeComboBox_DropDownOpened"
+                                  SelectionChanged="ThemeComboBox_SelectionChanged"/>
+
+                        <TextBlock Text="Language"
+                                   Style="{StaticResource LabelTextBlockStyle}"
+                                   Margin="0,12,0,4"/>
+                        <ComboBox Name="LanguageComboBox"
+                                  Style="{StaticResource PrimaryComboBoxStyle}"
+                                  IsEnabled="False"
+                                  SelectionChanged="LanguageComboBox_SelectionChanged">
+                            <ComboBoxItem Content="English (US)" Tag="en-US"/>
+                        </ComboBox>
+                    </StackPanel>
+                </Border>
+
+                <!-- Startup Section -->
+                <Border Background="{DynamicResource ContentBackgroundBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        Padding="16"
+                        Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="Startup" Style="{StaticResource SectionHeaderStyle}"/>
+
+                        <CheckBox Name="StartWithWindowsCheckBox"
+                                  Content="Start with Windows"
+                                  Padding="6,0,0,0"
+                                  Checked="StartWithWindowsCheckBox_Changed"
+                                  Unchecked="StartWithWindowsCheckBox_Changed"/>
+
+                        <CheckBox Name="StartInSystemTrayCheckBox"
+                                  Content="Start in system tray when Windows starts"
+                                  Padding="6,0,0,0"
+                                  Margin="20,4,0,0"
+                                  Checked="StartInSystemTrayCheckBox_Changed"
+                                  Unchecked="StartInSystemTrayCheckBox_Changed"/>
+
+                        <TextBlock Text="Auto-Start Method"
+                                   Style="{StaticResource LabelTextBlockStyle}"
+                                   Margin="0,16,0,4"/>
+                        <StackPanel Name="AutoStartModePanel">
+                            <RadioButton Name="RegistryModeRadio"
+                                         Content="Standard (No admin required)"
+                                         Padding="6,0,0,0"
+                                         GroupName="AutoStartMode"
+                                         Checked="AutoStartModeRadio_Changed"/>
+                            <TextBlock Text="Uses Windows Registry. Normal startup speed."
+                                       Style="{StaticResource PrimaryTextBlockStyle}"
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TertiaryTextBrush}"
+                                       Margin="20,0,0,4"
+                                       TextWrapping="Wrap">
+                            </TextBlock>
+
+                            <RadioButton Name="TaskSchedulerModeRadio"
+                                         Content="Quick Launch (One-time admin for setup)"
+                                         Padding="6,0,0,0"
+                                         GroupName="AutoStartMode"
+                                         Checked="AutoStartModeRadio_Changed"/>
+                            <TextBlock Text="Uses Windows Task Scheduler. Faster/higher priority startup."
+                                       Style="{StaticResource PrimaryTextBlockStyle}"
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TertiaryTextBrush}"
+                                       Margin="20,0,0,4"
+                                       TextWrapping="Wrap">
+                            </TextBlock>
+                        </StackPanel>
+
+                        <TextBlock Text="App Startup"
+                                   Style="{StaticResource LabelTextBlockStyle}"
+                                   Margin="0,16,0,0"/>
+
+                        <CheckBox Name="CheckForUpdatesCheckBox"
+                                  Content="Check for new versions on startup"
+                                  Padding="6,0,0,0"
+                                  Margin="0,8,0,0"
+                                  ToolTip="Reads the latest release number from GitHub. Nothing is downloaded or installed."
+                                  Checked="CheckForUpdatesCheckBox_Changed"
+                                  Unchecked="CheckForUpdatesCheckBox_Changed"/>
+
+                        <CheckBox Name="ApplyStartupProfileCheckBox"
+                                  Content="Apply startup profile on launch"
+                                  Padding="6,0,0,0"
+                                  Margin="0,4,0,0"
+                                  Checked="ApplyStartupProfileCheckBox_Changed"
+                                  Unchecked="ApplyStartupProfileCheckBox_Changed"/>
+
+                        <ComboBox Name="StartupProfileComboBox"
+                                  Style="{StaticResource PrimaryComboBoxStyle}"
+                                  Margin="0,8,0,0"
+                                  SelectionChanged="StartupProfileComboBox_SelectionChanged">
+                            <ComboBoxItem Content="None" Tag=""/>
+                        </ComboBox>
+                    </StackPanel>
+                </Border>
+
+                <!-- Window Behavior Section -->
+                <Border Background="{DynamicResource ContentBackgroundBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        Padding="16"
+                        Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="Window Behavior" Style="{StaticResource SectionHeaderStyle}"/>
+
+                        <TextBlock Text="Closing the Application:"
+                                   Style="{StaticResource LabelTextBlockStyle}"
+                                   Margin="0,0,0,4"/>
+                        <StackPanel>
+                            <RadioButton Name="CloseToTrayRadio"
+                                         Content="Minimize to system tray"
+                                         Padding="6,0,0,0"
+                                         GroupName="CloseAction"
+                                         Checked="CloseActionRadio_Changed"/>
+                            <RadioButton Name="ExitApplicationRadio"
+                                         Content="Exit application"
+                                         Padding="6,0,0,0"
+                                         GroupName="CloseAction"
+                                         Checked="CloseActionRadio_Changed"/>
+
+                        </StackPanel>
+
+                        <CheckBox Name="RememberCloseChoiceCheckBox"
+                                  Content="Remember my choice"
+                                  Padding="6,0,0,0"
+                                  Margin="20,8,0,0"
+                                  Checked="RememberCloseChoiceCheckBox_Changed"
+                                  Unchecked="RememberCloseChoiceCheckBox_Changed"/>
+
+                        <TextBlock Text="Notifications"
+                                   Style="{StaticResource LabelTextBlockStyle}"
+                                   Margin="0,16,0,0"/>
+
+                        <CheckBox Name="ShowNotificationsCheckBox"
+                                  Content="Show notifications when profiles are applied"
+                                  Padding="6,0,0,0"
+                                  Margin="0,8,0,0"
+                                  Checked="ShowNotificationsCheckBox_Changed"
+                                  Unchecked="ShowNotificationsCheckBox_Changed"/>
+
+                        <TextBlock Text="Integration"
+                                   Style="{StaticResource LabelTextBlockStyle}"
+                                   Margin="0,16,0,0"/>
+
+                        <CheckBox Name="DesktopContextMenuCheckBox"
+                                  Content="Add profile switcher to desktop right-click menu"
+                                  Padding="6,0,0,0"
+                                  Margin="0,8,0,0"
+                                  Checked="DesktopContextMenuCheckBox_Changed"
+                                  Unchecked="DesktopContextMenuCheckBox_Changed"/>
+
+                        <TextBlock Text="Adds a Display Profiles submenu to the Windows desktop context menu. Works even when the app is not running."
+                                   Style="{StaticResource PrimaryTextBlockStyle}"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource TertiaryTextBrush}"
+                                   TextWrapping="Wrap"
+                                   Margin="20,2,0,0"/>
+
+                        <CheckBox Name="ManageStartMenuProfileShortcutsCheckBox"
+                                  Content="Manage Start Menu profile shortcuts"
+                                  Padding="6,0,0,0"
+                                  Margin="0,12,0,0"
+                                  Checked="ManageStartMenuProfileShortcutsCheckBox_Changed"
+                                  Unchecked="ManageStartMenuProfileShortcutsCheckBox_Changed"/>
+
+                        <TextBlock Text="Keeps a managed Start Menu shortcut for each profile. Shortcuts continue to work after profile renames."
+                                   Style="{StaticResource PrimaryTextBlockStyle}"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource TertiaryTextBrush}"
+                                   TextWrapping="Wrap"
+                                   Margin="20,2,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- App Behavior Section -->
+                <Border Background="{DynamicResource ContentBackgroundBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        Padding="16"
+                        Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="Display Recovery"
+                                   Style="{StaticResource LabelTextBlockStyle}"
+                                   Margin="0,0,0,4"/>
+
+                        <CheckBox Name="AbortOnApplyFailureCheckBox"
+                                  Content="Abort the profile application if display configuration fails"
+                                  Padding="6,0,0,0"
+                                  Margin="0,8,0,0"
+                                  ToolTip="On: abort at the failure, leaving later stages unapplied. Off: continue with later stages and report the failure; the profile may be partially applied."
+                                  Checked="AbortOnApplyFailureCheckBox_Changed"
+                                  Unchecked="AbortOnApplyFailureCheckBox_Changed"/>
+
+                        <StackPanel Margin="20,4,0,0">
+                            <CheckBox Name="RollbackAfterApplyFailureCheckBox"
+                                      Content="Rollback after an aborted display application"
+                                      Padding="6,0,0,0"
+                                      Opacity="0.7"
+                                      IsEnabled="False"
+                                      ToolTip="On: restore the selected display state after an aborted application. Off: leave the displays as the failure left them. Requires Abort."
+                                      Checked="RollbackAfterApplyFailureCheckBox_Changed"
+                                      Unchecked="RollbackAfterApplyFailureCheckBox_Changed"/>
+
+                            <StackPanel Margin="20,0,0,0">
+                                <RadioButton Name="RollbackToPreviousProfileRadio"
+                                             GroupName="RollbackTarget"
+                                             Content="Reapply the previous profile"
+                                             Opacity="0.7"
+                                             IsEnabled="False"
+                                             Padding="6,0,0,0"
+                                             Margin="0,4,0,0"
+                                             ToolTip="Reapplies the previous profile in full, including its scripts, audio, and wallpaper. Its saved settings may have changed since it was last applied."
+                                             Checked="RollbackTargetRadio_Changed"/>
+
+                                <RadioButton Name="RollbackToSnapshotRadio"
+                                             GroupName="RollbackTarget"
+                                             Content="Restore the pre-apply display snapshot"
+                                             Opacity="0.7"
+                                             IsEnabled="False"
+                                             Padding="6,0,0,0"
+                                             Margin="0,4,0,0"
+                                             ToolTip="Restores the display configuration captured before the application. It affects displays only; audio, wallpaper, scripts, and other profile stages are not rerun, and no profile is marked active afterward."
+                                             Checked="RollbackTargetRadio_Changed"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Global Hotkeys Section -->
+                <Border Background="{DynamicResource ContentBackgroundBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        Padding="16"
+                        Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="Global Hotkeys" Style="{StaticResource SectionHeaderStyle}"/>
+
+                        <TextBlock Text="Quick Switch"
+                                   Style="{StaticResource LabelTextBlockStyle}"
+                                   Margin="0,16,0,0"/>
+
+                        <CheckBox Name="QuickSwitchEnabledCheckBox"
+                                  Content="Enable Quick Switch profile switcher overlay"
+                                  Padding="6,0,0,0"
+                                  Margin="0,8,0,8"
+                                  Checked="QuickSwitchEnabledCheckBox_Changed"
+                                  Unchecked="QuickSwitchEnabledCheckBox_Changed"/>
+
+                        <Grid Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Quick Switch hotkey" Style="{StaticResource LabelTextBlockStyle}" VerticalAlignment="Center"/>
+                            <Button x:Name="QuickSwitchClearButton"
+                                    Grid.Column="1"
+                                    Content="Clear"
+                                    Style="{StaticResource DangerButtonStyle}"
+                                    Padding="6,3"
+                                    FontSize="12"
+                                    PreviewMouseDown="QuickSwitchClearButton_PreviewMouseDown"
+                                    Click="QuickSwitchClearButton_Click"/>
+                        </Grid>
+                        <controls:HotkeyEditorControl x:Name="QuickSwitchHotkeyEditor"
+                                                      Margin="0,0,0,4"
+                                                      HotkeyChanged="QuickSwitchHotkeyEditor_HotkeyChanged"/>
+                        <TextBlock Text="Opens a profile switcher overlay with the configured global hotkey."
+                                   Style="{StaticResource PrimaryTextBlockStyle}"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource TertiaryTextBrush}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,8"/>
+                        <TextBlock x:Name="QuickSwitchConflictWarning"
+                                   Text="⚠ Already assigned to a profile"
+                                   Style="{StaticResource PrimaryTextBlockStyle}"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource DangerButtonBackgroundBrush}"
+                                   Visibility="Collapsed"
+                                   Margin="0,0,0,8"/>
+                        <CheckBox x:Name="QuickSwitchUseActiveMonitorCheckBox"
+                                  Content="Use active monitor"
+                                  Padding="6,0,0,0"
+                                  Margin="0,2,0,4"
+                                  Checked="QuickSwitchUseActiveMonitorCheckBox_Changed"
+                                  Unchecked="QuickSwitchUseActiveMonitorCheckBox_Changed"/>
+                        <StackPanel x:Name="QuickSwitchActiveMonitorSourcePanel"
+                                    Margin="20,0,0,8">
+                            <RadioButton x:Name="QuickSwitchMousePositionRadio"
+                                         GroupName="QuickSwitchActiveMonitorSource"
+                                         Content="Mouse position"
+                                         Margin="0,2,0,2"
+                                         Checked="QuickSwitchActiveMonitorSourceRadio_Changed"/>
+                            <RadioButton x:Name="QuickSwitchWindowFocusRadio"
+                                         GroupName="QuickSwitchActiveMonitorSource"
+                                         Content="Window focus"
+                                         Margin="0,2,0,2"
+                                         Checked="QuickSwitchActiveMonitorSourceRadio_Changed"/>
+                        </StackPanel>
+                        <TextBlock Text="When “Use active monitor” is off, Quick Switch opens on the primary monitor."
+                                   Style="{StaticResource PrimaryTextBlockStyle}"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource TertiaryTextBrush}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,8"/>
+
+                        <!-- Read-only List of Configured Hotkeys -->
+                        <TextBlock Text="Configured Hotkeys"
+                                   Style="{StaticResource LabelTextBlockStyle}"
+                                   Margin="0,0,0,4"/>
+                        <Border Background="{DynamicResource TextBoxBackgroundBrush}"
+                                BorderBrush="{DynamicResource TextBoxBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="3"
+                                MaxHeight="160">
+                            <ScrollViewer Style="{StaticResource OverlayScrollViewerStyle}" VerticalScrollBarVisibility="Auto" Padding="8" ScrollViewer.CanContentScroll="False" presentation:SmoothScrollBehavior.IsEnabled="True" presentation:SmoothScrollBehavior.WheelRouting="SelfThenAncestor">
+                                <StackPanel Name="HotkeyListPanel">
+                                    <TextBlock Text="No hotkeys configured"
+                                               Style="{StaticResource PrimaryTextBlockStyle}"
+                                               FontSize="12"
+                                               Foreground="{DynamicResource TertiaryTextBrush}"
+                                               FontStyle="Italic"/>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Border>
+                        <TextBlock Text="Profile hotkeys are configured in the Profile Editor. Configured shortcuts reserve their key combinations even while disabled."
+                                   Style="{StaticResource PrimaryTextBlockStyle}"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource TertiaryTextBrush}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,4,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- About Section -->
+                <Border Background="{DynamicResource ContentBackgroundBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        Padding="16"
+                        Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="About" Style="{StaticResource SectionHeaderStyle}"/>
+
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Version: "
+                                           Style="{StaticResource PrimaryTextBlockStyle}"/>
+                            <TextBlock Name="VersionTextBlock"
+                                           Text="1.0.0"
+                                           Style="{StaticResource PrimaryTextBlockStyle}"/>
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Name="SettingsPathTextBlock"
+                                           Style="{StaticResource PrimaryTextBlockStyle}"
+                                           FontSize="12"
+                                           Foreground="{DynamicResource TertiaryTextBrush}"
+                                           TextWrapping="Wrap"/>
+                        </StackPanel>
+
+                        <!-- Libraries Section -->
+                        <TextBlock Text="Third-Party Libraries:"
+                                       Style="{StaticResource PrimaryTextBlockStyle}"
+                                       FontWeight="SemiBold"
+                                       Margin="0,12,0,4"/>
+                        <StackPanel Name="LibrariesPanel" Margin="0,0,0,4">
+                            <!-- Populated Programmatically -->
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource PrimaryTextBlockStyle}"
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TertiaryTextBrush}"
+                                       Margin="0,2,0,4"
+                                       FontStyle="Italic">
+                                    <Run Text="See THIRD-PARTY-LICENSES.md for complete license texts"/>
+                        </TextBlock>
+
+                        <!-- Contributors Section -->
+                        <TextBlock Text="Contributors:"
+                                       Style="{StaticResource PrimaryTextBlockStyle}"
+                                       FontWeight="SemiBold"
+                                       Margin="0,12,0,4"/>
+                        <StackPanel Name="ContributorsPanel" Margin="0,0,0,4">
+                            <!-- Populated Programmatically -->
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Window>

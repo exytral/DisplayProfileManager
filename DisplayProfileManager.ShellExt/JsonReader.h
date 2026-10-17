@@ -1,7 +1,7 @@
 #pragma once
 #include <cstddef>
-#include <string_view>
 #include <string>
+#include <string_view>
 #include <vector>
 
 struct ProfileEntry
@@ -20,6 +20,7 @@ inline constexpr size_t MaxProfileFiles = 4096u;
 inline constexpr unsigned MaxJsonDepth = 64u;
 
 #ifdef DPM_SHELLEXT_TESTS
+bool ValidateProfileIdentityForTest(std::wstring_view filename, ProfileEntry& entry);
 bool ParseProfileJsonForTest(std::wstring_view json, ProfileEntry& entry);
 bool ParseCurrentProfileIdJsonForTest(std::wstring_view json, std::wstring& currentProfileId);
 bool DecodeUtf8ForTest(const std::string& bytes, std::wstring& decoded);

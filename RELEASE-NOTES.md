@@ -1,10 +1,10 @@
 # Display Profile Manager
 
-## Display Engine Rewrite, Automation, and More
+## Display profiles, automation, wallpaper, audio, and customization
 
 ### 🖥️ Display Profiles
 
-Manage complex multi-monitor desktop configurations from preset profiles. Configure per-monitor enable/disable state, primary display, resolution, refresh rate, rotation, DPI, HDR/WCG, and color profiles; extend or clone displays in any combination; and reliably restore configurations when displays change, wake from deep sleep, or an apply fails. Capture and restore wallpaper, switch default playback and recording devices, and attach helper scripts to run after display configuration has finished.
+Manage complex multi-monitor desktop configurations from preset profiles. Configure per-monitor enable/disable state, primary display, resolution, refresh rate, rotation, DPI, HDR/WCG, and color profiles; extend or clone displays in any combination; and reliably restore configurations when displays change, wake from deep sleep, or an apply fails. Preview saved layouts directly in profile Details, capture and restore wallpaper, switch default playback and recording devices, and attach helper scripts to run after display configuration has finished.
 
 ### 💻 CLI
 
@@ -14,13 +14,38 @@ Control the application through scripts and external tools, with commands that w
 
 ### 🎨 UI
 
-Customize the application with a cleaner, more consistent visual system built around shared control styles, three packaged themes, and imported `.xaml` themes. Packaged themes integrate with the Windows accent color, while custom themes retain their own colors and accents.
+Customize the application with shared control styles and packaged Light, Dark, and Black themes, or import compatible declarative `.xaml` themes. Supported theme accents integrate with Windows accent colors; executable or dynamic external WPF XAML is not supported.
 
 **🛠️ DPM Theme Builder** — included standalone Python tool for generating compatible `.xaml` themes from the [tinted-theming/schemes](https://github.com/tinted-theming/schemes) database.
 
 ### ⚙️ Automation & integration
 
-Switch profiles with global hotkeys, the system tray, or the desktop classic right-click menu, and use the CLI for external automation. Optional update checking notifies about newer releases without the application directly downloading or installing them.
+Create, edit, and switch display profiles through the application, Quick Switch, the system tray, global hotkeys, the desktop context menu, and optional Start Menu shortcuts. Profile files remain in the managed Profiles folder; the main-window "Import" button is no longer available. Theme, icon, and script imports remain supported. The CLI supports external automation, while optional update checking notifies about newer releases without downloading or installing them.
+
+---
+
+## 2.3.0 — Quick Switch, profile shortcuts, and layout previews
+
+### ✨ Profiles and interface
+
+- **Quick Switch** — open a compact profile overlay with a configurable hotkey. Its placement follows the monitor under the mouse by default, with Primary and Window focus alternatives.
+- **Start Menu shortcuts** — optionally create and maintain shortcuts for individual profiles.
+- **Saved-layout previews** — inspect a profile's stored monitor arrangement without applying it.
+- **Profile access** — the main-window "Import" button has been removed. Profile files remain accessible through the Profiles folder, and existing profiles can still be edited in "Create" and "Edit".
+
+### 📦 Installation
+
+- **Existing-installation detection** — The x64, x86, and ARM64 Setup packages identify an installed Current User or All Users copy so you can see the existing scope and make an explicit installation choice. Elevation is requested only when necessary for All Users installation.
+
+### 🎨 Themes and Builders
+
+- **Safer custom themes** — imported themes must use compatible declarative XAML rather than arbitrary executable WPF resources.
+- **Builder corrections** — DPM Shortcut Builder handles failed overwrites and unusual paths more safely. DPM Theme Builder requires six-digit RGB palette colors and checks saved-file content before requesting automatic application.
+
+### 🛡️ Reliability
+
+- **Profile and display corrections** — edits made after "Break Clone" now save properly. Wallpaper recovery better preserves per-monitor images, and unsupported blank-monitor restoration fails safely. Legacy HDR/WCG detection is improved within pre-24H2 Windows limitations.
+- **Settings and integration** — saved settings, global-hotkey cleanup, and the Explorer context menu now handle failures and process ownership more consistently.
 
 ---
 
@@ -327,9 +352,9 @@ For a full technical breakdown, see [CHANGELOG.md](CHANGELOG.md).
 ### Requirements
 
 - **Windows:** A [Windows client release supported by .NET 10](https://learn.microsoft.com/en-us/dotnet/core/install/windows#supported-versions). Windows 10 support is limited to LTSC/Enterprise releases.
-- **Runtime:** [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0)
+- **Runtime:** [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0).
 - **HDR:** Windows 10 version 1709 or later provides the legacy Advanced Color API path
 - **ACM:** Windows 11 22H2 or later on supported displays
 - **Dedicated HDR/ACM APIs:** Windows 11 24H2 or later
 
-> The feature-version floors above do not expand the base operating-system support established by the .NET 10 support matrix.
+> The HDR and color-management versions above show when those Windows features became available; they do not mean Display Profile Manager supports every Windows release back to those versions. The application still requires a Windows version supported by .NET 10.

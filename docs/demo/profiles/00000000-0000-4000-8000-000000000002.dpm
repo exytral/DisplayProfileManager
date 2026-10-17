@@ -1,0 +1,74 @@
+{
+  "id": "00000000-0000-4000-8000-000000000002",
+  "name": "TV Setup",
+  "description": "4K HDR layout for games and media.",
+  "icon": null,
+  "createdDate": "2026-10-01T00:00:00Z",
+  "lastModifiedDate": "2026-10-01T00:00:00Z",
+  "schemaVersion": 6,
+  "displaySettings": [
+    {
+      "deviceName": "DPM-DEMO-DISPLAY-33",
+      "deviceString": "DPM Demo Living Room TV",
+      "readableDeviceName": "Living Room TV",
+      "manufacturerName": "MAN",
+      "productCodeID": "1002",
+      "targetId": 33,
+      "cloneGroupId": "",
+      "isCloneSource": false,
+      "isEnabled": true,
+      "isPrimary": true,
+      "displayPositionX": 0,
+      "displayPositionY": 0,
+      "width": 3840,
+      "height": 2160,
+      "frequency": 120,
+      "rotation": 1,
+      "dpiScaling": 150,
+      "lastKnownHdrSupported": true,
+      "lastKnownWcgSupported": false,
+      "isHdrEnabled": true,
+      "isWcgEnabled": false,
+      "colorProfile": "",
+      "nativeWidth": 3840,
+      "nativeHeight": 2160,
+      "availableResolutions": [
+        "3840x2160"
+      ],
+      "availableRefreshRates": {
+        "3840x2160": [
+          120
+        ]
+      },
+      "availableDpiScaling": [
+        150
+      ]
+    }
+  ],
+  "wallpaperSettings": {
+    "enabled": false,
+    "mode": "Unknown",
+    "solidColorArgb": 0,
+    "position": "fill",
+    "perMonitor": {},
+    "slideshowConfig": null
+  },
+  "audioSettings": {
+    "enabled": false,
+    "defaultPlaybackDeviceId": "",
+    "defaultCaptureDeviceId": "",
+    "playbackDeviceName": "",
+    "captureDeviceName": "",
+    "applyPlaybackDevice": false,
+    "applyCaptureDevice": false
+  },
+  "scriptSettings": {
+    "enabled": false,
+    "scripts": []
+  },
+  "hotkeyConfig": {
+    "Key": "None",
+    "ModifierKeys": "None",
+    "IsEnabled": false
+  }
+}

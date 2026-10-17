@@ -6,6 +6,66 @@ For user-facing release notes, see the [GitHub Releases](https://github.com/exyt
 
 ---
 
+<a id="2.3.0"></a>
+## [2.3.0] - 2026-10-17
+
+### feat — profile switching and interface
+
+- **Quick Switch overlay** — adds a compact profile overlay with a configurable global hotkey. The overlay targets the monitor under the mouse by default, with Primary and Window focus alternatives; placement respects each monitor's work area and taskbar and falls back to Primary when the selected source cannot be resolved.
+- **Start Menu profile shortcuts** — optionally creates and synchronizes per-profile shortcuts using stable profile identity.
+- **Profile-file access** — removes the main-window "Import" button. Existing profiles remain accessible in the managed Profiles folder, while "Create" and "Edit" continue to work with profiles managed by the application; theme, icon, and script import controls remain available.
+- **Read-only layout previews** — Profile Details and thumbnails now show stored monitor coordinates and dimensions without altering the saved layout (which may include spatial gaps).
+- **Smooth scrolling** — common lists and panels use consistent scrolling while preserving nested-scroll behavior and reduced-motion support.
+
+### fix — settings and automation
+
+- **Settings and hotkey reliability** — previously, settings changes could be reported as failed even after they were saved if an observer threw an exception; committed changes now remain successful and later observers can still be notified. Hotkey registration, capture, and cleanup now maintain UI-thread ownership and report incomplete shutdown instead of silently treating it as successful.
+- **Profile naming and settings migration** — previously, long or colliding names could cause repeated duplicate-name attempts, and failed migration could put legacy settings at risk. Case-insensitive naming now uses a bounded search without splitting surrogate pairs, while compatible legacy settings remain recoverable when promotion fails.
+- **Task Scheduler and IPC safeguards** — previously, concurrent elevated task registration could interfere through shared temporary XML, and held-open or oversized pipe messages could delay command handling. Registration now uses invocation-specific temporary files, while pipe reads are bounded and the server recovers after rejected requests.
+
+### fix — display and color
+
+- **Break Clone editing and legacy HDR/WCG** — previously, after breaking a clone group, later display edits could be overwritten by the original restored settings. Those values are now used only for the initial rebuild, allowing subsequent changes to be saved. On pre-24H2 Windows, legacy HDR/WCG classification no longer guesses the active color mode from RGB/YCbCr encoding; it uses supported legacy signals as a best-effort distinction. Native failures remain observable rather than being treated as successful display changes.
+
+### fix — wallpaper, audio, and scripts
+
+- **Wallpaper recovery** — previously, failed or partial Picture transitions could restore the Windows wallpaper mode without restoring each monitor's previous image. Prior assignments are now captured before mutation and restoration failures are reported. Mixed Picture states with a blank monitor are rejected before mutation when no faithful per-monitor restore is available.
+- **Core Audio interoperability** — previously, native device property values and return codes could be interpreted using incorrect managed interop declarations. The native data layout, successful HRESULT handling, returned-value validation, and ownership-aware cleanup are corrected.
+- **Fire-and-forget script launching** — previously, redirected but unread child error output could interfere with script launching. The unused redirection is removed, and the launch wrapper is released without changing the existing start-and-return contract or waiting for child completion.
+
+### fix — themes
+
+- **Custom-theme loading and path boundaries** — previously, unrestricted WPF XAML loading allowed resource definitions outside the supported theme vocabulary. Imported themes now use a restricted declarative resource format, with unsupported markup, external sources, excessive structures, and invalid immediate-child file paths rejected. These are lexical and parser boundaries, not a claim of race-free filesystem isolation.
+- **Theme and accent updates** — previously, background-origin accent or theme changes could reach WPF-bound state from the wrong thread. Rebuilding is now dispatched to the owning UI thread, supported accent shades stay distinct, and a previously valid custom theme is retained when revalidation fails.
+
+### fix — Windows shell integration
+
+- **Explorer profile commands and restart** — previously, noncanonical profile IDs and insufficient argument quoting could produce incorrect menu commands, while a shell refresh could affect an unrelated Explorer session or misreport its outcome. Profile IDs and command arguments are now validated, and restart eligibility is restricted to the current session, user, and elevation level with truthful failure reporting.
+
+### fix — Builder tools
+
+- **DPM Shortcut Builder saves** — previously, interrupted new saves or overwrites could leave incomplete shortcuts or damage existing output. Files are staged before publication, and failed overwrites preserve or restore the previous valid folder.
+- **DPM Shortcut Builder path and Unicode handling** — previously, installed application paths containing spaces or wildcard characters and generated PowerShell/VBScript containing special Unicode characters could be misinterpreted. Literal paths, quoted values, UTF-8-with-BOM PowerShell output, and bounded Unicode VBScript expressions correct the generated source; execution in installed Windows Script Host remains a separate runtime check.
+- **DPM Theme Builder palette validation** — previously, malformed palette values could generate invalid theme markup. Consumed Base16/Base24 colors now require six-digit ASCII RGB; three-digit shorthand is not supported, and metadata is escaped before writing XML comments.
+- **DPM Theme Builder auto-apply** — previously, an external file change could be mistaken for content saved by the Builder. The watcher checks the saved file's content hash before requesting auto-apply and rejects mismatches; this is not an atomic identity guarantee through later consumption.
+
+### refactor — architecture
+
+- **Capability-owned application structure** — replaces central manager and shared-helper responsibilities with feature-owned `Profiles`, `Displays`, `Wallpapers`, `Audio`, `Scripts`, `Settings`, `Hotkeys`, and `Integration` areas. `Application` coordinates use cases, `App.xaml.cs` remains the composition root, and the managed test layout follows the same capability boundaries.
+- **Separated state, platform, and presentation layers** — distinguishes profile capture, persistence, application, rollback, and migration; separates settings and script storage from their live services; and keeps native display/hotkey interfaces apart from WPF windows, display projections, themes, and icons. Existing persisted profile/settings identities and CLI/shell integration contracts are preserved through the restructuring.
+- **Process-scoped engineering controls** — failure/recovery overrides move out of persisted user settings, and display-event diagnostics remain disabled by default; CCD polling continues to govern display readiness.
+
+### build — installation and dependencies
+
+- **Existing-installation-aware Setup** — earlier installation paths could leave separate Current User and All Users registrations without clearly identifying the existing scope. Setup now detects existing installation scope and offers an explicit choice of Current User or All Users, with elevation reserved for the latter when needed.
+- **Protected installer staging** — elevated Setup previously staged a child executable where tested same-administrator lower-integrity replacement classes were possible. Protected staging and guarded child creation close the independently demonstrated modification/rename paths; they do not establish universal UAC, reparse, or alternate-administrator protection.
+- **MSTest dependencies** — the managed test metapackage and its adapter, framework, and analyzers are aligned on version 4.5.1.
+
+### test — regression coverage
+
+- **Managed capability regressions — 1,150 cases** — the Release/x64 MSTest suite covers Quick Switch targeting and fallback, per-profile Start Menu shortcut identity, saved-layout geometry, profile editing and migration, settings/hotkey recovery, clone and wallpaper restoration, theme-parser restrictions, and automation boundaries.
+- **Native and packaging regressions** — separate ShellExt and Setup checks exercise bounded native parsing, installer architecture and debug-symbol metadata, and staged-execution safeguards. Builder tests cover atomic saves, generated path/Unicode handling, palette validation, and saved-file auto-apply checks; package guards reject unintended frozen dependencies and unsafe archive content.
+
 <a id="2.2.2"></a>
 ## [2.2.2] - 2026-09-18
 

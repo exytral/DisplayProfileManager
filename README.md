@@ -18,6 +18,7 @@ A lightweight Windows desktop application for managing display profiles — save
 - 📺 **Full per-monitor control** — configure enable/disable state, primary display, resolution, refresh rate, rotation, DPI, HDR/WCG, and color profile
 - 🪞 **Flexible monitor layouts** — extend or clone displays in any combination
 - 🛡️ **Apply failure recovery** — stop on display-configuration failure and safely roll back to the previous profile or a desktop snapshot
+- 🗺️ **Saved layout preview** — view a read-only projection of each profile's stored display coordinates
 - 🖼️ **Custom profile icons** — assign a `.ico` icon to profiles, displayed in profile lists and menus
 
 ### 🖼️ Wallpaper
@@ -27,21 +28,23 @@ A lightweight Windows desktop application for managing display profiles — save
 - ⚙️ **Slideshow options** — customize the background color, source folder, fitment, interval, and shuffle/order
 - 🔎 **Windows Spotlight** — capture and restore Spotlight wallpaper state
 
-### 🔊 Audio & Scripts
+### 🔊 Audio
 
 - 🔊 **Audio device switching** — switch default playback and recording devices
-- 📜 **Script execution** — run `.exe`, `.lnk`, `.ps1`, `.bat`/`.cmd`, `.vbs`/`.js`, `.py`, or `.ahk` scripts, with configurable launch arguments
 
 ### 🎨 Themes
 
 - 🌗 **Built-in themes** — pick Light, Dark, and Black themes that follow the Windows accent color
-- 🖌️ **Custom themes** — import compatible `.xaml` theme files with their own colors and accents
+- 🖌️ **Custom themes** — import Display Profile Manager-compatible declarative `.xaml` theme files with their own colors and accents
 
 **🛠️ DPM Theme Builder** — included standalone Python tool for generating compatible `.xaml` themes from the [tinted-theming](https://github.com/tinted-theming/schemes) database
 
 ### ⚙️ Automation & Integration
 
+- ⚡ **Quick Switch** — open a keyboard-invoked profile overlay on the mouse monitor by default, with Primary and Window focus alternatives
 - ⌨️ **Global hotkeys** — assign a keyboard shortcut to any profile for quick switching
+- 📜 **Script execution** — run `.exe`, `.lnk`, `.ps1`, `.bat`/`.cmd`, `.vbs`/`.js`, `.py`, or `.ahk` scripts, with configurable launch arguments
+- 📎 **Managed Start Menu shortcuts** — optionally keep profile shortcuts synchronized in the Start Menu using stable profile identity
 - 📌 **System tray** — open the profile list from the taskbar to switch profiles
 - 🖱️ **Desktop context menu** — apply profiles directly from the desktop classic right-click menu
 - 💻 **CLI support** — automate profile switching and application control with scripts or external tools
@@ -68,18 +71,19 @@ A lightweight Windows desktop application for managing display profiles — save
 ### Requirements
 
 - **Windows:** A [Windows client release supported by .NET 10](https://learn.microsoft.com/en-us/dotnet/core/install/windows#supported-versions). Windows 10 support is limited to LTSC/Enterprise releases.
-- **Runtime:** [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0)
+- **Runtime:** [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0).
 - **HDR:** Windows 10 version 1709 or later provides the legacy Advanced Color API path
 - **ACM/WCG:** Windows 11 22H2 or later provides Auto Color Management on eligible SDR displays
 - **Dedicated HDR/WCG APIs:** Windows 11 24H2 or later
 
-> The feature-version floors above do not expand the base operating-system support established by the .NET 10 support matrix.
+> The HDR and color-management versions above show when those Windows features became available; they do not mean Display Profile Manager supports every Windows release back to those versions. The application still requires a Windows version supported by .NET 10.
 
 ---
 
 ## 📖 Documentation
 
 - **[Creating and Managing Profiles](./docs/wiki/profiles.md)** — profiles, displays, wallpaper, audio, scripts, and hotkeys
+- **[Synthetic Desk and TV profile examples](./docs/demo/README.md)** - [Desk Setup](./docs/demo/profiles/00000000-0000-4000-8000-000000000001.dpm) and [TV Setup](./docs/demo/profiles/00000000-0000-4000-8000-000000000002.dpm) sample files; see Open Folder/Profiles copying precautions (no general profile import button)
 - **[Scripts](./docs/wiki/scripts.md)** — supported types, execution, arguments, configuration, and examples
 - **[Settings](./docs/wiki/settings.md)** — application settings, startup, integrations, notifications, and hotkeys
 - **[Themes & DPM Theme Builder](./docs/wiki/themes.md)** — built-in themes, custom themes, and theme generation
@@ -122,7 +126,7 @@ Display Profile Manager uses MIT + Commons Clause — see [LICENSE](LICENSE) for
 
 ## 🛠️ Development
 
-See [AGENTS.md](./AGENTS.md) for architecture, display engine details, project structure, and development guidelines.
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for contribution workflow and validation expectations. [AGENTS.md](./AGENTS.md) provides project structure, build guidance, and links to the detailed source and documentation rules.
 
 ### Prerequisites
 

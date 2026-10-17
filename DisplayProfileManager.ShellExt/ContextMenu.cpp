@@ -1,8 +1,10 @@
 #include "ContextMenu.h"
+
 #include "resource.h"
+#include "ShellCommand.h"
+
 #include <shellapi.h>
 #include <shlwapi.h>
-
 #pragma comment(lib, "shlwapi.lib")
 
 extern HINSTANCE g_hInst;
@@ -29,7 +31,10 @@ DpmContextMenu::~DpmContextMenu()
 
 STDMETHODIMP DpmContextMenu::QueryInterface(REFIID riid, void** ppv)
 {
-    if (!ppv) return E_POINTER;
+    if (!ppv)
+    {
+        return E_POINTER;
+    }
     *ppv = nullptr;
 
     if (IsEqualIID(riid, IID_IUnknown) || IsEqualIID(riid, IID_IContextMenu))
@@ -37,7 +42,9 @@ STDMETHODIMP DpmContextMenu::QueryInterface(REFIID riid, void** ppv)
     else if (IsEqualIID(riid, IID_IShellExtInit))
         *ppv = static_cast<IShellExtInit*>(this);
     else
+    {
         return E_NOINTERFACE;
+    }
 
     AddRef();
     return S_OK;
@@ -61,14 +68,19 @@ STDMETHODIMP DpmContextMenu::Initialize(PCIDLIST_ABSOLUTE pidlFolder,
 {
     // Limit extension to desktop namespace rather than folder views
     if (!IsDesktopFolder(pidlFolder))
+    {
         return E_FAIL;
+    }
 
     std::wstring appDataDir = ResolveAppDataDir();
     if (appDataDir.empty())
+    {
         return E_FAIL;
+    }
 
     _exePath = ResolveExePath();
     _iconsDir = appDataDir + L"\\Icons";
+    _developerRouting = IsDeveloperRoutingEnabled();
 
     std::wstring settingsPath = appDataDir + L"\\Settings.json";
     std::wstring profilesDir = appDataDir + L"\\Profiles";
@@ -83,11 +95,13 @@ STDMETHODIMP DpmContextMenu::QueryContextMenu(HMENU hmenu, UINT indexMenu,
     UINT idCmdFirst, UINT idCmdLast,
     UINT uFlags)
 {
-    if (uFlags & CMF_DEFAULTONLY)
+    if (uFlags & CMF_DEFAULTONLY) {
         return MAKE_HRESULT(SEVERITY_SUCCESS, FACILITY_NULL, 0);
+    }
 
-    if (_profiles.empty() || idCmdLast < idCmdFirst)
+    if (_profiles.empty() || idCmdLast < idCmdFirst) {
         return MAKE_HRESULT(SEVERITY_SUCCESS, FACILITY_NULL, 0);
+    }
 
     _idCmdFirst = idCmdFirst;
     const UINT maxCommandOffset = idCmdLast - idCmdFirst;
@@ -95,7 +109,9 @@ STDMETHODIMP DpmContextMenu::QueryContextMenu(HMENU hmenu, UINT indexMenu,
 
     HMENU hSub = CreatePopupMenu();
     if (!hSub)
+    {
         return E_OUTOFMEMORY;
+    }
 
     int iconSize = GetSystemMetrics(SM_CXSMICON); // Match shell's menu icon size
 
@@ -151,27 +167,25 @@ STDMETHODIMP DpmContextMenu::QueryContextMenu(HMENU hmenu, UINT indexMenu,
 STDMETHODIMP DpmContextMenu::InvokeCommand(CMINVOKECOMMANDINFO* pici)
 {
     if (HIWORD(pici->lpVerb) != 0)
+    {
         return E_INVALIDARG;
+    }
 
     UINT idx = LOWORD(pici->lpVerb);
     if (idx >= static_cast<UINT>(_profiles.size()))
+    {
         return E_INVALIDARG;
+    }
 
     if (_exePath.empty())
+    {
         return E_FAIL;
+    }
 
     const auto& profile = _profiles[idx];
 
     // Use persisted profile identity rather than a user-facing name
-    std::wstring safeId = profile.id;
-    size_t pos = 0;
-    while ((pos = safeId.find(L'"', pos)) != std::wstring::npos)
-    {
-        safeId.replace(pos, 1, L"\\\"");
-        pos += 2;
-    }
-
-    std::wstring args = L"--headless \"" + safeId + L"\"";
+    std::wstring args = BuildProfileArguments(profile.id, _developerRouting);
 
     SHELLEXECUTEINFOW sei{};
     sei.cbSize = sizeof(sei);
@@ -202,7 +216,9 @@ STDMETHODIMP DpmContextMenu::GetCommandString(UINT_PTR idCmd, UINT uType,
     CHAR* pszName, UINT cchMax)
 {
     if (idCmd >= static_cast<UINT_PTR>(_profiles.size()))
+    {
         return E_INVALIDARG;
+    }
 
     if (uType == GCS_VERBW)
     {
@@ -214,14 +230,47 @@ STDMETHODIMP DpmContextMenu::GetCommandString(UINT_PTR idCmd, UINT uType,
     return E_NOTIMPL;
 }
 
+bool DpmContextMenu::IsDeveloperRoutingEnabled()
+{
+    HKEY key = nullptr;
+    constexpr wchar_t handlerPath[] =
+        L"Software\\Classes\\Directory\\Background\\shellex\\ContextMenuHandlers\\DisplayProfileManager";
+
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, handlerPath, 0, KEY_QUERY_VALUE, &key) != ERROR_SUCCESS)
+    {
+        return false;
+    }
+
+    DWORD value = 0;
+    DWORD type = 0;
+    DWORD size = sizeof(value);
+    LONG result = RegQueryValueExW(
+        key,
+        L"RoutingMode",
+        nullptr,
+        &type,
+        reinterpret_cast<LPBYTE>(&value),
+        &size);
+    RegCloseKey(key);
+
+    return result == ERROR_SUCCESS
+        && type == REG_DWORD
+        && size == sizeof(value)
+        && value == 1;
+}
+
 bool DpmContextMenu::IsDesktopFolder(PCIDLIST_ABSOLUTE pidlFolder)
 {
     if (!pidlFolder)
+    {
         return false;
+    }
 
     PIDLIST_ABSOLUTE pidlDesktop = nullptr;
     if (FAILED(SHGetSpecialFolderLocation(nullptr, CSIDL_DESKTOP, &pidlDesktop)))
+    {
         return false;
+    }
 
     bool isDesktop = ILIsEqual(pidlFolder, pidlDesktop) == TRUE;
     ILFree(pidlDesktop);
@@ -233,7 +282,10 @@ HBITMAP DpmContextMenu::LoadAppIconBitmap(int size)
     HICON hIcon = static_cast<HICON>(
         LoadImageW(g_hInst, MAKEINTRESOURCEW(IDI_APPICON),
             IMAGE_ICON, size, size, LR_DEFAULTCOLOR));
-    if (!hIcon) return nullptr;
+    if (!hIcon)
+    {
+        return nullptr;
+    }
 
     HBITMAP hBmp = IconToBitmap(hIcon, size);
     DestroyIcon(hIcon);
@@ -246,14 +298,19 @@ HBITMAP DpmContextMenu::LoadProfileIconBitmap(const std::wstring& filename, int 
     if (filename.find(L'/') != std::wstring::npos ||
         filename.find(L'\\') != std::wstring::npos ||
         filename.find(L"..") != std::wstring::npos)
+    {
         return nullptr;
+    }
 
     std::wstring path = _iconsDir + L"\\" + filename;
 
     HICON hIcon = static_cast<HICON>(
         LoadImageW(nullptr, path.c_str(), IMAGE_ICON, size, size,
             LR_LOADFROMFILE | LR_DEFAULTCOLOR));
-    if (!hIcon) return nullptr;
+    if (!hIcon)
+    {
+        return nullptr;
+    }
 
     HBITMAP hBmp = IconToBitmap(hIcon, size);
     DestroyIcon(hIcon);
@@ -318,13 +375,18 @@ std::wstring DpmContextMenu::ResolveAppDataDir()
 {
     wchar_t appData[MAX_PATH]{};
     if (FAILED(SHGetFolderPathW(nullptr, CSIDL_APPDATA, nullptr, SHGFP_TYPE_CURRENT, appData)))
+    {
         return {};
+    }
     return std::wstring(appData) + L"\\DisplayProfileManager";
 }
 
 STDMETHODIMP DpmClassFactory::QueryInterface(REFIID riid, void** ppv)
 {
-    if (!ppv) return E_POINTER;
+    if (!ppv)
+    {
+        return E_POINTER;
+    }
     *ppv = nullptr;
     if (IsEqualIID(riid, IID_IUnknown) || IsEqualIID(riid, IID_IClassFactory))
     {
@@ -349,12 +411,21 @@ STDMETHODIMP_(ULONG) DpmClassFactory::Release()
 
 STDMETHODIMP DpmClassFactory::CreateInstance(IUnknown* pUnkOuter, REFIID riid, void** ppv)
 {
-    if (!ppv) return E_POINTER;
+    if (!ppv)
+    {
+        return E_POINTER;
+    }
     *ppv = nullptr;
-    if (pUnkOuter) return CLASS_E_NOAGGREGATION;
+    if (pUnkOuter)
+    {
+        return CLASS_E_NOAGGREGATION;
+    }
 
     auto* obj = new (std::nothrow) DpmContextMenu();
-    if (!obj) return E_OUTOFMEMORY;
+    if (!obj)
+    {
+        return E_OUTOFMEMORY;
+    }
 
     HRESULT hr = obj->QueryInterface(riid, ppv);
     obj->Release();

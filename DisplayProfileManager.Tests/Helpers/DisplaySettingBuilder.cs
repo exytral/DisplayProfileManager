@@ -1,11 +1,12 @@
 using System.Collections.Generic;
-using DisplayProfileManager.Core;
+
+using DisplayProfileManager.Displays.Models;
 
 namespace DisplayProfileManager.Tests.Helpers
 {
     internal sealed class DisplaySettingBuilder
     {
-        private readonly DisplaySetting _setting = new DisplaySetting
+        private readonly DisplaySetting _setting = new()
         {
             DeviceName = "\\\\.\\DISPLAY1",
             ReadableDeviceName = "Test Monitor",
@@ -119,7 +120,6 @@ namespace DisplayProfileManager.Tests.Helpers
             return this;
         }
 
-        // Sets coherent set of Original* fields as one semantic unit rather than dozen setters
         public DisplaySettingBuilder WithSavedPreCloneState(
             int positionX, int positionY, bool isPrimary,
             int width, int height, int frequency, int rotation, uint dpiScaling,

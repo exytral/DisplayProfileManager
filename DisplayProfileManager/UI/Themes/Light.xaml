@@ -1,0 +1,85 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Base Colors -->
+    <Color x:Key="BackgroundColor">#F3F3F3</Color>
+    <Color x:Key="SurfaceColor">#FFFFFF</Color>
+    <Color x:Key="BorderColor">#E5E5E5</Color>
+    <Color x:Key="HoverColor">#EAEAEA</Color>
+    <Color x:Key="AccentColor">#0078D4</Color>
+
+    <!-- System Accent -->
+    <SolidColorBrush x:Key="SystemAccentBrush" Color="{DynamicResource {x:Static SystemColors.AccentColorKey}}"/>
+
+    <!-- Window Backgrounds -->
+    <SolidColorBrush x:Key="WindowBackgroundBrush" Color="{StaticResource BackgroundColor}"/>
+    <SolidColorBrush x:Key="TitleBarBackgroundBrush" Color="{StaticResource BackgroundColor}"/>
+    <SolidColorBrush x:Key="AlternateBackgroundBrush" Color="#F8F8F8"/>
+
+    <!-- Content & Control Backgrounds -->
+    <SolidColorBrush x:Key="ContentBackgroundBrush" Color="{StaticResource SurfaceColor}"/>
+    <SolidColorBrush x:Key="ControlBackgroundBrush" Color="{StaticResource SurfaceColor}"/>
+    <SolidColorBrush x:Key="TextBoxBackgroundBrush" Color="{StaticResource SurfaceColor}"/>
+    <SolidColorBrush x:Key="ComboBoxBackgroundBrush" Color="{StaticResource SurfaceColor}"/>
+    <SolidColorBrush x:Key="ComboBoxDropDownBackgroundBrush" Color="{StaticResource SurfaceColor}"/>
+    <SolidColorBrush x:Key="CheckBoxBackgroundBrush" Color="{StaticResource SurfaceColor}"/>
+    <SolidColorBrush x:Key="ListItemBackgroundBrush" Color="{StaticResource SurfaceColor}"/>
+
+    <!-- Borders & Separators -->
+    <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource BorderColor}"/>
+    <SolidColorBrush x:Key="SeparatorBrush" Color="#EDEBE9"/>
+    <SolidColorBrush x:Key="ControlBorderBrush" Color="#CFCFCF"/>
+    <SolidColorBrush x:Key="TextBoxBorderBrush" Color="#CFCFCF"/>
+    <SolidColorBrush x:Key="ComboBoxBorderBrush" Color="#CFCFCF"/>
+    <SolidColorBrush x:Key="CheckBoxBorderBrush" Color="#CFCFCF"/>
+    <SolidColorBrush x:Key="WindowControlHoverBrush" Color="{StaticResource BorderColor}"/>
+    <SolidColorBrush x:Key="ListItemSelectedBackgroundBrush" Color="#EDEDED"/>
+    <SolidColorBrush x:Key="ListItemSelectedHoverBackgroundBrush" Color="#D8D8D8"/>
+
+    <!-- Interaction States -->
+    <SolidColorBrush x:Key="ControlHoverBackgroundBrush" Color="{StaticResource HoverColor}"/>
+    <SolidColorBrush x:Key="ListItemHoverBackgroundBrush" Color="#E3E3E3"/>
+    <SolidColorBrush x:Key="ComboBoxHoverBackgroundBrush" Color="{StaticResource HoverColor}"/>
+    <SolidColorBrush x:Key="ControlPressedBackgroundBrush" Color="#DADADA"/>
+
+    <!-- Primary Button (Accent) -->
+    <SolidColorBrush x:Key="ButtonBackgroundBrush" Color="{DynamicResource {x:Static SystemColors.AccentColorKey}}"/>
+    <SolidColorBrush x:Key="ButtonForegroundBrush" Color="White"/>
+    <SolidColorBrush x:Key="ButtonHoverBackgroundBrush" Color="{DynamicResource {x:Static SystemColors.AccentColorDark1Key}}"/>
+    <SolidColorBrush x:Key="ButtonPressedBackgroundBrush" Color="{DynamicResource {x:Static SystemColors.AccentColorDark2Key}}"/>
+    <SolidColorBrush x:Key="ButtonBorderBrush" Color="{DynamicResource {x:Static SystemColors.AccentColorKey}}"/>
+    <SolidColorBrush x:Key="TextBoxFocusBorderBrush" Color="{DynamicResource {x:Static SystemColors.AccentColorKey}}"/>
+    <SolidColorBrush x:Key="CheckBoxCheckmarkBrush" Color="{DynamicResource {x:Static SystemColors.AccentColorKey}}"/>
+    <SolidColorBrush x:Key="LinkBrush" Color="{DynamicResource {x:Static SystemColors.AccentColorKey}}"/>
+
+    <!-- Secondary Button -->
+    <SolidColorBrush x:Key="SecondaryButtonBackgroundBrush" Color="#FBFBFB"/>
+    <SolidColorBrush x:Key="SecondaryButtonForegroundBrush" Color="#323130"/>
+    <SolidColorBrush x:Key="SecondaryButtonHoverBackgroundBrush" Color="#F0F0F0"/>
+    <SolidColorBrush x:Key="SecondaryButtonPressedBackgroundBrush" Color="#E4E4E4"/>
+    <SolidColorBrush x:Key="SecondaryButtonBorderBrush" Color="#CFCFCF"/>
+
+    <!-- Status Buttons -->
+    <SolidColorBrush x:Key="DangerButtonBackgroundBrush" Color="#D13438"/>
+    <SolidColorBrush x:Key="DangerButtonHoverBackgroundBrush" Color="#B71C1C"/>
+    <SolidColorBrush x:Key="SuccessButtonBackgroundBrush" Color="#107C10"/>
+    <SolidColorBrush x:Key="SuccessButtonHoverBackgroundBrush" Color="#0E5E0E"/>
+
+    <!-- Title Bar Extras -->
+    <SolidColorBrush x:Key="TitleBarTextBrush" Color="#323130"/>
+    <SolidColorBrush x:Key="CloseButtonHoverBrush" Color="#E81123"/>
+
+    <!-- Text Brushes -->
+    <SolidColorBrush x:Key="PrimaryTextBrush" Color="#323130"/>
+    <SolidColorBrush x:Key="SecondaryTextBrush" Color="#605E5C"/>
+    <SolidColorBrush x:Key="TertiaryTextBrush" Color="#8A8886"/>
+
+    <!-- Tooltips -->
+    <SolidColorBrush x:Key="TooltipBackgroundBrush" Color="#323130"/>
+    <SolidColorBrush x:Key="TooltipTextBrush" Color="White"/>
+
+    <!-- Effects -->
+    <DropShadowEffect x:Key="CardShadow" ShadowDepth="2" Direction="270" BlurRadius="8" Opacity="0.15" Color="Black"/>
+    <DropShadowEffect x:Key="ButtonShadow" ShadowDepth="1" Direction="270" BlurRadius="4" Opacity="0.1" Color="Black"/>
+
+</ResourceDictionary>

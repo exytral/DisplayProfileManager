@@ -1,0 +1,294 @@
+using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using System.Windows.Input;
+using System.Windows.Interop;
+
+using NLog;
+
+using DisplayProfileManager.Common;
+using DisplayProfileManager.Hotkeys.Models;
+
+namespace DisplayProfileManager.Hotkeys.Interop
+{
+    public class GlobalHotkeyRegistrar : IGlobalHotkeyRegistrar
+    {
+        private static readonly Logger _logger = LoggerHelper.GetLogger();
+
+        #region P/Invoke
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool UnhookWindowsHookEx(IntPtr hhk);
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+        [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern IntPtr GetModuleHandle(string lpModuleName);
+
+        private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct KBDLLHOOKSTRUCT
+        {
+            public uint vkCode;
+            public uint scanCode;
+            public uint flags;
+            public uint time;
+            public IntPtr dwExtraInfo;
+        }
+
+        private const uint ModNorepeat = 0x4000;
+
+        #endregion
+
+        internal System.Windows.Threading.Dispatcher OwnerDispatcher => _hwndSource?.Dispatcher;
+
+        private HwndSource _hwndSource;
+        private IntPtr _windowHandle;
+        private readonly Dictionary<int, Action> _hotkeyActions = [];
+        private readonly Dictionary<string, int> _profileHotkeyIds = [];
+        private readonly Dictionary<int, string> _hotkeyIdToProfileId = [];
+        private int _currentHotkeyId = 9000;
+        private bool _disposed = false;
+
+        public GlobalHotkeyRegistrar()
+        {
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher == null || dispatcher.CheckAccess())
+                CreateMessageWindow();
+            else
+                dispatcher.Invoke(CreateMessageWindow);
+        }
+
+        #region Private Methods
+
+        private void CreateMessageWindow()
+        {
+            var parameters = new HwndSourceParameters("GlobalHotkeyMessageWindow")
+            {
+                WindowStyle = 0,
+                ExtendedWindowStyle = 0,
+                PositionX = -10000,
+                PositionY = -10000,
+                Width = 1,
+                Height = 1
+            };
+
+            _hwndSource = new HwndSource(parameters);
+            _hwndSource.AddHook(WndProc);
+            _windowHandle = _hwndSource.Handle;
+
+            _logger.Debug($"Created message window with handle: 0x{_windowHandle:X}");
+        }
+
+        private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+        {
+            const int WmHotkey = 0x0312;
+            if (msg == WmHotkey)
+            {
+                int hotkeyId = wParam.ToInt32();
+                _logger.Debug($"WmHotkey received for hotkey ID: {hotkeyId}");
+                if (_hotkeyActions.TryGetValue(hotkeyId, out Action callback))
+                {
+                    try
+                    {
+                        _logger.Debug($"Executing callback for hotkey {hotkeyId}");
+                        if (System.Windows.Application.Current?.Dispatcher != null)
+                            System.Windows.Application.Current.Dispatcher.BeginInvoke(callback);
+                        else
+                            callback?.Invoke();
+
+                        handled = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.Error(ex, $"Error executing hotkey {hotkeyId} callback");
+                    }
+                }
+                else
+                    _logger.Warn($"No callback found for hotkey ID: {hotkeyId}");
+            }
+
+            return IntPtr.Zero;
+        }
+
+        #endregion
+
+        #region Public Methods
+
+        public int RegisterHotkey(uint virtualKey, uint modifiers, Action callback)
+        {
+            if (_disposed) throw new ObjectDisposedException(nameof(GlobalHotkeyRegistrar));
+
+            int hotkeyId = _currentHotkeyId++;
+            uint finalModifiers = modifiers | ModNorepeat;
+            if (RegisterHotKey(_windowHandle, hotkeyId, finalModifiers, virtualKey))
+            {
+                _hotkeyActions[hotkeyId] = callback;
+                _logger.Info($"Successfully registered hotkey {hotkeyId} for key 0x{virtualKey:X2} with modifiers 0x{finalModifiers:X2}");
+                return hotkeyId;
+            }
+            else
+            {
+                var error = Marshal.GetLastWin32Error();
+                _logger.Error($"Failed to register hotkey {hotkeyId}. Error code: {error}");
+
+                if (error == 1409)
+                    _logger.Warn("Hotkey is already registered by another application");
+
+                return -1;
+            }
+        }
+
+        public bool UnregisterHotkey(int hotkeyId)
+        {
+            if (_disposed || hotkeyId < 0)
+            {
+                return false;
+            }
+
+            bool result = UnregisterHotKey(_windowHandle, hotkeyId);
+            _hotkeyActions.Remove(hotkeyId);
+
+            _logger.Debug($"Unregistered hotkey {hotkeyId}: {(result ? "Success" : "Failed")}");
+            return result;
+        }
+
+        public int RegisterProfileHotkey(string profileId, HotkeyConfig hotkey, Action callback)
+        {
+            if (_disposed) throw new ObjectDisposedException(nameof(GlobalHotkeyRegistrar));
+
+            if (hotkey?.Key == Key.None || string.IsNullOrEmpty(profileId))
+            {
+                return -1;
+            }
+
+            UnregisterProfileHotkey(profileId);
+
+            var virtualKey = KeyConverter.ToVirtualKey(hotkey.Key);
+            var modifiers = KeyConverter.ConvertModifierKeys(hotkey.ModifierKeys);
+
+            if (virtualKey == 0)
+            {
+                _logger.Error($"Could not convert WPF Key {hotkey.Key} to virtual key");
+                return -1;
+            }
+
+            int hotkeyId = RegisterHotkey((uint)virtualKey, modifiers, callback);
+
+            if (hotkeyId > 0)
+            {
+                _profileHotkeyIds[profileId] = hotkeyId;
+                _hotkeyIdToProfileId[hotkeyId] = profileId;
+                _logger.Info($"Registered profile hotkey for '{profileId}': {hotkey} (ID: {hotkeyId})");
+            }
+            else
+                _logger.Error($"Failed to register profile hotkey for '{profileId}': {hotkey}");
+
+            return hotkeyId;
+        }
+
+        public bool UnregisterProfileHotkey(string profileId)
+        {
+            if (_disposed || string.IsNullOrEmpty(profileId))
+            {
+                return false;
+            }
+
+            if (_profileHotkeyIds.TryGetValue(profileId, out int hotkeyId))
+            {
+                bool result = UnregisterHotkey(hotkeyId);
+                _profileHotkeyIds.Remove(profileId);
+                _hotkeyIdToProfileId.Remove(hotkeyId);
+
+                _logger.Debug($"Unregistered profile hotkey for '{profileId}' (ID: {hotkeyId}): {(result ? "Success" : "Failed")}");
+                return result;
+            }
+
+            return true;
+        }
+
+        public void RegisterAllProfileHotkeys(Dictionary<string, HotkeyConfig> profileHotkeys, Func<string, Action> callbackFactory)
+        {
+            if (_disposed || profileHotkeys == null || callbackFactory == null) return;
+
+            UnregisterAllProfileHotkeys();
+
+            foreach (var kvp in profileHotkeys)
+            {
+                var profileId = kvp.Key;
+                var hotkeyConfig = kvp.Value;
+
+                if (hotkeyConfig?.IsEnabled == true && hotkeyConfig.Key != Key.None)
+                {
+                    var callback = callbackFactory(profileId);
+                    if (callback != null)
+                        RegisterProfileHotkey(profileId, hotkeyConfig, callback);
+                }
+            }
+        }
+
+        public void UnregisterAllProfileHotkeys()
+        {
+            if (_disposed) return;
+
+            var profileIds = new List<string>(_profileHotkeyIds.Keys);
+            foreach (var profileId in profileIds)
+                UnregisterProfileHotkey(profileId);
+
+            _logger.Info("Unregistered all profile hotkeys");
+        }
+
+        #endregion
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!_disposed)
+            {
+                if (disposing)
+                {
+                    foreach (var hotkeyId in _hotkeyActions.Keys)
+                    {
+                        UnregisterHotKey(_windowHandle, hotkeyId);
+                        _logger.Debug($"Unregistered hotkey {hotkeyId} during disposal");
+                    }
+                    _hotkeyActions.Clear();
+                    _profileHotkeyIds.Clear();
+                    _hotkeyIdToProfileId.Clear();
+
+                    if (System.Windows.Application.Current?.Dispatcher != null)
+                    {
+                        System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            _hwndSource?.RemoveHook(WndProc);
+                            _hwndSource?.Dispose();
+                        });
+                    }
+                    else
+                    {
+                        _hwndSource?.RemoveHook(WndProc);
+                        _hwndSource?.Dispose();
+                    }
+
+                    _hwndSource = null;
+                }
+
+                _disposed = true;
+            }
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        ~GlobalHotkeyRegistrar() => Dispose(false);
+    }
+}

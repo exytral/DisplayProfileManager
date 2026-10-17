@@ -1,10 +1,11 @@
-using DisplayProfileManager.Helpers;
+using DisplayProfileManager.Displays.Interop;
+using DisplayProfileManager.Displays.Models;
 
 namespace DisplayProfileManager.Tests.Helpers
 {
     internal sealed class DisplayConfigInfoBuilder
     {
-        private readonly DisplayConfigHelper.DisplayConfigInfo _info = new DisplayConfigHelper.DisplayConfigInfo
+        private readonly DisplayConfigInfo _info = new()
         {
 
             DeviceName       = "\\\\.\\DISPLAY1",
@@ -88,7 +89,7 @@ namespace DisplayProfileManager.Tests.Helpers
             return this;
         }
 
-        public DisplayConfigInfoBuilder WithRotation(DisplayConfigHelper.DisplayConfigRotation rotation)
+        public DisplayConfigInfoBuilder WithRotation(DisplayConfigNative.DisplayConfigRotation rotation)
         {
             _info.Rotation = rotation;
             return this;
@@ -126,6 +127,6 @@ namespace DisplayProfileManager.Tests.Helpers
             return this;
         }
 
-        public DisplayConfigHelper.DisplayConfigInfo Build() => _info;
+        public DisplayConfigInfo Build() => _info;
     }
 }

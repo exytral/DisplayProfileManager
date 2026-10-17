@@ -1,7 +1,8 @@
 #define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#include <objbase.h>
 #include "ContextMenu.h"
+
+#include <objbase.h>
+#include <windows.h>
 
 HINSTANCE g_hInst = nullptr;
 LONG g_cDllRef = 0;
@@ -23,15 +24,21 @@ STDAPI DllGetClassObject(
     _Outptr_ LPVOID* ppv)
 {
     if (!ppv)
+    {
         return E_POINTER;
+    }
     *ppv = nullptr;
 
     if (!IsEqualCLSID(rclsid, CLSID_DpmContextMenu))
+    {
         return CLASS_E_CLASSNOTAVAILABLE;
+    }
 
     auto* factory = new (std::nothrow) DpmClassFactory();
     if (!factory)
+    {
         return E_OUTOFMEMORY;
+    }
 
     HRESULT hr = factory->QueryInterface(riid, ppv);
     factory->Release();

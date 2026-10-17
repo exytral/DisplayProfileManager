@@ -37,7 +37,8 @@
 #if TargetArch == "x64"
   #define MyBuildFolder       ".\bin\x64\Release"
   #define MyOutputFile        "DisplayProfileManager-" + MyAppVersion + "-" + TargetArch + "-Setup"
-  #define MyAppId             "{{CFD9DD98-5D17-43AB-88DD-549D154A64D2}-x64}"
+  #define MyLegacyAppId       "{CFD9DD98-5D17-43AB-88DD-549D154A64D2}-x64}"
+  #define MyScopedAppIdPrefix "{CFD9DD98-5D17-43AB-88DD-549D154A64D2}-x64"
   #define ArchAllowed         "x64os"
   #define ArchInstall64       "x64os"
   #define DotNetArch          "x64"
@@ -46,7 +47,8 @@
 #elif TargetArch == "x86"
   #define MyBuildFolder       ".\bin\x86\Release"
   #define MyOutputFile        "DisplayProfileManager-" + MyAppVersion + "-" + TargetArch + "-Setup"
-  #define MyAppId             "{{CFD9DD98-5D17-43AB-88DD-549D154A64D2}-x86}"
+  #define MyLegacyAppId       "{CFD9DD98-5D17-43AB-88DD-549D154A64D2}-x86}"
+  #define MyScopedAppIdPrefix "{CFD9DD98-5D17-43AB-88DD-549D154A64D2}-x86"
   #define ArchAllowed         "x86"
   #define ArchInstall64       ""
   #define DotNetArch          "x86"
@@ -55,7 +57,8 @@
 #elif TargetArch == "arm64"
   #define MyBuildFolder       ".\bin\ARM64\Release"
   #define MyOutputFile        "DisplayProfileManager-" + MyAppVersion + "-" + TargetArch + "-Setup"
-  #define MyAppId             "{{CFD9DD98-5D17-43AB-88DD-549D154A64D2}-arm64}"
+  #define MyLegacyAppId       "{CFD9DD98-5D17-43AB-88DD-549D154A64D2}-arm64}"
+  #define MyScopedAppIdPrefix "{CFD9DD98-5D17-43AB-88DD-549D154A64D2}-arm64"
   #define ArchAllowed         "arm64"
   #define ArchInstall64       "arm64"
   #define DotNetArch          "arm64"
@@ -67,7 +70,7 @@
 
 ; ---- Setup Configuration ----
 [Setup]
-AppId={#MyAppId}
+AppId={code:GetScopeAppId}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppVerName={#MyAppName}
@@ -76,11 +79,14 @@ AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
 PrivilegesRequired=lowest
-PrivilegesRequiredOverridesAllowed=dialog
+PrivilegesRequiredOverridesAllowed=commandline
 UsePreviousPrivileges=no
+UsePreviousLanguage=no
 DefaultDirName={autopf}\{#MyAppName}
 DisableDirPage=yes
 UninstallDisplayIcon={app}\{#MyAppExeName}
+UninstallDisplayName={code:GetScopeDisplayName}
+UninstallFilesDir={app}\uninstall
 ArchitecturesAllowed={#ArchAllowed}
 ArchitecturesInstallIn64BitMode={#ArchInstall64}
 DisableProgramGroupPage=yes
@@ -118,8 +124,8 @@ Source: "..\THIRD-PARTY-LICENSES.md"; DestDir: "{app}"; Flags: ignoreversion
 
 ; ---- Shortcuts ----
 [Icons]
-Name: "{autoprograms}\{#MyAppName}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{autoprograms}\{#MyAppName}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; AppUserModelID: "exytral.DisplayProfileManager"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; AppUserModelID: "exytral.DisplayProfileManager"; Tasks: desktopicon
 
 ; ---- Run after Installation ----
 [Run]
@@ -129,11 +135,12 @@ Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChang
 [UninstallRun]
 Filename: "{app}\{#MyAppExeName}"; Parameters: "--exit"; Flags: runhidden; Check: InstalledDpmMeetsLifecycleVersion; RunOnceId: "ExitApplication"
 Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM ""{#MyAppExeName}"""; Flags: runhidden; Check: ShouldForceTerminateDpm; RunOnceId: "ForceTerminateApplication"
-Filename: "{app}\{#MyAppExeName}"; Parameters: "--unshell"; Flags: runhidden; Check: InstalledDpmMeetsLifecycleVersion; RunOnceId: "UnregisterShellMenu"
-Filename: "{sys}\schtasks.exe"; Parameters: "/Delete /TN ""\DisplayProfileManager\DisplayProfileManager_Startup"" /F"; Flags: runhidden; RunOnceId: "DeleteStartupTask"
+Filename: "{app}\{#MyAppExeName}"; Parameters: "--unshell"; Flags: runhidden; Check: ShouldUnregisterShellMenu; RunOnceId: "UnregisterShellMenu"
+Filename: "{sys}\schtasks.exe"; Parameters: "/Delete /TN ""\DisplayProfileManager\DisplayProfileManager_Startup"" /F"; Flags: runhidden; Check: ShouldRemoveUserIntegrationState; RunOnceId: "DeleteStartupTask"
 
 ; ---- Additional Uninstall Cleanup ----
 [UninstallDelete]
+Type: filesandordirs; Name: "{userprograms}\{#MyAppName}\Profiles"; Check: ShouldRemoveUserIntegrationState
 Type: dirifempty; Name: "{app}"
 
 ; ---- Prerequisite Handling ----
@@ -143,11 +150,16 @@ var
   DotNetStatusLabel: TNewStaticText;
   DotNetDownloadPage: TDownloadWizardPage;
   ShellExtStateKnown: Boolean;
+  SkipDotNetBootstrap: Boolean;
   ShellExtWasRegisteredBeforeInstall: Boolean;
 
 const
   RegistryRunKey = 'Software\Microsoft\Windows\CurrentVersion\Run';
   RegistryRunValue = 'DisplayProfileManager';
+
+  LegacyAppId = '{#MyLegacyAppId}';
+  ScopedAppIdPrefix = '{#MyScopedAppIdPrefix}';
+  UninstallRegistryPath = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\';
 
   DpmMutexName = 'DPM_Mutex';
   DpmLifecycleMajor = 2;
@@ -156,6 +168,125 @@ const
   DpmLifecycleBuild = 0;
   DpmShutdownTimeoutMs = 5000;
   DpmShutdownPollMs = 250;
+
+
+function GetScopeAppId(Param: String): String;
+begin
+  if IsAdminInstallMode then
+    Result := ScopedAppIdPrefix + '-allusers}'
+  else
+    Result := ScopedAppIdPrefix + '-currentuser}';
+end;
+
+
+function GetScopeDisplayName(Param: String): String;
+begin
+  if IsAdminInstallMode then
+    Result := '{#MyAppName} (System)'
+  else
+    Result := '{#MyAppName} (User)';
+end;
+
+
+function GetScopeRootKey: Integer;
+begin
+  if IsAdminInstallMode then
+    Result := HKEY_LOCAL_MACHINE
+  else
+    Result := HKEY_CURRENT_USER;
+end;
+
+
+function RegistrationExists(RootKey: Integer; AppId: String): Boolean;
+begin
+  Result := RegKeyExists(RootKey, UninstallRegistryPath + AppId + '_is1');
+end;
+
+
+function OppositeScopeRegistrationExistsInView(RootKey: Integer; ScopeSuffix: String): Boolean;
+begin
+  Result :=
+    RegistrationExists(RootKey, '{CFD9DD98-5D17-43AB-88DD-549D154A64D2}-x86-' + ScopeSuffix + '}') or
+    RegistrationExists(RootKey, '{CFD9DD98-5D17-43AB-88DD-549D154A64D2}-x64-' + ScopeSuffix + '}') or
+    RegistrationExists(RootKey, '{CFD9DD98-5D17-43AB-88DD-549D154A64D2}-arm64-' + ScopeSuffix + '}') or
+    RegistrationExists(RootKey, '{CFD9DD98-5D17-43AB-88DD-549D154A64D2}-x86}') or
+    RegistrationExists(RootKey, '{CFD9DD98-5D17-43AB-88DD-549D154A64D2}-x64}') or
+    RegistrationExists(RootKey, '{CFD9DD98-5D17-43AB-88DD-549D154A64D2}-arm64}');
+end;
+
+
+function OtherScopeInstallationExists: Boolean;
+var
+  ScopeSuffix: String;
+  Root32: Integer;
+  Root64: Integer;
+begin
+  if IsAdminInstallMode then
+  begin
+    ScopeSuffix := 'currentuser';
+    Root32 := HKCU32;
+    Root64 := HKCU64;
+  end
+  else
+  begin
+    ScopeSuffix := 'allusers';
+    Root32 := HKLM32;
+    Root64 := HKLM64;
+  end;
+
+  Result := OppositeScopeRegistrationExistsInView(Root32, ScopeSuffix);
+  if (not Result) and IsWin64 then
+    Result := OppositeScopeRegistrationExistsInView(Root64, ScopeSuffix);
+end;
+
+
+function ShouldRemoveUserIntegrationState: Boolean;
+begin
+  Result := not OtherScopeInstallationExists;
+end;
+
+
+procedure RemoveLegacyUninstallRegistration;
+var
+  RootKey: Integer;
+  LegacyKey: String;
+  LegacyInstallLocation: String;
+begin
+  RootKey := GetScopeRootKey;
+  LegacyKey := UninstallRegistryPath + LegacyAppId + '_is1';
+
+  if not RegKeyExists(RootKey, LegacyKey) then
+    Exit;
+
+  if not RegQueryStringValue(RootKey, LegacyKey, 'InstallLocation', LegacyInstallLocation) then
+  begin
+    Log('Legacy uninstall registration has no InstallLocation; leaving it unchanged.');
+    Exit;
+  end;
+
+  if CompareText(
+       AddBackslash(LegacyInstallLocation),
+       AddBackslash(ExpandConstant('{app}'))) <> 0 then
+  begin
+    Log('Legacy uninstall registration points at a different install directory; leaving it unchanged.');
+    Exit;
+  end;
+
+  if RegDeleteKeyIncludingSubkeys(RootKey, LegacyKey) then
+  begin
+    Log('Removed migrated legacy uninstall registration.');
+
+    { 2.2.x stored its uninstaller directly in the application folder.
+      The scoped 2.3+ uninstaller lives in its uninstall subfolder, so these
+      legacy files can be removed only after replacement installation completes. }
+    DeleteFile(ExpandConstant('{app}\unins000.exe'));
+    DeleteFile(ExpandConstant('{app}\unins000.dat'));
+    DeleteFile(ExpandConstant('{app}\unins000.msg'));
+  end
+  else
+    Log('Failed to remove migrated legacy uninstall registration.');
+end;
+
 
 function ExecuteApplicationCommand(const Parameters: String; Wait: TExecWait; var ExitCode: Integer): Boolean;
 var
@@ -205,6 +336,13 @@ begin
     ((Major = DpmLifecycleMajor) and (Minor = DpmLifecycleMinor) and
      (Revision = DpmLifecycleRevision) and (Build >= DpmLifecycleBuild));
 end;
+
+
+function ShouldUnregisterShellMenu: Boolean;
+begin
+  Result := InstalledDpmMeetsLifecycleVersion and ShouldRemoveUserIntegrationState;
+end;
+
 
 function QueryInstalledDpmProcesses(var Processes: Variant): Boolean;
 var
@@ -468,8 +606,13 @@ end;
 procedure CurUninstallStepChanged(UninstallStep: TUninstallStep);
 begin
   if UninstallStep = usUninstall then
-    RemoveRegistryAutoStart
-  else if UninstallStep = usPostUninstall then
+  begin
+    if ShouldRemoveUserIntegrationState then
+      RemoveRegistryAutoStart
+    else
+      Log('Another Display Profile Manager install scope remains; preserving per-user auto-start state.');
+  end
+  else if (UninstallStep = usPostUninstall) and ShouldRemoveUserIntegrationState then
     RemoveTaskSchedulerFolder;
 end;
 
@@ -485,6 +628,8 @@ var
 begin
   if CurStep = ssPostInstall then
   begin
+    RemoveLegacyUninstallRegistration;
+
     if ShouldRegisterShellExtension then
     begin
       if (not ExecuteApplicationCommand('--shell', ewWaitUntilTerminated, ExitCode)) or (ExitCode <> 0) then
@@ -496,6 +641,22 @@ begin
           mbInformation,
           MB_OK);
       end;
+    end;
+  end;
+end;
+
+function HasCommandLineSwitch(const SwitchName: String): Boolean;
+var
+  I: Integer;
+begin
+  Result := False;
+
+  for I := 1 to ParamCount do
+  begin
+    if Uppercase(ParamStr(I)) = Uppercase(SwitchName) then
+    begin
+      Result := True;
+      Exit;
     end;
   end;
 end;
@@ -540,6 +701,8 @@ end;
 
 procedure InitializeWizard;
 begin
+  SkipDotNetBootstrap := HasCommandLineSwitch('/SKIPDOTNETBOOTSTRAP');
+
   DotNetPage := CreateCustomPage(
     wpLicense,
     '.NET 10 Desktop Runtime',
@@ -560,6 +723,7 @@ begin
     nil);
 
   DotNetDownloadPage.ShowBaseNameInsteadOfUrl := True;
+
 end;
 
 procedure UpdateDotNetPage;
@@ -581,9 +745,10 @@ end;
 
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
-  Result := PageID = DotNetPage.ID;
-  if Result then
-    Result := IsDotNetDesktopInstalled;
+  Result := False;
+
+  if PageID = DotNetPage.ID then
+    Result := SkipDotNetBootstrap or IsDotNetDesktopInstalled;
 end;
 
 procedure CurPageChanged(CurPageID: Integer);
@@ -598,6 +763,12 @@ var
   ResultCode: Integer;
 begin
   Result := False;
+
+  if SkipDotNetBootstrap then
+  begin
+    Result := True;
+    Exit;
+  end;
 
   DotNetDownloadPage.Clear;
   DotNetDownloadPage.Add(
@@ -670,7 +841,7 @@ begin
 
   if CurPageID = DotNetPage.ID then
   begin
-    if IsDotNetDesktopInstalled then
+    if SkipDotNetBootstrap or IsDotNetDesktopInstalled then
       Exit;
 
     Result := InstallDotNetDesktopRuntime;

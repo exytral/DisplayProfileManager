@@ -14,7 +14,56 @@ Canonical source-code style reference for the project. These rules describe recu
 - Prefer compact readable source over wrapping simple constructs to an arbitrary column width; there is no project-wide hard line-length limit.
 - Existing variation is evidence rather than an automatic defect. Mechanical normalization belongs to the final conformance pass.
 - Generated source is a separate ownership category and is not evidence for hand-maintained source style.
+- Hand-maintained text source files end with a final newline; generated outputs retain generator ownership.
 - Supporting formats should use their native organizational mechanisms rather than being forced into C# conventions.
+- Prefer collection expressions (`[]`, `[item]`, `[.. sequence]`) for arrays and sequence-like collection targets when the target type is explicit or otherwise unambiguous and the intended semantics, allocation behavior, and concrete API contract are equivalent. Retain an explicit constructor or `new[]` when constructor semantics such as capacity, comparer, copy behavior, concrete runtime type, overload resolution, type inference, null behavior, or clarity would materially differ. Do not replace `var` with an explicit type solely to enable a collection expression.
+- In hand-maintained C#, use one blank line for a conceptual boundary; do not use multiple consecutive blank lines as extra section spacing.
+
+## Imports, Includes, and Declaration Scope
+
+### C#
+
+- Keep file-level using directives in three groups: System namespaces, framework/third-party namespaces, then DisplayProfileManager namespaces.
+- Separate nonempty using groups with exactly one blank line and keep no blank lines within a group.
+- Sort ordinary using directives alphabetically within each group.
+- Alias directives belong to the group of their target and follow ordinary directives in that group; sort aliases alphabetically.
+- `using static` directives belong to the group of their target and follow ordinary and alias directives in that group; sort them alphabetically by target.
+- Aliases and static imports are appropriate when they resolve a real naming collision or intentionally expose a coherent API surface; do not remove them merely for stylistic uniformity.
+- Do not introduce global usings solely to reduce file-level directives.
+- Remove unused using directives only through semantic compiler/Roslyn evidence plus build/test verification; text search is not sufficient.
+- For repository-wide build-based IDE0005 audits, explicitly enable the diagnostic and set `GenerateDocumentationFile=true`; Roslyn otherwise suppresses IDE0005 for this project. Confirm the audit path is active rather than treating an empty diagnostic result as proof that no unused usings exist. Keep this an audit/validation setting rather than enabling documentation generation project-wide solely for style cleanup.
+- Method/block `using` declarations and statements are resource-lifetime constructs and remain at the narrowest scope that owns the resource.
+- After the final file-level using group, use exactly one blank line before the namespace or first declaration.
+
+### Declaration scope
+
+- Keep ordinary local declarations at the narrowest useful scope and near first meaningful use; do not hoist locals to the beginning of a method for stylistic symmetry.
+- Promote local state to field, static, or type scope only when lifetime, identity, reuse, shared state, or recurring semantic ownership requires it.
+- Promote `const` or `static readonly` values according to semantic ownership rather than repeated literal occurrence alone.
+- Pattern variables and `out var` declarations remain in the narrowest useful control-flow scope.
+- Native locals follow the same narrow-scope rule rather than C89-style top-of-function declaration blocks.
+
+### Native includes
+
+- In `.cpp` files, place the matching header first, followed by other project-local headers, standard-library headers, then Windows/SDK/platform headers.
+- Separate nonempty include groups with exactly one blank line and alphabetize stable groups. Preserve platform include ordering when an actual SDK dependency requires it.
+- Headers include what their declarations directly require and must not depend on incidental include order from a consumer.
+- In headers, group direct standard-library requirements first, Windows/SDK/platform requirements second, and project-local requirements third, with one blank line between nonempty groups.
+- Use forward declarations only when they materially reduce dependency without obscuring ownership or requiring fragile incomplete-type assumptions.
+- Remove unused native includes only with compile-proven validation; text-level symbol search is not sufficient.
+- Resource scripts retain resource-compiler/platform include ordering rather than inheriting the C++ source grouping mechanically.
+- After the completed include/front-matter block, use exactly one blank line before the first unrelated declaration or namespace.
+- Platform/link pragmas directly associated with include front matter may remain adjacent to that block.
+
+### Python imports
+
+- Keep top-level imports in standard-library, third-party, then local/project groups, with one blank line between nonempty groups and alphabetical ordering by module path within each group.
+- Keep an import local only when its availability or deferred loading is part of the behavior; otherwise place it in the appropriate top-level group.
+- Remove unused imports only when usage is unambiguous and preserve optional/platform import boundaries.
+- The top-level import block follows the module docstring and precedes module constants/resources.
+- When module paths tie, ordinary `import module` precedes `from module import ...`.
+- Imported names inside one `from ... import ...` statement do not require alphabetization.
+- After the final top-level import group, use exactly one blank line before the next structural comment or declaration.
 
 ## Members and Ordering
 
@@ -47,13 +96,17 @@ This does not establish universal source-member ordering. Logical capability lis
 ## Control Flow, Signatures, and Braces
 
 - `try`, `catch`, and `finally` always use braces.
+- When `OperationCanceledException` is expected and intentionally ignored with a genuinely empty body, use the compact one-line `{ }` form, including filtered cancellation catches.
+- When cancellation performs control flow, logging, state mutation, or any other work, keep the normal multiline catch body. Code following the catch does not change the compact empty-catch form.
+- Do not add a narrating comment solely to explain an otherwise self-evident expected cancellation swallow. This compact form does not generalize to arbitrary empty `catch { }` blocks.
 - Single-statement conditional and loop bodies may remain unbraced when the body is simple and the surrounding structure remains clear.
 - A trivial early bare `return;`, `break`, `continue`, or validation `throw` may remain unbraced and may share the line with its controlling condition when that compact form is consistent with the surrounding method. Prefer the compact one-line form for these simple escapes when it remains readily readable.
 - A conditional branch that returns a value or expression normally expresses a meaningful branch result and uses braces rather than the compact early-escape form. This includes sentinel values such as `false` or `null`, outcome/enum values, collections, tuples, and delegated method results.
 - Multi-statement conditional and loop bodies use braces.
+- Multi-statement conditional bodies use normal multiline brace/body layout; do not pack multiple statements inside a single-line `{ ... }` body.
 - Keep simple `if`, `else if`, `for`, `foreach`, and `while` headers on one line when they remain readily readable.
 - Break a control-flow header only when the condition is genuinely long or complex and the stacked form makes its logical structure easier to scan. Do not split routine loop initializer/condition/increment syntax across lines merely for width.
-- Keep short method, constructor, local-function, and delegate signatures on one line when they remain readily readable. Keep short invocations, assertions, predicates, and simple one-lambda calls compact for the same reason. Use multiline parameter or argument lists when parallel values, native/API calls, or genuinely complex signatures materially benefit from vertical structure; do not wrap solely for an unstated column limit.
+- Keep short method, constructor, local-function, and delegate signatures on one line when they remain readily readable. Keep short invocations, assertions, and predicates compact when the whole expression remains readily readable. For calls containing lambdas, judge the call and callback as one unit: keep the call and lambda on one line when that scans cleanly, but a multiline lambda is valid when isolating the callback expression or body makes the operation/comparison easier to parse. Do not use a numeric line-length threshold. Use multiline parameter or argument lists when parallel values, native/API calls, or genuinely complex signatures materially benefit from vertical structure; do not wrap solely for an unstated column limit.
 - Keep compact expression-bodied members on one line when the declaration and expression remain readily readable. Do not split solely at `=>` to satisfy an arbitrary width.
 - Returns that conclude meaningful work or establish the method's resulting value remain visually separated from preceding work according to the local method structure.
 - The distinction between an early escape and a meaningful return is semantic and follows the established style of the surrounding file or type rather than the returned value itself.
@@ -130,15 +183,22 @@ No universal region template is required.
 - Use the appropriate log level.
 - Do not add comments merely to repeat a log message.
 
-## Core Layer
+## Error Handling
 
-Core files vary in size and responsibility.
+- Prefer boolean success/failure or strongly typed result objects such as `ProfileApplyResult` when callers need explicit outcome state.
+- Log failures with useful operation or device context rather than swallowing them silently.
+- Degrade gracefully where practical; enumeration or discovery failures should not crash the application when an empty result is a safe fallback.
+- Check native and P/Invoke return codes explicitly; Windows success constants such as `ERROR_SUCCESS = 0` remain part of the boundary contract.
 
-### Small Core types
+## Capability and Supporting Types
+
+Source files vary in size and responsibility within their capability or supporting area.
+
+### Small models and utilities
 
 Small models, parsers, value types, and utility classes may remain unsectioned.
 
-### Larger Core managers and services
+### Larger managers and services
 
 Large managers and services may use functional or API-oriented regions when those groups materially improve navigation. Exact sequencing remains responsibility-driven.
 
@@ -146,19 +206,17 @@ Large managers and services may use functional or API-oriented regions when thos
 
 Configuration models may group properties by application concern. Settings-management classes may separate public mutations from accessors when the API is large enough to benefit from that division.
 
-## Helpers Layer
+### Compact supporting types
 
-### Compact helpers
+Small stateless or narrowly scoped supporting types may remain unsectioned.
 
-Small stateless or narrowly scoped helpers may remain unsectioned.
+### Technical interop types
 
-### Technical interop helpers
+Interop-heavy types may separate technical declarations from runtime operations when the grouping improves navigation. Mechanism-oriented and subsystem-oriented structures are both valid.
 
-Interop-heavy helpers may separate technical declarations from runtime operations when the grouping improves navigation. Mechanism-oriented and subsystem-oriented structures are both valid.
+### Access-oriented and hybrid regions
 
-### Access-oriented and hybrid helper regions
-
-Helpers may use access-oriented regions such as `Private Methods` and `Public Methods` when the class has substantial technical declaration front matter. Such regions are organizational boundaries, not literal inventories of every member matching the label.
+Types with substantial technical declaration front matter may use access-oriented regions such as `Private Methods` and `Public Methods` when that structure materially improves navigation. Such regions are organizational boundaries, not literal inventories of every member matching the label.
 
 ## WPF Code-Behind
 
@@ -236,8 +294,10 @@ Related dictionaries should preserve this category order where the same resource
 - Unit tests should not directly depend on registry access, P/Invoke, or live display hardware.
 - Reflection and controlled in-memory singleton manipulation are acceptable when required to isolate pure behavior.
 - Test comments should explain regression intent or unusual platform behavior rather than restate assertions.
+- A single-statement test control-flow body that performs an assertion or intentionally fails the test uses braces; trivial fixture/data-population bodies may remain unbraced.
+- Avoid pinning unit tests to the current release/version literal when release tooling already validates the canonical version and the behavior can be tested against assembly metadata instead.
 - Fixtures and examples must be intentionally synthetic. Never copy or derive hardware IDs, monitor identities, profile/theme names, paths, logs, or other personal environment data from an owner or contributor.
-- When an exact fixture value is incidental, use the established generic vocabulary: `MAN` for the manufacturer identity under test, `DEV` for an alternate/nonmatching manufacturer, product codes such as `1001`/`1002`/`9999`, TargetIds such as `11`/`22`/`33`, adapter values such as `1`/`2` or `0x111`/`0x222`, display names such as `DISPLAY1`/`DISPLAY2`, profile names such as `Profile`/`Profile A`/`Profile B`, and theme names such as `Theme`/`Theme A`. Use plain synthetic filenames such as `color.icc` and `script.ps1` when the filename itself is incidental. Preserve platform-required string syntax around those values. Do not use real vendor PNP identifiers as generic filler; use another value only when its shape or value is itself under test.
+- When an exact fixture value is incidental, use the established generic vocabulary: `MAN` for the manufacturer identity under test, `DEV` for an alternate/nonmatching manufacturer, product codes such as `1001`/`1002`/`9999`, TargetIds such as `11`/`22`/`33`, adapter values such as `1`/`2` or `0x111`/`0x222`, display names such as `DISPLAY1`/`DISPLAY2`, profile names such as `Profile`/`Profile A`/`Profile B`, and theme names such as `Theme`/`Theme A`. For incidental scalar values outside those domain fixtures, prefer small obvious values such as `0`, `1`, and `2` over arbitrary memorable numbers; preserve a different value when its magnitude, boundary, bit pattern, or identity is itself under test. Use plain synthetic filenames such as `color.icc` and `script.ps1` when the filename itself is incidental. Preserve platform-required string syntax around those values. Do not use real vendor PNP identifiers as generic filler; use another value only when its shape or value is itself under test.
 
 ## ShellExt C++
 
@@ -246,6 +306,7 @@ Related dictionaries should preserve this category order where the same resource
 - Keep primary COM lifetime and interface methods together before private helpers.
 - Keep secondary COM types together when they form a distinct implementation unit.
 - Native source does not need C#-style regions.
+- Apply the general value-returning branch brace rule to native HRESULT, boolean, pointer, collection, and other expression returns; compact unbraced form is reserved for the trivial control-flow escapes allowed by the general rule.
 - Comments explain security boundaries, compatibility, sequencing, ownership, or native API constraints.
 - Native interop declarations may be grouped through declaration order rather than region directives.
 

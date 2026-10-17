@@ -40,10 +40,9 @@ For larger pull requests, use a changelog-like breakdown by subsystem or respons
 
 Pull-request prose is repository-facing and should stand on its own:
 
-- follow `styles/GENERAL.md` terminology; do not use `DPM` as an ordinary noun outside established proper names;
-- describe the submitted change, not internal release or coordination mechanics — omit temporary branches, internal refs or SHAs, workflow/run IDs, and similar process-only detail;
-- avoid repeating the release version inside bullets when the PR title and scope already establish it; use durable wording such as `the development cycle` when chronology is genuinely relevant;
-- report validation outcomes and meaningful limits, not the infrastructure or coordination path used to obtain them.
+- follow `styles/GENERAL.md` for project terminology and documentation style;
+- describe the submitted change, not internal release or coordination mechanics;
+- report validation outcomes and meaningful limits rather than the infrastructure or coordination path used to obtain them.
 
 ## AI assistance
 

@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Release|Win32"><Configuration>Release</Configuration><Platform>Win32</Platform></ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64"><Configuration>Release</Configuration><Platform>x64</Platform></ProjectConfiguration>
+    <ProjectConfiguration Include="Release|ARM64"><Configuration>Release</Configuration><Platform>ARM64</Platform></ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{6E0529A7-B3A5-4A85-949C-8EB4A908FF1D}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>SetupBootstrap</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup>
+    <OutDir>$(ProjectDir)bin\$(Platform)\Release\</OutDir>
+    <IntDir>$(ProjectDir)obj\$(Platform)\Release\</IntDir>
+    <TargetName>DisplayProfileManager.SetupBootstrap</TargetName>
+    <SetupVersion Condition="'$(SetupVersion)' == ''">0.0.0</SetupVersion>
+    <SetupVersionMajor Condition="'$(SetupVersionMajor)' == ''">0</SetupVersionMajor>
+    <SetupVersionMinor Condition="'$(SetupVersionMinor)' == ''">0</SetupVersionMinor>
+    <SetupVersionBuild Condition="'$(SetupVersionBuild)' == ''">0</SetupVersionBuild>
+    <SetupVersionRevision Condition="'$(SetupVersionRevision)' == ''">0</SetupVersionRevision>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;UNICODE;_UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <SDLCheck>true</SDLCheck>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+    </ClCompile>
+    <ResourceCompile>
+      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <AdditionalDependencies>comctl32.lib;shell32.lib;ole32.lib;advapi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalOptions>/PDBALTPATH:%_PDB% %(AdditionalOptions)</AdditionalOptions>
+    </Link>
+  </ItemDefinitionGroup>
+  <Target Name="GenerateSetupVersionResource" BeforeTargets="ResourceCompile">
+    <ItemGroup>
+      <_SetupVersionResourceLine Include="#define DPM_SETUP_VERSION_MAJOR $(SetupVersionMajor)" />
+      <_SetupVersionResourceLine Include="#define DPM_SETUP_VERSION_MINOR $(SetupVersionMinor)" />
+      <_SetupVersionResourceLine Include="#define DPM_SETUP_VERSION_BUILD $(SetupVersionBuild)" />
+      <_SetupVersionResourceLine Include="#define DPM_SETUP_VERSION_REVISION $(SetupVersionRevision)" />
+      <_SetupVersionResourceLine Include="#define DPM_SETUP_VERSION_STRING &quot;$(SetupVersion)&quot;" />
+    </ItemGroup>
+    <MakeDir Directories="$(IntDir)" />
+    <WriteLinesToFile File="$(IntDir)SetupVersion.generated.rcinc" Lines="@(_SetupVersionResourceLine)" Overwrite="true" Encoding="ASCII" />
+  </Target>
+  <ItemGroup>
+    <ClCompile Include="Bootstrapper.cpp" />
+    <ClCompile Include="BootstrapPolicy.cpp" />
+    <ClInclude Include="BootstrapPolicy.h" />
+    <ClInclude Include="resource.h" />
+    <ResourceCompile Include="SetupBootstrap.rc" />
+    <Manifest Include="app.manifest" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

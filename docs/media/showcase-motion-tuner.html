@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DPM · Motion Studio</title>
+<style>
+:root{color-scheme:dark;--bg:#0b0e14;--panel:#151a23;--panel2:#1b222e;--line:#303a49;--text:#edf1fa;--muted:#a2aebe;--subtle:#78899f;--accent:#b6b7fa;--accent2:#7e8bff;--good:#86c9b7;--radius:14px;font:15px/1.45 "Segoe UI Variable","Segoe UI",Inter,system-ui,sans-serif}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text)}button,input,select{font:inherit}button{cursor:pointer}button:disabled{cursor:not-allowed;opacity:.38}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}button{border:1px solid var(--line);border-radius:9px;background:#222a36;color:var(--text);min-height:35px;padding:7px 12px;transition:background .15s,border-color .15s}button:hover:not(:disabled){background:#313b4e;border-color:#55627a}button.primary{background:var(--accent);color:#171925;border-color:var(--accent);font-weight:650}button.primary:hover{background:#d1d1ff}button.ghost{background:transparent;border-color:transparent;color:var(--muted)}button.ghost:hover{background:#283040}button.icon{width:34px;height:34px;display:grid;place-items:center;padding:0;font-size:17px;line-height:1}button[aria-pressed=true]{background:#3c3e67;border-color:#777dcb;color:white}input,select{background:#10151e;color:var(--text);border:1px solid #354154;border-radius:7px;padding:7px 9px;min-width:0}input[type=number]{font-variant-numeric:tabular-nums}input[type=color]{padding:3px;width:45px;height:34px;cursor:pointer}input[type=range]{accent-color:var(--accent2);padding:0;width:100%;border:0;background:transparent;cursor:pointer}.eyebrow{color:var(--accent);font-size:10px;letter-spacing:.17em;font-weight:750;text-transform:uppercase}.muted{color:var(--muted)}.dim{color:var(--subtle)}.mono{font-family:Consolas,"Cascadia Code",monospace;font-variant-numeric:tabular-nums}.shell{max-width:1800px;margin:0 auto}.top{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px 28px;border-bottom:1px solid #252e3b;background:#111620}.brand{display:flex;gap:14px;align-items:center}.brand-mark{display:grid;place-items:center;width:38px;height:38px;border:1px solid #6064a3;border-radius:12px;background:linear-gradient(140deg,#404774,#222b40);color:#dadbff;font-weight:800;font-size:20px}.brand h1{font-size:19px;line-height:1.2;margin:2px 0 0;letter-spacing:-.025em}.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.layout{display:grid;grid-template-columns:minmax(400px,1.35fr) minmax(390px,.8fr);gap:18px;padding:20px 28px 36px}.main-col,.side-col{min-width:0;display:flex;flex-direction:column;gap:16px}.surface{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}.surface-header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:16px 18px 14px}.surface-header h2{font-size:15px;letter-spacing:-.015em;margin:0}.surface-header p{font-size:12px;margin:2px 0 0}.surface-inner{padding:0 18px 18px}.preview-stage{min-height:330px;display:flex;align-items:center;justify-content:center;position:relative;background:radial-gradient(ellipse at 50% 24%,#202b39 0%,#121923 65%,#0e131c 100%);padding:24px;overflow:hidden}.preview-stage.drop-active{outline:2px dashed var(--accent);outline-offset:-10px}#preview{display:none;max-width:100%;max-height:min(64vh,680px);height:auto;width:auto;object-fit:contain;box-shadow:0 15px 56px #0009;background:#151920}.empty-state{max-width:390px;text-align:center;padding:30px 20px}.empty-glyph{display:grid;place-items:center;width:58px;height:58px;margin:0 auto 20px;background:#283044;border:1px solid #424d65;border-radius:18px;font-size:27px;color:#bac0ff}.empty-state h2{margin:0 0 7px;font-size:19px}.empty-state p{margin:0 0 18px;color:var(--muted)}.preview-corner{position:absolute;left:15px;bottom:13px;font-size:11px;color:#b0bdce;border:1px solid #384457;background:#10151edb;padding:4px 8px;border-radius:6px}.timeline{padding:16px 20px 20px;background:#151b25}.timeline-top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:9px}.timecode{font-size:22px;color:#f4f5ff;font-weight:600;letter-spacing:-.045em}.timecode small{color:var(--muted);font-size:12px;font-weight:400;letter-spacing:0;margin-left:7px}.timeline input[type=range]{margin:6px 0 12px;height:15px}.transport{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.transport .split{height:28px;width:1px;background:var(--line);margin:0 4px}.transport .spacer{flex:1}.frame-pill{border:1px solid #3f4961;border-radius:6px;padding:6px 9px;color:#c8d0e4;background:#1d2634;font-size:12px}.hint{margin-top:12px;color:#8292a8;font-size:11px}.section-title{display:flex;align-items:baseline;gap:9px}.count{color:var(--subtle);font-size:12px}.source-list{display:flex;flex-direction:column;gap:7px}.source-row{display:grid;grid-template-columns:20px 72px minmax(0,1fr) auto;gap:11px;align-items:center;border:1px solid #354052;background:#1d2530;border-radius:10px;padding:8px;transition:border-color .1s}.source-row.drag-over{border-color:var(--accent);background:#323656}.drag-handle{font-size:18px;color:#718198;text-align:center;cursor:grab;user-select:none}.source-thumb{height:47px;width:72px;object-fit:contain;background:#0c111b;border-radius:5px}.source-row .src-name{width:100%;font-size:13px;font-weight:600;background:transparent;border-color:transparent;padding:4px 0}.source-row .src-path{width:100%;font-size:11px;color:var(--muted);padding:4px 6px;margin-top:2px}.source-row .actions{display:flex;align-items:center;gap:5px}.source-row .actions button{width:30px;height:28px;min-height:28px;padding:0;font-size:13px}.sources-actions{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}.help{font-size:12px;color:var(--muted);margin:12px 0 0}.side-col .surface-header{border-bottom:1px solid #2e3745}.tabs{display:flex;gap:3px;padding:6px;background:#10151d;border:1px solid #303b4b;border-radius:11px;margin:14px 16px}.tabs button{flex:1;border:0;background:transparent;color:#9eacc0;min-height:34px;padding:7px}.tabs button[aria-selected=true]{background:#30374e;color:#f6f6ff}.tab-content{padding:0 18px 18px}.setting-group{border-bottom:1px solid #2d3644;padding:15px 0 17px}.setting-group:last-child{border:0;padding-bottom:0}.setting-group h3{font-size:11px;font-weight:750;letter-spacing:.1em;text-transform:uppercase;color:#b7c3d3;margin:0 0 13px}.setting{display:grid;grid-template-columns:minmax(120px,1fr) minmax(195px,230px);gap:10px;align-items:center;margin-top:10px}.setting>label{font-size:12px;color:#c5cfe0}.setting select{width:100%;max-width:230px}.setting .number{width:90px;text-align:right}.number-row{display:grid;grid-template-columns:minmax(60px,1fr) 76px;gap:9px;align-items:center}.number-row input[type=number]{width:76px;text-align:right}.toggle{display:flex;align-items:center;gap:9px;color:#d0d8e8;font-size:13px}.toggle input{accent-color:var(--accent2);width:16px;height:16px}.pairs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}.field label{display:block;color:#b5c1d2;font-size:11px;margin-bottom:5px}.field input,.field select{width:100%}.bezier-layout{display:grid;grid-template-columns:minmax(0,1fr) 200px;gap:14px;align-items:center}.curve{width:100%;max-width:260px;aspect-ratio:1;display:block;margin:0 auto;touch-action:none;overflow:visible}.curve text{font-size:11px;fill:#8a9ab1}.curve circle.handle{cursor:grab;touch-action:none}.bezier-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.bezier-fields label{display:block;font-size:11px;color:#b7c1d2}.bezier-fields input{width:100%;margin-top:3px}.presets{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px}.presets button{padding:5px 9px;min-height:28px;font-size:11px}.footer{border-top:1px solid #242e3a;color:#7c8aa0;font-size:12px;padding:18px 28px}.toast{position:fixed;bottom:23px;right:23px;max-width:390px;background:#252f3b;border:1px solid #65738d;border-radius:9px;padding:10px 14px;box-shadow:0 8px 30px #0009;z-index:20;display:none}.toast.visible{display:block}.status-dot{display:inline-block;width:7px;height:7px;background:var(--good);border-radius:50%;margin-right:6px}#sourceFile,#configFile{display:none}
+@media(max-width:1100px){.layout{grid-template-columns:minmax(0,1fr)}.side-col{display:grid;grid-template-columns:1fr}.preview-stage{min-height:330px}.bezier-layout{grid-template-columns:1fr 230px}}@media(max-width:650px){.top{padding:15px;align-items:flex-start;flex-direction:column}.layout{padding:12px;gap:12px}.preview-stage{padding:14px;min-height:250px}.bezier-layout{grid-template-columns:1fr}.source-row{grid-template-columns:16px 52px 1fr auto;gap:5px}.source-thumb{width:52px}.timecode{font-size:19px}.tabs{margin:12px}.surface-inner{padding:0 12px 12px}.tab-content{padding:0 12px 12px}.transport{gap:5px}}
+
+/* Appearance, readability, and restrained interaction motion. */
+:root{
+  --plot-grid:#354053;--plot-border:#7c889b;--plot-handle:#a8a2ed;
+  --plot-curve:#cacaff;--plot-sample:#80dcc3;--plot-dot-stroke:#0b121b;
+  --plot-handle-bg:#252f49
+}
+.eyebrow{font-size:12px;letter-spacing:.11em}
+.brand h1{font-size:22px}
+.surface-header h2{font-size:17px}
+.surface-header p,.hint,.help,.footer,.count,.setting>label,.field label,.bezier-fields label,
+.setting-group h3,.timecode small,.frame-pill,.preview-corner,.source-row .src-path,
+.presets button,.curve text{font-size:13px}
+.setting-group h3{letter-spacing:.08em}
+.source-row .src-name,.toggle{font-size:15px}
+.source-row .actions button{font-size:15px}
+.field input,.field select,.bezier-fields input,.setting input,.setting select{font-size:14px}
+.timecode{font-size:25px}
+.empty-state h2{font-size:21px}
+.empty-state p{font-size:15px}
+.hint{line-height:1.4}
+.appearance-label{display:flex;gap:9px;align-items:center;color:var(--muted);font-size:13px}
+.appearance-label select{padding:7px 10px;min-width:88px}
+button,.tabs button,.source-row,.surface,.toast{transition:background-color .16s ease,color .16s ease,border-color .16s ease,box-shadow .16s ease,transform .16s ease}
+button:hover:not(:disabled){transform:translateY(-1px)}
+button:active:not(:disabled){transform:translateY(0)}
+.source-row:hover{border-color:#5c6980}
+.tab-content:not([hidden]){animation:tab-in .19s ease-out both}
+.source-row{animation:row-in .18s ease-out both}
+.toast.visible{animation:toast-in .22s ease-out both}
+@keyframes tab-in{from{opacity:.5;transform:translateY(5px)}to{opacity:1;transform:none}}
+@keyframes row-in{from{opacity:.7;transform:translateY(4px)}to{opacity:1;transform:none}}
+@keyframes toast-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
+  button:hover:not(:disabled),button:active:not(:disabled){transform:none}
+}
+:root[data-ui-theme="light"]{
+  color-scheme:light;--bg:#f1f4f9;--panel:#ffffff;--panel2:#edf1f7;--line:#d2dbe7;
+  --text:#233044;--muted:#526176;--subtle:#657489;--accent:#454397;--accent2:#5b5aba;--good:#168571;
+  --plot-grid:#e0e5ec;--plot-border:#8291a5;--plot-handle:#7771ac;
+  --plot-curve:#5352a5;--plot-sample:#008c70;--plot-dot-stroke:#ffffff;--plot-handle-bg:#ffffff
+}
+:root[data-ui-theme="light"] .top{background:#fbfcff;border-color:#dce2ed}
+:root[data-ui-theme="light"] button{background:#f0f3f9;border-color:#d5deea;color:#26364c}
+:root[data-ui-theme="light"] button:hover:not(:disabled){background:#e5eaf5;border-color:#aeb8ca}
+:root[data-ui-theme="light"] button.primary{background:#514f9f;border-color:#514f9f;color:#ffffff}
+:root[data-ui-theme="light"] button.primary:hover:not(:disabled){background:#403d91}
+:root[data-ui-theme="light"] button.ghost{background:transparent;border-color:transparent;color:#526176}
+:root[data-ui-theme="light"] button.ghost:hover:not(:disabled){background:#e9edf4}
+:root[data-ui-theme="light"] button[aria-pressed=true]{background:#dddef9;color:#322e80}
+:root[data-ui-theme="light"] input,:root[data-ui-theme="light"] select{background:#fff;color:#253346;border-color:#c5d1e0}
+:root[data-ui-theme="light"] .preview-stage{background:radial-gradient(ellipse at 50% 25%,#e7edf7 0%,#f4f7fc 80%,#ecf1f8 100%)}
+:root[data-ui-theme="light"] #preview{background:#fff;box-shadow:0 14px 38px #33405526}
+:root[data-ui-theme="light"] .empty-glyph{background:#e8ebfa;color:#5653a8;border-color:#c9ccec}
+:root[data-ui-theme="light"] .preview-corner{background:#fffffff0;border-color:#ccd6e4;color:#40516a}
+:root[data-ui-theme="light"] .timeline{background:#f9fbff}
+:root[data-ui-theme="light"] .timecode{color:#242f47}
+:root[data-ui-theme="light"] .frame-pill{background:#eef1fa;border-color:#d6ddeb;color:#3c4b64}
+:root[data-ui-theme="light"] .source-row{background:#f8faff;border-color:#d8e1ec}
+:root[data-ui-theme="light"] .source-row:hover{border-color:#b4bed3}
+:root[data-ui-theme="light"] .source-row.drag-over{background:#e7e8fc;border-color:#7067ae}
+:root[data-ui-theme="light"] .source-thumb{background:#eff2f8}
+:root[data-ui-theme="light"] .source-row .src-name{background:transparent;border-color:transparent}
+:root[data-ui-theme="light"] .source-row .src-path{background:#fff;border-color:#d4ddea}
+:root[data-ui-theme="light"] .drag-handle{color:#7e8da3}
+:root[data-ui-theme="light"] .side-col .surface-header,:root[data-ui-theme="light"] .setting-group{border-color:#dde4ed}
+:root[data-ui-theme="light"] .tabs{background:#f2f4fa;border-color:#d7dfeb}
+:root[data-ui-theme="light"] .tabs button{background:transparent;border-color:transparent;color:#63728a}
+:root[data-ui-theme="light"] .tabs button:hover:not(:disabled){background:#e7ebf5}
+:root[data-ui-theme="light"] .tabs button[aria-selected=true]{background:#fff;color:#3c378c;box-shadow:0 1px 5px #40456b17}
+:root[data-ui-theme="light"] .setting-group h3,:root[data-ui-theme="light"] .setting>label,
+:root[data-ui-theme="light"] .toggle,:root[data-ui-theme="light"] .field label,
+:root[data-ui-theme="light"] .bezier-fields label{color:#415169}
+:root[data-ui-theme="light"] .curve text{fill:#62738a}
+:root[data-ui-theme="light"] .footer{border-color:#d9e1ed;color:#536177}
+:root[data-ui-theme="light"] .toast{background:#fff;border-color:#bdc9da;color:#27384e;box-shadow:0 8px 28px #3a45652a}
+@media(max-width:650px){
+ .toolbar{gap:6px}.appearance-label{width:100%}
+ .setting{grid-template-columns:minmax(105px,1fr) minmax(150px,1.3fr);gap:8px}
+ .source-row .actions{gap:2px}
+ .source-row .actions button{width:27px}
+}
+
+</style>
+</head>
+<body>
+<div class="shell">
+<header class="top">
+  <div class="brand"><div><div class="eyebrow">Display Profile Manager / media lab</div><h1>Showcase Motion Studio</h1></div></div>
+  <div class="toolbar"><label class="appearance-label" for="appearance">Appearance <select id="appearance" aria-label="Appearance"><option value="auto">Auto</option><option value="light">Light</option><option value="dark">Dark</option></select></label><button id="importConfig">Import JSON</button><button id="exportConfig" class="primary">Export configuration ↓</button><button id="saveFrame">Save frame PNG</button></div>
+</header>
+<div class="layout">
+ <main class="main-col">
+  <section class="surface">
+   <div class="surface-header"><div><h2>Live composition</h2><p class="muted">Exact-frame preview · browser canvas</p></div><span class="mono dim" id="resolution">No media</span></div>
+   <div id="dropZone" class="preview-stage"><canvas id="preview"></canvas><div id="empty" class="empty-state"><div class="empty-glyph">▧</div><h2>Start with your images</h2><p>Drop screenshots here or choose a set. Nothing is selected or named for you.</p><button id="emptyAdd" class="primary">Choose images</button></div><span class="preview-corner" id="frameContext">Awaiting sources</span></div>
+   <div class="timeline">
+    <div class="timeline-top"><div class="timecode mono" id="timecode">00:00.000 <small>/ 00:00.000</small></div><span class="mono dim" id="rateInfo">60 FPS</span></div>
+    <input id="scrub" aria-label="Select timeline frame" type="range" min="0" max="0" value="0" step="1">
+    <div class="transport">
+     <button class="icon" id="first" title="First frame" aria-label="First frame">⏮</button>
+     <button class="icon" id="prev" title="Previous frame (←)" aria-label="Previous frame">‹</button>
+     <button class="primary" id="play" style="min-width:94px" title="Play / pause (Space)">▶ Play</button>
+     <button class="icon" id="next" title="Next frame (→)" aria-label="Next frame">›</button>
+     <button class="icon" id="last" title="Last frame" aria-label="Last frame">⏭</button>
+     <span class="split"></span><span class="frame-pill mono" id="frameIndex">Frame 0 / 0</span><span class="spacer"></span>
+     <span class="mono dim" id="transitionState">Hold</span>
+    </div>
+    <div class="hint">← / → step exactly one frame · Shift + arrow steps ten · Space plays or pauses. Editing never changes the selected frame.</div>
+   </div>
+  </section>
+  <section class="surface">
+   <div class="surface-header"><div class="section-title"><h2>Source sequence</h2><span id="sourceCount" class="count">0 images</span></div><span class="dim" style="font-size:11px">Drag to reorder</span></div>
+   <div class="surface-inner">
+    <div class="sources-actions"><button id="addSources">+ Add images</button><button id="bundleSources">Use bundled PNGs</button><button id="clearSources" class="ghost">Clear sequence</button></div>
+    <div id="sourceList" class="source-list"></div>
+    <p class="help">The preview uses chosen files immediately. Exported source paths are editable; for the repository generator, place the PNGs under <span class="mono">docs/media/main-window/</span> and use relative paths such as <span class="mono">main-window/example.png</span>.</p>
+   </div>
+  </section>
+ </main>
+ <aside class="side-col">
+  <section class="surface">
+   <div class="surface-header"><div><h2>Animation controls</h2><p class="muted">All adjustments update the displayed frame instantly</p></div><span class="eyebrow">Live</span></div>
+   <div class="tabs" role="tablist" aria-label="Editor settings"><button data-tab="motion" role="tab" aria-selected="true">Motion</button><button data-tab="easing" role="tab" aria-selected="false">Easing</button><button data-tab="timing" role="tab" aria-selected="false">Timing</button></div>
+   <div class="tab-content" id="motionPanel">
+    <div class="setting-group"><h3>Reveal / wipe</h3>
+     <label class="toggle"><input type="checkbox" data-key="wipe" checked>Enable wipe reveal</label>
+     <div class="setting"><label for="direction">Reveal direction</label><select id="direction" data-key="direction"><option value="up">Bottom → top</option><option value="down">Top → bottom</option><option value="right">Left → right</option><option value="left">Right → left</option><option value="centerX">Center → sides</option><option value="centerY">Center → top/bottom</option></select></div>
+     <div class="setting"><label for="alignment">Wipe image framing</label><select id="alignment" data-key="alignment"><option value="window">Centered in wipe</option><option value="canvas">Fixed on canvas</option></select></div>
+    </div>
+    <div class="setting-group"><h3>Incoming page</h3><div id="incomingControls"></div></div>
+    <div class="setting-group"><h3>Outgoing page</h3><div id="outgoingControls"></div></div>
+   </div>
+   <div class="tab-content" id="easingPanel" hidden>
+    <div class="setting-group"><h3>Cubic Bézier · x(t), y(t)</h3>
+     <div class="bezier-layout"><svg id="curve" class="curve" viewBox="0 0 320 320" preserveAspectRatio="xMidYMid meet" aria-label="Bézier graph, square axis scaling"></svg>
+     <div><div class="bezier-fields"><div><label for="x1">X1</label><input id="x1" type="number" data-bezier="0" min="0" max="1" step=".01"></div><div><label for="y1">Y1</label><input id="y1" type="number" data-bezier="1" min="-2" max="3" step=".01"></div><div><label for="x2">X2</label><input id="x2" type="number" data-bezier="2" min="0" max="1" step=".01"></div><div><label for="y2">Y2</label><input id="y2" type="number" data-bezier="3" min="-2" max="3" step=".01"></div></div><div class="help mono" id="bezierText">cubic-bezier(.4, 0, .2, 1)</div></div></div>
+     <div class="presets"><button data-preset="material">Reference</button><button data-preset="ease">Ease</button><button data-preset="linear">Linear</button><button data-preset="easeIn">Ease in</button><button data-preset="easeOut">Ease out</button><button data-preset="easeInOut">Ease in/out</button></div>
+     <p class="help">The plot uses equal X/Y unit scales, not a stretched curve. Drag either circular handle or edit its numeric coordinates. The highlighted dot marks the selected frame's eased progress.</p>
+    </div>
+   </div>
+   <div class="tab-content" id="timingPanel" hidden>
+    <div class="setting-group"><h3>Timeline</h3><div id="timingControls"></div><p class="help">The frame index is canonical. Changing FPS or durations clamps only when a shorter timeline requires it; no playback anchor or old transition state is retained.</p></div>
+    <div class="setting-group"><h3>Backdrop</h3><div class="setting"><label for="backdrop">Canvas background</label><input id="backdrop" type="color" data-key="background" value="#0e1119"></div><p class="help">Visible behind images that do not fill the stage.</p></div>
+   </div>
+  </section>
+  <section class="surface"><div class="surface-header"><div><h2>Frame inspection</h2><p class="muted">Evaluated only from the frame shown above</p></div></div>
+   <div class="surface-inner"><div class="pairs"><div class="field"><label>Slot / source</label><div class="mono" id="inspectSlot">—</div></div><div class="field"><label>Transition progress</label><div class="mono" id="inspectRaw">—</div></div><div class="field"><label>Eased progress</label><div class="mono" id="inspectEased">—</div></div><div class="field"><label>Preview frame time</label><div class="mono" id="inspectTime">—</div></div></div></div>
+  </section>
+ </aside>
+</div>
+<footer class="footer">Offline single-file studio · no uploads or analytics · configuration exported as versioned JSON · generator output is separate until settings are accepted.</footer>
+</div>
+<input id="sourceFile" type="file" accept="image/*" multiple><input id="configFile" type="file" accept=".json,application/json">
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script>
+(() => {
+"use strict";
+const $ = id => document.getElementById(id);
+const canvas = $("preview"), ctx = canvas.getContext("2d", {alpha:false});
+const defaultSettings = {fps:60,secondsPerImage:2,transitionSeconds:0.75,wipe:true,direction:"up",alignment:"window",
+  inX:0,inY:0,outX:0,outY:0,inZoom:100,outZoom:100,inOpacity:100,outOpacity:100,background:"#0e1119",bezier:[0.4,0,0.2,1]};
+const settings = structuredClone(defaultSettings);
+let sources = [], nextId = 1, frame = 0, playing = false, animationHandle = 0, lastTick = null, fractional = 0, dragId = null, plot = null;
+const presets = {material:[.4,0,.2,1],ease:[.25,.1,.25,1],linear:[0,0,1,1],easeIn:[.42,0,1,1],easeOut:[0,0,.58,1],easeInOut:[.42,0,.58,1]};
+const $all = sel => [...document.querySelectorAll(sel)];
+const clamp = (v,lo,hi) => Math.min(hi,Math.max(lo,v));
+const format = n => Number(n).toFixed(3);
+function notify(message){const el=$("toast");el.textContent=message;el.classList.add("visible");clearTimeout(notify.t);notify.t=setTimeout(()=>el.classList.remove("visible"),3800);}
+function safeFileName(s){return String(s||"Untitled").replace(/[\\/:*?"<>|]/g,"_");}
+function download(name,blob){const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
+function slots(){return Math.max(1,Math.round(settings.fps*settings.secondsPerImage));}
+function transitionFrames(){return clamp(Math.round(settings.transitionSeconds*settings.fps),1,Math.max(1,slots()-1));}
+function totalFrames(){return Math.max(1,slots()*Math.max(1,sources.length));}
+function normalizedFrame(n){return ((n%totalFrames())+totalFrames())%totalFrames();}
+function setFrame(n){frame=normalizedFrame(Math.trunc(n));render();}
+function stop(){if(!playing)return;playing=false;cancelAnimationFrame(animationHandle);animationHandle=0;lastTick=null;fractional=0;$("play").textContent="▶ Play";$("play").setAttribute("aria-label","Play");}
+function tick(now){
+ if(!playing)return;
+ if(lastTick!==null){fractional+=(now-lastTick)*settings.fps/1000;const whole=Math.floor(fractional);if(whole>0){fractional-=whole;frame=normalizedFrame(frame+whole);render();}}
+ lastTick=now;animationHandle=requestAnimationFrame(tick);
+}
+function togglePlay(){if(playing){stop();return;}if(sources.length<2){notify("Add at least two images to animate.");return;}playing=true;lastTick=null;fractional=0;$("play").textContent="Ⅱ Pause";$("play").setAttribute("aria-label","Pause");animationHandle=requestAnimationFrame(tick);}
+function bezierCoord(t,a,b){const u=1-t;return 3*u*u*t*a+3*u*t*t*b+t*t*t;}
+function ease(x){if(x<=0)return 0;if(x>=1)return 1;let lo=0,hi=1,t=0.5;for(let i=0;i<30;i++){t=(lo+hi)/2;if(bezierCoord(t,settings.bezier[0],settings.bezier[2])<x)lo=t;else hi=t;}return bezierCoord(t,settings.bezier[1],settings.bezier[3]);}
+function frameInfo(){
+ const slot=slots(),tr=transitionFrames(),position=frame%slot,idx=Math.floor(frame/slot),trans=position>=slot-tr&&sources.length>1;
+ const raw=trans?(position-(slot-tr)+1)/tr:0;
+ return {idx,next:(idx+1)%Math.max(1,sources.length),position,trans,raw,eased:ease(raw),slot,tr};
+}
+function drawCover(img,x,y,w,h){
+ if(!img||!img.naturalWidth||w<=0||h<=0)return;
+ const iw=img.naturalWidth,ih=img.naturalHeight,scale=Math.max(w/iw,h/ih);
+ const sw=w/scale,sh=h/scale;
+ ctx.drawImage(img,(iw-sw)/2,(ih-sh)/2,sw,sh,x,y,w,h);
+}
+function clipFor(direction,t,w,h){
+ const p=clamp(t,0,1);
+ switch(direction){
+ case "up":return [0,h*(1-p),w,h*p];
+ case "down":return [0,0,w,h*p];
+ case "left":return [w*(1-p),0,w*p,h];
+ case "right":return [0,0,w*p,h];
+ case "centerX":return [w*(1-p)/2,0,w*p,h];
+ case "centerY":return [0,h*(1-p)/2,w,h*p];
+ default:return [0,0,w,h];
+ }
+}
+function drawPage(img,progress,incoming,region){
+ const w=canvas.width,h=canvas.height,dx=w*(incoming?settings.inX*(1-progress):settings.outX*progress)/100,dy=h*(incoming?settings.inY*(1-progress):settings.outY*progress)/100;
+ const zoom=(incoming?100+(settings.inZoom-100)*(1-progress):100+(settings.outZoom-100)*progress)/100;
+ const alpha=incoming?(settings.inOpacity/100+(1-settings.inOpacity/100)*progress):(1+(settings.outOpacity/100-1)*progress);
+ ctx.save();ctx.globalAlpha=clamp(alpha,0,1);
+ if(incoming&&settings.wipe){ctx.beginPath();ctx.rect(...region);ctx.clip();}
+ ctx.translate(w/2+dx,h/2+dy);ctx.scale(zoom,zoom);ctx.translate(-w/2,-h/2);
+ if(incoming&&settings.wipe&&settings.alignment==="window")drawCover(img,...region);
+ else drawCover(img,0,0,w,h);
+ ctx.restore();
+}
+function draw(){
+ if(!sources.length){canvas.style.display="none";$("empty").hidden=false;$("resolution").textContent="No media";return;}
+ const item=sources[0];const w=Math.max(1,item.img.naturalWidth||900),h=Math.max(1,item.img.naturalHeight||600);
+ if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
+ canvas.style.display="block";$("empty").hidden=true;$("resolution").textContent=w+" × "+h;
+ ctx.fillStyle=settings.background;ctx.fillRect(0,0,w,h);
+ const f=frameInfo(),current=sources[f.idx];
+ if(!current)return;
+ if(!f.trans){drawCover(current.img,0,0,w,h);return;}
+ const incoming=sources[f.next];drawPage(current.img,f.eased,false,[0,0,w,h]);
+ const region=settings.wipe?clipFor(settings.direction,f.eased,w,h):[0,0,w,h];
+ drawPage(incoming.img,f.eased,true,region);
+}
+function timeText(t){const m=Math.floor(t/60),s=Math.floor(t%60),ms=Math.floor((t%1)*1000+1e-7);return String(m).padStart(2,"0")+":"+String(s).padStart(2,"0")+"."+String(ms).padStart(3,"0");}
+function render(){
+ if(!sources.length){frame=0;draw();$("scrub").max="0";$("scrub").value="0";$("scrub").disabled=true;$("timecode").innerHTML="00:00.000 <small>/ 00:00.000</small>";$("rateInfo").textContent=settings.fps+" FPS · 0 frames";$("frameIndex").textContent="No frame";$("transitionState").textContent="—";$("frameContext").textContent="Awaiting sources";for(const id of ["first","prev","next","last","play","saveFrame"])$(id).disabled=true;for(const id of ["inspectSlot","inspectRaw","inspectEased","inspectTime"])$(id).textContent="—";drawGraph({trans:false,raw:0,eased:0});return;}
+ frame=clamp(frame,0,totalFrames()-1);
+ const f=frameInfo(),duration=totalFrames()/settings.fps,time=frame/settings.fps;
+ draw();
+ $("scrub").max=String(totalFrames()-1);$("scrub").value=String(frame);$("scrub").disabled=sources.length<2;
+ $("timecode").innerHTML=timeText(time)+" <small>/ "+timeText(duration)+"</small>";
+ $("rateInfo").textContent=settings.fps+" FPS · "+totalFrames()+" frames";
+ $("frameIndex").textContent="Frame "+(frame+1)+" / "+totalFrames();
+ $("transitionState").textContent=f.trans?"Transition":"Hold";
+ $("frameContext").textContent=f.trans?"Transition "+format(f.raw*100)+"%":"Source "+(f.idx+1);
+ $("inspectSlot").textContent=sources.length?(f.idx+1)+" → "+(f.next+1):"—";
+ $("inspectRaw").textContent=f.trans?format(f.raw):"Hold";
+ $("inspectEased").textContent=f.trans?format(f.eased):"—";
+ $("inspectTime").textContent=timeText(time);
+ for(const id of ["first","prev","next","last","play","saveFrame"])$(id).disabled=!sources.length;
+ drawGraph(f);
+}
+function addSource(img,name,path,objectUrl){
+ sources.push({id:nextId++,img,name:name||"Image "+nextId,path:path||"",objectUrl:objectUrl||null});
+}
+async function addFiles(files){
+ const valid=[...files].filter(f=>f.type.startsWith("image/"));if(!valid.length){notify("Choose image files.");return;}
+ let loaded=0;for(const file of valid){
+  const url=URL.createObjectURL(file),img=new Image();
+  try{await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;img.src=url;});
+   if(sources.length&&sources[0].img.naturalWidth!==img.naturalWidth||sources.length&&sources[0].img.naturalHeight!==img.naturalHeight){notify(file.name+" differs in size; preview uses the first image's canvas.");}
+   addSource(img,file.name,"main-window/"+file.name,url);loaded++;
+  }catch{URL.revokeObjectURL(url);notify("Could not open "+file.name);}
+ }
+ stop();renderSources();render();if(loaded)notify(loaded+" image"+(loaded===1?"":"s")+" added.");
+}
+function openImage(path,name){
+ return new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve({img,name:name||path.split("/").pop(),path});img.onerror=()=>reject(Error("Cannot load "+path));img.src=path;});
+}
+async function loadBundle(){
+ const paths=["main-window/theme-light.png","main-window/theme-dark.png","main-window/theme-black.png","main-window/theme-rose.png"];
+ try{const imgs=await Promise.all(paths.map(p=>openImage(p)));clearSources(false);imgs.forEach(o=>addSource(o.img,o.name,o.path));renderSources();render();notify("Bundled repo images loaded. Rename and reorder freely.");}
+ catch(e){notify("Bundled sources unavailable here; use Choose images.");}
+}
+function clearSources(renderAfter=true){stop();sources.forEach(s=>{if(s.objectUrl)URL.revokeObjectURL(s.objectUrl);});sources=[];frame=0;canvas.width=1;canvas.height=1;if(renderAfter){renderSources();render();}}
+function moveSource(id,offset){const i=sources.findIndex(s=>s.id===id),to=clamp(i+offset,0,sources.length-1);if(i<0||i===to)return;const [s]=sources.splice(i,1);sources.splice(to,0,s);stop();renderSources();render();}
+function removeSource(id){const i=sources.findIndex(s=>s.id===id);if(i<0)return;const [s]=sources.splice(i,1);if(s.objectUrl)URL.revokeObjectURL(s.objectUrl);stop();renderSources();render();}
+function renderSources(){
+ const target=$("sourceList");target.textContent="";$("sourceCount").textContent=sources.length+" image"+(sources.length===1?"":"s");
+ sources.forEach((s,index)=>{
+  const row=document.createElement("div");row.className="source-row";row.draggable=true;row.dataset.id=String(s.id);
+  const handle=document.createElement("div");handle.className="drag-handle";handle.textContent="⠿";handle.title="Drag row to reorder";
+  const thumb=document.createElement("img");thumb.className="source-thumb";thumb.src=s.img.src;thumb.alt="";
+  const details=document.createElement("div");
+  const name=document.createElement("input");name.className="src-name";name.value=s.name;name.setAttribute("aria-label","Image "+(index+1)+" name");name.addEventListener("input",()=>{s.name=name.value;});
+  const path=document.createElement("input");path.className="src-path mono";path.value=s.path;path.title="Path used in exported JSON";path.setAttribute("aria-label","Image "+(index+1)+" generator path");path.addEventListener("input",()=>{s.path=path.value;});
+  details.append(name,path);
+  const actions=document.createElement("div");actions.className="actions";
+  for(const [symbol,title,fn,disabled] of [["↑","Move up",()=>moveSource(s.id,-1),index===0],["×","Remove",()=>removeSource(s.id),false],["↓","Move down",()=>moveSource(s.id,1),index===sources.length-1]]){
+   const b=document.createElement("button");b.textContent=symbol;b.title=title;b.setAttribute("aria-label",title+" "+s.name);b.disabled=disabled;b.addEventListener("click",fn);actions.append(b);
+  }
+  row.append(handle,thumb,details,actions);
+  row.addEventListener("dragstart",event=>{if(event.target!==row&&event.target!==handle){event.preventDefault();return;}dragId=s.id;event.dataTransfer.effectAllowed="move";event.dataTransfer.setData("text/plain",String(s.id));});
+  row.addEventListener("dragover",event=>{if(dragId===null)return;event.preventDefault();row.classList.add("drag-over");});
+  row.addEventListener("dragleave",()=>row.classList.remove("drag-over"));
+  row.addEventListener("drop",event=>{event.preventDefault();row.classList.remove("drag-over");const from=sources.findIndex(it=>it.id===dragId),to=sources.findIndex(it=>it.id===s.id);if(from<0||to<0||from===to)return;const [source]=sources.splice(from,1);sources.splice(to,0,source);stop();renderSources();render();});
+  row.addEventListener("dragend",()=>{dragId=null;$all(".source-row").forEach(e=>e.classList.remove("drag-over"));});
+  target.append(row);
+ });
+}
+function addNumberControl(target,key,label,min,max,step,unit){
+ const row=document.createElement("div");row.className="setting";
+ const l=document.createElement("label");l.textContent=label;l.htmlFor="number-"+key;
+ const sub=document.createElement("div");sub.className="number-row";
+ const slider=document.createElement("input");slider.type="range";slider.dataset.sliderKey=key;slider.min=min;slider.max=max;slider.step=step;slider.value=settings[key];slider.setAttribute("aria-label",label);
+ const num=document.createElement("input");num.type="number";num.min=min;num.max=max;num.step=step;num.id="number-"+key;num.value=settings[key];num.title=unit;
+ slider.addEventListener("input",()=>{settings[key]=Number(slider.value);num.value=slider.value;onSettingChange();});
+ num.addEventListener("input",()=>{const n=Number(num.value);if(!Number.isFinite(n)||num.value==="")return;settings[key]=clamp(n,min,max);slider.value=String(settings[key]);onSettingChange();});
+ num.addEventListener("change",()=>{num.value=String(settings[key]);});
+ sub.append(slider,num);row.append(l,sub);target.append(row);
+}
+function buildControls(){
+ for(const [key,label,min,max,step] of [["inX","Horizontal offset (%)",-100,100,1],["inY","Vertical offset (%)",-100,100,1],["inZoom","Starting zoom (%)",25,250,1],["inOpacity","Starting opacity (%)",0,100,1]])addNumberControl($("incomingControls"),key,label,min,max,step,"%");
+ for(const [key,label,min,max,step] of [["outX","Horizontal offset (%)",-100,100,1],["outY","Vertical offset (%)",-100,100,1],["outZoom","Ending zoom (%)",25,250,1],["outOpacity","Ending opacity (%)",0,100,1]])addNumberControl($("outgoingControls"),key,label,min,max,step,"%");
+ for(const [key,label,min,max,step] of [["fps","Frames / second",1,120,1],["secondsPerImage","Seconds per image",0.2,30,.1],["transitionSeconds","Transition duration (s)",.05,10,.05]])addNumberControl($("timingControls"),key,label,min,max,step,"");
+}
+function syncUI(){
+ $all("[data-key]").forEach(input=>{
+  const v=settings[input.dataset.key];if(input.type==="checkbox")input.checked=Boolean(v);else input.value=String(v);
+ });
+ $all("input[id^=number-]").forEach(input=>{const key=input.id.slice(7);input.value=settings[key];});$all("input[data-slider-key]").forEach(input=>input.value=String(settings[input.dataset.sliderKey]));
+ $all("input[data-bezier]").forEach(input=>input.value=String(settings.bezier[Number(input.dataset.bezier)]));
+}
+function onSettingChange(){
+ if(slots()<2)settings.secondsPerImage=2/settings.fps;
+ if(settings.transitionSeconds>=settings.secondsPerImage){settings.transitionSeconds=Math.max(.05,settings.secondsPerImage-1/settings.fps);}
+ frame=clamp(frame,0,totalFrames()-1);
+ // FPS changes may adjust the rate of the next playback tick but never resynchronize to a scrub anchor.
+ fractional=0;lastTick=null;
+ syncUI();render();
+}
+function graphSVG(tag,attrs,container){
+ const el=document.createElementNS("http://www.w3.org/2000/svg",tag);for(const [k,v] of Object.entries(attrs||{}))el.setAttribute(k,v);container.append(el);return el;
+}
+function drawGraph(info){
+ const svg=$("curve");svg.textContent="";const left=38,top=38,scale=244;
+ const X=x=>left+x*scale,Y=y=>top+(1-y)*scale;
+ const axes=graphSVG("g",{},svg);
+ for(let v=0;v<=1.00001;v+=.25){const a=X(v),b=Y(v);graphSVG("line",{x1:a,y1:top,x2:a,y2:top+scale,stroke:"var(--plot-grid)","stroke-width":1},axes);graphSVG("line",{x1:left,y1:b,x2:left+scale,y2:b,stroke:"var(--plot-grid)","stroke-width":1},axes);}
+ graphSVG("rect",{x:left,y:top,width:scale,height:scale,fill:"none",stroke:"var(--plot-border)","stroke-width":1.2},svg);
+ const [x1,y1,x2,y2]=settings.bezier;
+ graphSVG("line",{x1:X(0),y1:Y(0),x2:X(x1),y2:Y(y1),stroke:"var(--plot-handle)","stroke-width":2},svg);
+ graphSVG("line",{x1:X(1),y1:Y(1),x2:X(x2),y2:Y(y2),stroke:"var(--plot-handle)","stroke-width":2},svg);
+ graphSVG("path",{d:"M "+X(0)+" "+Y(0)+" C "+X(x1)+" "+Y(y1)+" "+X(x2)+" "+Y(y2)+" "+X(1)+" "+Y(1),fill:"none",stroke:"var(--plot-curve)","stroke-width":3.5,"stroke-linecap":"round"},svg);
+ const t=info.trans?info.raw:0,e=info.trans?info.eased:0;
+ graphSVG("circle",{cx:X(t),cy:Y(e),r:6,fill:"var(--plot-sample)",stroke:"var(--plot-dot-stroke)","stroke-width":2},svg);
+ [[x1,y1,0],[x2,y2,2]].forEach(([x,y,i])=>{
+  const c=graphSVG("circle",{cx:X(x),cy:Y(y),r:8,fill:"var(--plot-handle-bg)",stroke:"var(--plot-handle)","stroke-width":3,class:"handle",tabindex:0,role:"slider","aria-label":i===0?"First Bézier control point":"Second Bézier control point"},svg);
+  c.addEventListener("pointerdown",event=>{event.preventDefault();svg.setPointerCapture(event.pointerId);plot=i;movePoint(event);});
+ });
+ const lab=graphSVG("g",{},svg);graphSVG("text",{x:left,y:302},lab).textContent="0";graphSVG("text",{x:278,y:302},lab).textContent="1";graphSVG("text",{x:19,y:top+5},lab).textContent="1";graphSVG("text",{x:294,y:302},lab).textContent="t";
+ $("bezierText").textContent="cubic-bezier("+settings.bezier.join(", ")+")";
+}
+function movePoint(event){
+ if(plot===null)return;const svg=$("curve"),matrix=svg.getScreenCTM();if(!matrix)return;
+ const p=new DOMPoint(event.clientX,event.clientY).matrixTransform(matrix.inverse()),base=plot;
+ settings.bezier[base]=Math.round(clamp((p.x-38)/244,0,1)*100)/100;
+ settings.bezier[base+1]=Math.round(clamp(1-(p.y-38)/244,-2,3)*100)/100;
+ $all("[data-bezier]").forEach(input=>input.value=String(settings.bezier[Number(input.dataset.bezier)]));render();
+}
+function configuration(){
+ return {schemaVersion:1,images:sources.map(s=>({name:s.name,path:s.path})),fps:settings.fps,secondsPerImage:settings.secondsPerImage,transitionSeconds:settings.transitionSeconds,
+  wipe:{enabled:settings.wipe,direction:settings.direction,alignment:settings.alignment},
+  motion:{incoming:{xPercent:settings.inX,yPercent:settings.inY,zoomPercent:settings.inZoom,opacityPercent:settings.inOpacity},
+          outgoing:{xPercent:settings.outX,yPercent:settings.outY,zoomPercent:settings.outZoom,opacityPercent:settings.outOpacity}},
+  easing:{x1:settings.bezier[0],y1:settings.bezier[1],x2:settings.bezier[2],y2:settings.bezier[3]},background:settings.background};
+}
+function numeric(value,name,min,max){if(typeof value!=="number"||!Number.isFinite(value)||value<min||value>max)throw Error("Invalid "+name);return value;}
+function objectShape(value,name){if(!value||typeof value!=="object"||Array.isArray(value))throw Error("Invalid "+name);}
+function validateConfig(c){
+ objectShape(c,"configuration");
+ if(c.schemaVersion!==1||!Array.isArray(c.images)||c.images.length<2||c.images.some(x=>!x||typeof x!=="object"||Array.isArray(x)||typeof x.path!=="string"||!x.path.trim()||typeof x.name!=="string"))throw Error("Unsupported configuration schema or image list.");
+ objectShape(c.wipe,"wipe");objectShape(c.motion,"motion");objectShape(c.motion.incoming,"motion.incoming");objectShape(c.motion.outgoing,"motion.outgoing");objectShape(c.easing,"easing");
+ const result=structuredClone(defaultSettings);
+ result.fps=numeric(c.fps,"fps",1,120);if(!Number.isInteger(result.fps))throw Error("Invalid fps");
+ result.secondsPerImage=numeric(c.secondsPerImage,"secondsPerImage",.2,30);result.transitionSeconds=numeric(c.transitionSeconds,"transitionSeconds",.05,10);
+ if(result.transitionSeconds>=result.secondsPerImage||Math.round(result.fps*result.secondsPerImage)<2||Math.round(result.fps*result.transitionSeconds)>=Math.round(result.fps*result.secondsPerImage))throw Error("Timing requires at least one hold and one transition frame.");
+ if(typeof c.wipe.enabled!=="boolean")throw Error("Invalid wipe.enabled");result.wipe=c.wipe.enabled;
+ if(!["up","down","left","right","centerX","centerY"].includes(c.wipe.direction))throw Error("Invalid direction.");
+ if(!["window","canvas"].includes(c.wipe.alignment))throw Error("Invalid alignment.");
+ result.direction=c.wipe.direction;result.alignment=c.wipe.alignment;
+ for(const [outer,inner] of [["inX",c.motion.incoming.xPercent],["inY",c.motion.incoming.yPercent],["outX",c.motion.outgoing.xPercent],["outY",c.motion.outgoing.yPercent]])result[outer]=numeric(inner,outer,-100,100);
+ for(const [outer,inner] of [["inZoom",c.motion.incoming.zoomPercent],["outZoom",c.motion.outgoing.zoomPercent]])result[outer]=numeric(inner,outer,25,250);
+ for(const [outer,inner] of [["inOpacity",c.motion.incoming.opacityPercent],["outOpacity",c.motion.outgoing.opacityPercent]])result[outer]=numeric(inner,outer,0,100);
+ result.bezier=[numeric(c.easing.x1,"x1",0,1),numeric(c.easing.y1,"y1",-2,3),numeric(c.easing.x2,"x2",0,1),numeric(c.easing.y2,"y2",-2,3)];
+ if(typeof c.background!=="string"||!/^#[0-9a-f]{6}$/i.test(c.background))throw Error("Invalid background.");result.background=c.background;
+ return result;
+}
+async function importConfiguration(file){
+ try{const config=JSON.parse(await file.text()),newSettings=validateConfig(config);
+ const imgs=await Promise.all(config.images.map(item=>openImage(item.path,item.name)));
+ stop();clearSources(false);Object.assign(settings,newSettings);imgs.forEach(o=>addSource(o.img,o.name,o.path));frame=0;syncUI();renderSources();render();notify("Configuration loaded.");
+ }catch(e){notify("Import not applied: "+e.message);}
+}
+for(const key of ["addSources","emptyAdd"])$(key).addEventListener("click",()=>$("sourceFile").click());
+$("sourceFile").addEventListener("change",async e=>{await addFiles(e.target.files);e.target.value="";});
+$("bundleSources").addEventListener("click",loadBundle);
+$("clearSources").addEventListener("click",()=>{if(!sources.length)return;if(confirm("Clear all image sources?"))clearSources();});
+$("importConfig").addEventListener("click",()=>$("configFile").click());
+$("configFile").addEventListener("change",async e=>{if(e.target.files[0])await importConfiguration(e.target.files[0]);e.target.value="";});
+$("exportConfig").addEventListener("click",()=>{
+ if(sources.length<2){notify("Select at least two images before exporting.");return;}
+ const invalid=sources.filter(s=>!s.path.trim());if(invalid.length){notify("Fill the generator path for every image.");return;}if(sources.some(s=>s.img.naturalWidth!==sources[0].img.naturalWidth||s.img.naturalHeight!==sources[0].img.naturalHeight)){notify("Images must have identical pixel dimensions for generator export.");return;}
+ download("showcase-motion.json",new Blob([JSON.stringify(configuration(),null,2)+"\n"],{type:"application/json"}));notify("Configuration exported. Check that image paths exist beside this studio.");
+});
+$("saveFrame").addEventListener("click",()=>{try{canvas.toBlob(blob=>{if(blob)download("showcase-frame-"+String(frame+1).padStart(5,"0")+".png",blob);},"image/png");}catch(e){notify("Browser blocks exporting local-path images. Use Choose images to make PNG export available.");}});
+$("scrub").addEventListener("input",e=>{stop();setFrame(Number(e.target.value));});
+$("play").addEventListener("click",togglePlay);
+$("prev").addEventListener("click",()=>{stop();setFrame(frame-1);});
+$("next").addEventListener("click",()=>{stop();setFrame(frame+1);});
+$("first").addEventListener("click",()=>{stop();setFrame(0);});
+$("last").addEventListener("click",()=>{stop();setFrame(totalFrames()-1);});
+$all("[data-key]").forEach(input=>input.addEventListener("change",()=>{if(input.type==="checkbox")settings[input.dataset.key]=input.checked;else if(input.type!=="number")settings[input.dataset.key]=input.value;onSettingChange();}));
+$all("[data-bezier]").forEach(input=>input.addEventListener("input",()=>{if(input.value==="")return;const i=Number(input.dataset.bezier),n=Number(input.value);settings.bezier[i]=clamp(n,i%2===0?0:-2,i%2===0?1:3);render();}));
+$all("[data-preset]").forEach(b=>b.addEventListener("click",()=>{settings.bezier=[...presets[b.dataset.preset]];syncUI();render();}));
+$all("[data-tab]").forEach(b=>b.addEventListener("click",()=>{$all("[data-tab]").forEach(x=>x.setAttribute("aria-selected",String(x===b)));for(const name of ["motion","easing","timing"])$(name+"Panel").hidden=b.dataset.tab!==name;render();}));
+$("curve").addEventListener("pointermove",movePoint);
+$("curve").addEventListener("pointerup",()=>{plot=null;});
+$("curve").addEventListener("pointercancel",()=>{plot=null;});
+$("dropZone").addEventListener("dragover",event=>{if(event.dataTransfer.types.includes("Files")){event.preventDefault();$("dropZone").classList.add("drop-active");}});
+$("dropZone").addEventListener("dragleave",()=>$("dropZone").classList.remove("drop-active"));
+$("dropZone").addEventListener("drop",async event=>{event.preventDefault();$("dropZone").classList.remove("drop-active");await addFiles(event.dataTransfer.files);});
+document.addEventListener("keydown",event=>{
+ const tag=event.target.tagName.toLowerCase();if(["input","select","textarea","button"].includes(tag)||event.ctrlKey||event.altKey||event.metaKey)return;
+ if(event.code==="Space"){event.preventDefault();togglePlay();}
+ else if(event.code==="ArrowLeft"){event.preventDefault();stop();setFrame(frame-(event.shiftKey?10:1));}
+ else if(event.code==="ArrowRight"){event.preventDefault();stop();setFrame(frame+(event.shiftKey?10:1));}
+});
+
+const preferredTheme=window.matchMedia("(prefers-color-scheme: dark)");
+let appearance="auto";
+function setAppearance(){
+ document.documentElement.dataset.uiTheme=appearance==="auto"?(preferredTheme.matches?"dark":"light"):appearance;
+ $("appearance").value=appearance;
+ render();
+}
+$("appearance").addEventListener("change",e=>{appearance=e.target.value;setAppearance();});
+preferredTheme.addEventListener("change",()=>{if(appearance==="auto")setAppearance();});
+buildControls();syncUI();renderSources();setAppearance();
+})();
+</script>
+</body>
+</html>

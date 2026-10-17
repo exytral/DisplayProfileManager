@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Dynamic Theme Showcase</title>
+
+    <style>
+        :root {
+            --wipe-duration: 750ms;
+        }
+
+        body {
+            margin: 0;
+            background-color: #000000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #showcase-canvas {
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+        }
+
+        .theme-layer {
+            position: absolute;
+            inset: 0;
+
+            background-size: cover;
+            background-position: center;
+
+            opacity: 0;
+            z-index: 1;
+        }
+
+        .theme-layer.active {
+            opacity: 1;
+            z-index: 2;
+        }
+
+        /*
+         * The wipe is a simple rectangular window.
+         *
+         * The image itself remains exactly the size of the canvas.
+         * Only the visible height of the window changes.
+         */
+        .wipe-window {
+            position: absolute;
+            left: 0;
+            bottom: 0;
+
+            width: 100%;
+            height: 0;
+
+            overflow: hidden;
+
+            z-index: 3;
+            will-change: height;
+        }
+
+        .wipe-image {
+            position: absolute;
+            left: 0;
+            bottom: 0;
+
+            width: 100%;
+            height: 100%;
+
+            background-size: cover;
+            background-position: center;
+        }
+
+        .animate-wipe {
+            animation:
+                reveal-wipe var(--wipe-duration) cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        @keyframes reveal-wipe {
+            from {
+                height: 0;
+            }
+
+            to {
+                height: 100%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="showcase-canvas">
+        <div id="theme-container"></div>
+
+        <div id="wipe-window" class="wipe-window">
+            <div id="wipe-image" class="wipe-image"></div>
+        </div>
+    </div>
+
+    <script>
+        const CONFIG = {
+            secondsPerTheme: 2,
+            wipeTransitionMs: 750,
+
+            images: [
+                'main-window/theme-light.png',
+                'main-window/theme-dark.png',
+                'main-window/theme-black.png',
+                'main-window/theme-rose.png'
+            ]
+        };
+
+        const canvas =
+            document.getElementById('showcase-canvas');
+
+        const themeContainer =
+            document.getElementById('theme-container');
+
+        const wipeWindow =
+            document.getElementById('wipe-window');
+
+        const wipeImage =
+            document.getElementById('wipe-image');
+
+        const firstImage = new Image();
+
+        firstImage.src = CONFIG.images[0];
+
+        firstImage.onload = function () {
+            canvas.style.width = this.width + 'px';
+            canvas.style.height = this.height + 'px';
+
+            initShowcase();
+        };
+
+        function initShowcase() {
+            CONFIG.images.forEach((src, index) => {
+                const layer =
+                    document.createElement('div');
+
+                layer.className =
+                    `theme-layer ${index === 0 ? 'active' : ''}`;
+
+                layer.id =
+                    `theme-${index}`;
+
+                layer.style.backgroundImage =
+                    `url("${src}")`;
+
+                themeContainer.appendChild(layer);
+            });
+
+            let currentIndex = 0;
+
+            setInterval(() => {
+                const nextIndex =
+                    (currentIndex + 1) % CONFIG.images.length;
+
+                const currentLayer =
+                    document.getElementById(
+                        `theme-${currentIndex}`
+                    );
+
+                const nextLayer =
+                    document.getElementById(
+                        `theme-${nextIndex}`
+                    );
+
+                wipeImage.style.backgroundImage =
+                    `url("${CONFIG.images[nextIndex]}")`;
+
+                /*
+                 * Reset the wipe.
+                 */
+                wipeWindow.classList.remove('animate-wipe');
+                wipeWindow.style.height = '0px';
+
+                /*
+                 * Force the reset before restarting animation.
+                 */
+                void wipeWindow.offsetHeight;
+
+                /*
+                 * Reveal the new image from bottom to top.
+                 */
+                wipeWindow.classList.add('animate-wipe');
+
+                /*
+                 * Once fully revealed, hand off to the normal layer.
+                 */
+                setTimeout(() => {
+                    currentLayer.classList.remove('active');
+                    nextLayer.classList.add('active');
+
+                    wipeWindow.classList.remove('animate-wipe');
+                    wipeWindow.style.height = '0px';
+                }, CONFIG.wipeTransitionMs);
+
+                currentIndex = nextIndex;
+
+            }, CONFIG.secondsPerTheme * 1000);
+        }
+    </script>
+
+</body>
+
+</html>

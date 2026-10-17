@@ -1,9 +1,11 @@
 #pragma once
 #define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#include <shlobj.h>
 #include <string>
 #include <vector>
+
+#include <shlobj.h>
+#include <windows.h>
+
 #include "JsonReader.h"
 
 static constexpr CLSID CLSID_DpmContextMenu =
@@ -36,8 +38,10 @@ private:
     std::wstring              _currentProfileId;
     std::wstring              _exePath;   // Resolved path to DisplayProfileManager.exe
     std::wstring              _iconsDir;  // Profile icon sandbox under AppData
+    bool                      _developerRouting = false;
 
     bool IsDesktopFolder(PCIDLIST_ABSOLUTE pidlFolder);
+    bool IsDeveloperRoutingEnabled();
     HBITMAP LoadAppIconBitmap(int size);
     HBITMAP LoadProfileIconBitmap(const std::wstring& filename, int size);
     HBITMAP IconToBitmap(HICON hIcon, int size);

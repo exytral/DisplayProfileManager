@@ -33,7 +33,7 @@ When an elevated Task Scheduler operation is canceled, Settings restores the pre
 
 Configure actions that occur when Display Profile Manager launches.
 
-- **Check for new versions on startup** — off by default. When enabled, Display Profile Manager checks GitHub for a newer release immediately and at startup. Newer releases are shown in the status bar, About section, and Windows notifications after the seven-day age threshold.
+- **Check for new versions on startup** — off by default. When enabled, Display Profile Manager checks GitHub for a newer release immediately and at startup. Newer releases are shown in the status bar, About section, and Windows notifications after the three-day age threshold.
 - **Apply startup profile on launch** — apply a selected profile when Display Profile Manager starts.
 
 Update checking is not continuously polled. Display Profile Manager checks release metadata only; it does not download, install, or execute updates.
@@ -42,16 +42,20 @@ Update checking is not continuously polled. Display Profile Manager checks relea
 
 ## Window Behavior
 
-Choose what happens when the main window closes:
+### Closing the app
 
-- **Minimize to system tray** — keep Display Profile Manager running in the background.
-- **Exit application** — shut Display Profile Manager down immediately.
+- **"Minimize to system tray"** — keep Display Profile Manager running in the background.
+- **"Exit application"** — shut Display Profile Manager down immediately.
+- **"Remember my choice"** — suppress the close prompt and always use the selected behavior.
 
-**"Remember my choice"** suppresses the close prompt and always uses the selected behavior.
+### Notifications
 
-**"Show notifications when profiles are applied"** controls Windows toast notifications for supported profile-apply entry points.
+- **"Show notifications when profiles are applied"** — control tray/Windows notifications for supported profile-apply entry points.
 
-**"Add profile switcher to desktop right-click menu"** registers the native shell extension as a per-user integration. The extension applies profiles through the `--headless` command path.
+### Integrations
+
+- **"Add profile switcher to desktop right-click menu"** — register the native shell extension as a per-user integration. The extension applies profiles through the `--headless` command path.
+- **"Manage Start Menu profile shortcuts"** — keep application-managed profile shortcuts synchronized in the Start Menu. Shortcut launches use stable profile identity, so renaming a profile does not break its managed shortcut.
 
 ---
 
@@ -68,7 +72,12 @@ Display recovery settings control what happens when a display-configuration stag
 
 ## Global Hotkeys
 
-A read-only list shows configured profile hotkeys and their current enabled state. Edit a profile to add or change its hotkey.
+Quick Switch controls appear first in this Settings section:
+
+- **"Enable Quick Switch profile switcher overlay"** — enable or disable the compact profile switcher overlay.
+- **"Quick Switch hotkey"** — configure the global hotkey that opens Quick Switch.
+- **"Use active monitor"** — enabled by default. When active-monitor targeting is enabled, **"Mouse position"** is the default source and **"Window focus"** is the alternate source. When **"Use active monitor"** is off, Quick Switch opens on the primary monitor. **"Mouse position"** and **"Window focus"** never fall back to each other; if the enabled active source cannot resolve a monitor, Quick Switch falls back only to the primary monitor.
+- **"Configured Hotkeys"** — read-only list of configured profile hotkeys and their current enabled state. Edit a profile in the Profile Editor to add or change its hotkey.
 
 ---
 

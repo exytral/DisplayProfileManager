@@ -1,5 +1,8 @@
 #include "../DisplayProfileManager.ShellExt/JsonReader.h"
+#include "../DisplayProfileManager.ShellExt/ShellCommand.h"
 #include <iostream>
+#include <windows.h>
+#include <shellapi.h>
 #include <string>
 
 namespace
@@ -21,6 +24,38 @@ namespace
 int wmain()
 {
     ProfileEntry entry;
+
+    Check(BuildProfileArguments(L"profile-id", false) == L"--headless \"profile-id\" --source DesktopContextMenu", "normal shell command arguments");
+    Check(BuildProfileArguments(L"profile-id", true) == L"--dev --headless \"profile-id\" --source DesktopContextMenu", "developer shell command arguments");
+
+    const std::wstring canonical = L"00000000-0000-4000-8000-000000000001";
+    Check(Parse(LR"({"id":"00000000-0000-4000-8000-000000000001","name":"Desk"})", entry) &&
+        ValidateProfileIdentityForTest(L"00000000-0000-4000-8000-000000000001.dpm", entry) &&
+        entry.id == canonical, "canonical GUID filename and JSON accepted");
+    Check(Parse(LR"({"id":"00000000-0000-4000-8000-000000000001","name":"Desk"})", entry) &&
+        !ValidateProfileIdentityForTest(L"Desk Setup.dpm", entry), "friendly filename rejected");
+    Check(Parse(LR"({"id":"00000000-0000-4000-8000-000000000001","name":"Desk"})", entry) &&
+        !ValidateProfileIdentityForTest(L"00000000-0000-4000-8000-000000000002.dpm", entry), "mismatched filename rejected");
+    Check(Parse(LR"({"id":"bad\\\" --unshell","name":"Bad"})", entry) &&
+        !ValidateProfileIdentityForTest(L"00000000-0000-4000-8000-000000000001.dpm", entry), "argument injection rejected as identity");
+    Check(Parse(LR"({"id":"00000000-0000-4000-8000-000000000001","name":"Desk"})", entry) &&
+        ValidateProfileIdentityForTest(L"00000000-0000-4000-8000-000000000001.DPM", entry), "case-insensitive Windows dpm extension");
+    for (auto input : { std::wstring(L"abc\\\" --unshell"), std::wstring(L"trail\\\\"),
+                        std::wstring(L"Unicode \u03A9 \u4E2D"), std::wstring(L"\""), canonical })
+    {
+        for (bool dev : { false, true })
+        {
+            std::wstring line = L"dummy.exe " + BuildProfileArguments(input, dev);
+            int count = 0;
+            LPWSTR* argv = CommandLineToArgvW(line.c_str(), &count);
+            Check(argv != nullptr && count == (dev ? 6 : 5) &&
+                  std::wstring(argv[dev ? 3 : 2]) == input &&
+                  std::wstring(argv[dev ? 4 : 3]) == L"--source" &&
+                  std::wstring(argv[dev ? 5 : 4]) == L"DesktopContextMenu",
+                  "Windows command-line argv grouping/roundtrip");
+            if (argv) LocalFree(argv);
+        }
+    }
 
     Check(Parse(LR"({"id":"1","name":"ASCII","icon":"icon.ico"})", entry) && entry.name == L"ASCII", "ASCII profile");
     Check(Parse(LR"({"id":"1","name":"q\" b\\ s\/ \b\f\n\r\t","icon":null})", entry) && entry.name == L"q\" b\\ s/ \b\f\n\r\t", "JSON escapes");

@@ -12,7 +12,11 @@ New profiles open with the current live display configuration already loaded. Cl
 
 **Duplicating a profile** — select a profile in the main window, click **"Duplicate"**, then adjust the copy before saving.
 
+For example configurations, see the [synthetic Desk Setup and TV Setup references](../demo/README.md). They can be loaded using **Open Folder** → **Profiles** with the [copying precautions](../demo/README.md#load-samples-through-file-management), or adapted through **Create/Edit**.
+
 ![Main Window Details](../img/main-window-details.png)
+
+The selected-profile Details panel includes a read-only saved-layout preview projected from the profile's stored display settings. The preview renders the stored coordinates and dimensions literally, so saved coordinate gaps remain visible even when Windows later normalizes the applied layout differently. The application does not reflow or repair the profile geometry for preview presentation.
 
 ---
 
@@ -106,6 +110,8 @@ A profile can be applied from several places:
 - the system tray menu;
 - the desktop context menu when the shell extension is enabled;
 - a configured global hotkey;
+- the Quick Switch overlay;
+- a managed Start Menu profile shortcut when that integration is enabled;
 - the command line.
 
 Double-clicking an already selected profile opens the profile editor.
@@ -114,9 +120,9 @@ Double-clicking an already selected profile opens the profile editor.
 
 ---
 
-## Importing a profile
+## Profile files
 
-Profiles are stored as `.dpm` files. Use **"Import"** in the main window to select a profile file.
+Profiles are stored as `.dpm` files.
 
 Profiles contain display identity information and are therefore hardware-specific. A profile from another machine can load, but it may not map cleanly to the current displays.
 

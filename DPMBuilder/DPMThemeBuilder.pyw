@@ -10,18 +10,19 @@ Requirements: Python 3.10+ with Tkinter (standard on Windows).
 Run as .pyw to suppress the console window on Windows.
 """
 
-import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
-import threading
-import urllib.request
-import json
-import re
-import os
+import base64
 import colorsys
 import ctypes
 from ctypes import wintypes
-import base64
-import datetime
+import hashlib
+import json
+import os
+import re
+import subprocess
+import threading
+import tkinter as tk
+from tkinter import ttk, filedialog, messagebox
+import urllib.request
 import winreg
 
 # ---------------------------------------------------------------------------
@@ -116,6 +117,16 @@ API_BRANCH = f"?ref={BRANCH}"
 
 SYSTEMS = ["base16", "base24"]
 
+# Palette slots consumed by extract_Colors
+PALETTE_SLOTS = (
+    "base00", "base01", "base02", "base03", "base04", "base05",
+    "base08", "base0B", "base0C", "base0D", "base0E", "base12", "base14",
+)
+
+SCHEME_LIST_VISIBLE_ROWS = 8
+SCHEME_GRID_WEIGHT = 1
+PREVIEW_GRID_WEIGHT = 4
+
 DEFAULT_SAVE_DIR = os.path.join(
     os.environ.get("APPDATA", os.path.expanduser("~")),
     "DisplayProfileManager", "Themes"
@@ -125,12 +136,18 @@ DEFAULT_SAVE_DIR = os.path.join(
 # Color helpers
 # ---------------------------------------------------------------------------
 
+_HEX_RGB_RE = re.compile(r"[0-9A-Fa-f]{6}")
+_XAML_COLOR_RE = re.compile(r"#[0-9A-F]{6}")
+
 def norm(h) -> str:
+    # Palette values become XAML attribute text, so anything other than 6-digit RGB hex is rejected
+    if isinstance(h, bool):
+        raise ValueError("Palette color must be 6-digit hex RGB.")
     if isinstance(h, int):
         h = str(h).zfill(6)
     h = str(h).strip().lstrip("#").strip()
-    if len(h) == 3:
-        h = "".join(c * 2 for c in h)
+    if not _HEX_RGB_RE.fullmatch(h):
+        raise ValueError("Palette color must be 6-digit hex RGB.")
     return "#" + h.upper()
 
 def hex_to_rgb(h: str):
@@ -208,6 +225,15 @@ def parse_yaml(text: str) -> dict:
             "This file does not appear to be a tinted-theming scheme. "
             "Expected keys like base00–base0F under a 'palette' block."
         )
+
+    for slot in PALETTE_SLOTS:
+        value = palette.get(slot)
+        if value is None:
+            continue
+        try:
+            norm(value)
+        except ValueError:
+            raise ValueError(f"Invalid {slot} color: expected 6-digit hex RGB.") from None
     return data
 
 
@@ -225,18 +251,20 @@ def _fallback_parse(text: str) -> dict:
         if re.match(r"^palette\s*:", stripped):
             in_palette = True; pending_key = None; continue
         if in_palette:
+            # Keep slot values verbatim; parse_yaml validates consumed slots for both parsers
             if pending_key:
-                val = stripped.strip('"\'').lstrip("#").strip()
-                if re.match(r"^[0-9A-Fa-f]{3,6}$", val):
-                    palette[pending_key] = val
-                pending_key = None
+                key, pending_key = pending_key, None
+                if not re.match(r"^[\w-]+\s*:", stripped):
+                    palette[key] = stripped.strip('"\'').lstrip("#").strip()
+                    continue
+            m = re.match(r"^\s+(base[0-9A-Fa-f]{2})\s*:\s*(.*?)\s*$", line)
+            if m:
+                value = m.group(2).strip('"\'').lstrip("#").strip()
+                if value:
+                    palette[m.group(1)] = value
+                else:
+                    pending_key = m.group(1)
                 continue
-            m = re.match(r"^\s+(base[0-9A-Fa-f]{2})\s*:\s*[\"']?([0-9A-Fa-f]{3,6})[\"']?\s*$", line)
-            if m: palette[m.group(1)] = m.group(2); continue
-            m2 = re.match(r"^\s+(base[0-9A-Fa-f]{2})\s*:\s*[\"']?#([0-9A-Fa-f]{3,6})[\"']?\s*$", line)
-            if m2: palette[m2.group(1)] = m2.group(2); continue
-            m3 = re.match(r"^\s+(base[0-9A-Fa-f]{2})\s*:\s*[\"']?\s*$", line)
-            if m3: pending_key = m3.group(1); continue
             if re.match(r"^\S", line) and ":" in line:
                 in_palette = False; pending_key = None
         if not in_palette:
@@ -286,6 +314,7 @@ def extract_Colors(scheme: dict, seamless: bool) -> dict:
     danger_hover  = lighten(bright_danger,  0.08) if is_dark else darken(bright_danger,  0.08)
     success_hover = lighten(bright_success, 0.08) if is_dark else darken(bright_success, 0.08)
     sec_btn_bg = blend(surf, bg, 0.3)
+    selected_hover = lighten(hover, 0.06) if is_dark else darken(hover, 0.06)
 
     return dict(
         bg=bg, surf=surf, border=border, comment=comment,
@@ -296,6 +325,7 @@ def extract_Colors(scheme: dict, seamless: bool) -> dict:
         shadow=shadow, btn_fg=btn_fg, btn_pressed=btn_pressed,
         danger_hover=danger_hover, success_hover=success_hover,
         sec_btn_bg=sec_btn_bg, sec_btn_fg=txt1,
+        selected_hover=selected_hover,
         default_tag=blend(accent, bg, 0.4),
         active_tag=blend(success, bg, 0.4),
         is_dark=is_dark,
@@ -307,11 +337,20 @@ def extract_Colors(scheme: dict, seamless: bool) -> dict:
 
 def build_xaml(scheme: dict, seamless: bool) -> str:
     co = extract_Colors(scheme, seamless)
+    # Every interpolated attribute value must remain a validated color literal
+    if any(key != "is_dark" and not _XAML_COLOR_RE.fullmatch(value) for key, value in co.items()):
+        raise ValueError("Theme colors must be 6-digit hex RGB.")
 
     name    = scheme.get("name",    "Unknown")
     author  = scheme.get("author",  "Unknown")
     system  = scheme.get("system",  "base16").upper()
     variant = scheme.get("variant", "dark")
+
+    def comment_text(value):
+        value = "".join(ch if (ord(ch) in (9, 10, 13) or 0x20 <= ord(ch) <= 0xD7FF or 0xE000 <= ord(ch) <= 0xFFFD or 0x10000 <= ord(ch) <= 0x10FFFF) else " " for ch in str(value))
+        return re.sub(r"(?<=-)(?=-)", " ", value)
+
+    name, author, system, variant = (comment_text(value) for value in (name, author, system, variant))
 
     def sr(key): return "{StaticResource " + key + "}"
 
@@ -351,6 +390,7 @@ def build_xaml(scheme: dict, seamless: bool) -> str:
         f'    <SolidColorBrush x:Key="CheckBoxBorderBrush" Color="{sr("BorderColor")}"/>',
         f'    <SolidColorBrush x:Key="WindowControlHoverBrush" Color="{sr("BorderColor")}"/>',
         f'    <SolidColorBrush x:Key="ListItemSelectedBackgroundBrush" Color="{sr("HoverColor")}"/>',
+        f'    <SolidColorBrush x:Key="ListItemSelectedHoverBackgroundBrush" Color="{co["selected_hover"]}"/>',
         '',
         '    <!-- Interaction States -->',
         f'    <SolidColorBrush x:Key="ControlHoverBackgroundBrush" Color="{sr("HoverColor")}"/>',
@@ -407,255 +447,562 @@ def build_xaml(scheme: dict, seamless: bool) -> str:
 # Preview canvas
 # ---------------------------------------------------------------------------
 
+def _preview_geometry(width: int, height: int) -> dict:
+    """Return direct-canvas geometry for the representative DPM preview."""
+    title_h = 32
+    margin = 16
+    status_h = 48
+    gap = 16
+    details_w = 326
+
+    content_x1 = margin
+    content_y1 = title_h + margin
+    content_x2 = width - margin
+    status_y1 = height - status_h
+    content_y2 = status_y1
+    details_x2 = content_x2
+    details_x1 = details_x2 - details_w
+    profiles_x1 = content_x1
+    profiles_x2 = details_x1 - gap
+
+    return dict(
+        width=width,
+        height=height,
+        title_h=title_h,
+        margin=margin,
+        status_h=status_h,
+        status_y1=status_y1,
+        gap=gap,
+        details_w=details_w,
+        content_x1=content_x1,
+        content_y1=content_y1,
+        content_x2=content_x2,
+        content_y2=content_y2,
+        details_x1=details_x1,
+        details_x2=details_x2,
+        profiles_x1=profiles_x1,
+        profiles_x2=profiles_x2,
+    )
+
+
+DESK_SAVED_LAYOUT = (
+    {"name": "Display 1", "x": 0, "y": 0, "width": 2560, "height": 1440},
+    {"name": "Display 2", "x": 2560, "y": 0, "width": 2560, "height": 1440},
+)
+
+TV_SAVED_LAYOUT = (
+    {"name": "Living Room TV", "x": 0, "y": 0, "width": 3840, "height": 2160},
+)
+
+def _project_saved_layout(footprints, viewport_width: float,
+                          viewport_height: float, inset: float):
+    """Uniformly fit logical display rectangles into a preview viewport."""
+    if not footprints or viewport_width <= 0 or viewport_height <= 0:
+        return []
+
+    min_x = min(item["x"] for item in footprints)
+    min_y = min(item["y"] for item in footprints)
+    max_x = max(item["x"] + item["width"] for item in footprints)
+    max_y = max(item["y"] + item["height"] for item in footprints)
+    logical_width = max_x - min_x
+    logical_height = max_y - min_y
+    safe_inset = max(0.0, inset)
+    usable_width = max(0.0, viewport_width - (2 * safe_inset))
+    usable_height = max(0.0, viewport_height - (2 * safe_inset))
+    if logical_width <= 0 or logical_height <= 0 or usable_width <= 0 or usable_height <= 0:
+        return []
+
+    scale = min(usable_width / logical_width, usable_height / logical_height)
+    origin_x = safe_inset + ((usable_width - logical_width * scale) / 2)
+    origin_y = safe_inset + ((usable_height - logical_height * scale) / 2)
+
+    return [
+        dict(
+            name=item["name"],
+            x=origin_x + ((item["x"] - min_x) * scale),
+            y=origin_y + ((item["y"] - min_y) * scale),
+            width=item["width"] * scale,
+            height=item["height"] * scale,
+        )
+        for item in footprints
+    ]
+
+
 def draw_preview(canvas: tk.Canvas, co: dict, dpm_img):
-    """
-    Draw an accurate replica of DPM MainWindow (900x600 reference).
-
-    Fixed elements: title bar 32px, status bar 64px, right panel 346px,
-    all buttons, icon, window controls.
-    Flexible: left panel fills remaining width.
-
-    Layout from MainWindow.xaml:
-      TitleBar 32px | StatusBar Padding=16 + btn 32px = 64px
-      Content Margin=16,16,16,0 | Panel gap=16px | Right panel=346px
-      Profile header MinHeight=56 Padding=16 | Item Padding=12,8
-      Buttons: Duplicate auto, Import 60px, Create 60px, Edit 60px, Delete 60px, Apply 32x
-      Status: RefreshBtn 32x32, OpenFolder 100px, Settings 70px
-      Panel CornerRadius=4 | Item CornerRadius=4 | Card CornerRadius=4
-    """
+    """Draw a representative approximation of the current DPM MainWindow."""
     canvas.delete("all")
-    W = canvas.winfo_width()
-    H = canvas.winfo_height()
-    if W < 20 or H < 20:
+    width = canvas.winfo_width()
+    height = canvas.winfo_height()
+    if width < 20 or height < 20:
         return
 
-    bg       = co["bg"]
-    surf     = co["surf"]
-    border   = co["border"]
-    txt1     = co["txt1"]
-    txt2     = co["txt2"]
-    comment  = co["comment"]
-    accent   = co["accent"]
-    danger   = co["bright_danger"]
-    success  = co["bright_success"]
-    sec_bg   = co["sec_btn_bg"]
-    btn_fg   = co["btn_fg"]
+    g = _preview_geometry(width, height)
+    if g["profiles_x2"] <= g["profiles_x1"] + 160:
+        return
+
+    bg = co["bg"]
+    surf = co["surf"]
+    border = co["border"]
+    details_border = co["comment"]
+    txt1 = co["txt1"]
+    txt2 = co["txt2"]
+    comment = co["comment"]
+    accent = co["accent"]
+    danger = co["bright_danger"]
+    success = co["bright_success"]
+    sec_bg = co["sec_btn_bg"]
+    btn_fg = co["btn_fg"]
     titlebar = co["titlebar"]
+    selected_hover = co["selected_hover"]
 
-    import datetime
-    now  = datetime.datetime.now()
-    today = now.strftime(f"%B {now.day}, %Y")
-    time_str = now.strftime(f"%B {now.day}, %Y at %I:%M %p").replace(" 0", " ")
+    header_h = 56
+    header_pad = 16
+    button_h = 34
+    button_r = 4
+    list_pad = 8
+    card_r = 4
+    row_pad_x = 12
+    row_pad_y = 8
+    visual_size = 32
+    visual_column = 44
+    apply_size = 32
+    details_inner_left = 16
+    details_inner_right = 17
 
-    # ── Fixed pixel constants from XAML ───────────────────────────────
-    TITLE_H  = 32
-    M        = 16
-    STATUS_H = 64
-    GAP      = 16
-    RIGHT_W  = 346
-    HDR_H    = 56
-    HDR_PAD  = 16
-    BTN_H    = 34
-    BTN_R    = 4
-    ITEM_PX  = 12
-    ITEM_PY  = 8
-    ITEM_MT  = 2
-    LIST_PAD = 8
-    SB_BTN_H = 32
-    CARD_R   = 4
-    CARD_PAD = 10
+    def font(size, weight="normal", family="Segoe UI"):
+        return (family, size, weight)
 
-    # ── Derived layout ─────────────────────────────────────────────────
-    content_x1 = M
-    content_y1 = TITLE_H + M
-    content_x2 = W - M
-    content_y2 = H - STATUS_H
-    right_x2   = content_x2
-    right_x1   = right_x2 - RIGHT_W
-    left_x1    = content_x1
-    left_x2    = right_x1 - GAP
-
-    NAME_H  = 16
-    DESC_MT = 2
-    DESC_H  = 15
-    INFO_MT = 4
-    INFO_H  = 14
-    ITEM_H  = ITEM_PY + NAME_H + DESC_MT + DESC_H + INFO_MT + INFO_H + ITEM_PY
-
-    # ── Helpers ────────────────────────────────────────────────────────
-    def rrect(x1, y1, x2, y2, r, fill, outline=""):
-        if r <= 0 or x2-x1 < 2*r or y2-y1 < 2*r:
-            canvas.create_rectangle(x1, y1, x2, y2, fill=fill,
-                                    outline=outline if outline else fill)
+    def rrect(x1, y1, x2, y2, radius, fill, outline="", tags=()):
+        if radius <= 0 or x2 - x1 < 2 * radius or y2 - y1 < 2 * radius:
+            canvas.create_rectangle(
+                x1, y1, x2, y2,
+                fill=fill,
+                outline=outline if outline else fill,
+                tags=tags,
+            )
             return
-        canvas.create_rectangle(x1+r, y1,   x2-r, y2,   fill=fill, outline="")
-        canvas.create_rectangle(x1,   y1+r, x2,   y2-r, fill=fill, outline="")
-        canvas.create_oval(x1,     y1,     x1+2*r, y1+2*r, fill=fill, outline="")
-        canvas.create_oval(x2-2*r, y1,     x2,     y1+2*r, fill=fill, outline="")
-        canvas.create_oval(x1,     y2-2*r, x1+2*r, y2,     fill=fill, outline="")
-        canvas.create_oval(x2-2*r, y2-2*r, x2,     y2,     fill=fill, outline="")
+        canvas.create_rectangle(x1 + radius, y1, x2 - radius, y2, fill=fill, outline="", tags=tags)
+        canvas.create_rectangle(x1, y1 + radius, x2, y2 - radius, fill=fill, outline="", tags=tags)
+        canvas.create_oval(x1, y1, x1 + 2 * radius, y1 + 2 * radius, fill=fill, outline="", tags=tags)
+        canvas.create_oval(x2 - 2 * radius, y1, x2, y1 + 2 * radius, fill=fill, outline="", tags=tags)
+        canvas.create_oval(x1, y2 - 2 * radius, x1 + 2 * radius, y2, fill=fill, outline="", tags=tags)
+        canvas.create_oval(x2 - 2 * radius, y2 - 2 * radius, x2, y2, fill=fill, outline="", tags=tags)
         if outline:
-            canvas.create_rectangle(x1+r, y1,   x2-r, y1+1, fill=outline, outline="")
-            canvas.create_rectangle(x1+r, y2-1, x2-r, y2,   fill=outline, outline="")
-            canvas.create_rectangle(x1,   y1+r, x1+1, y2-r, fill=outline, outline="")
-            canvas.create_rectangle(x2-1, y1+r, x2,   y2-r, fill=outline, outline="")
+            canvas.create_rectangle(x1 + radius, y1, x2 - radius, y1 + 1, fill=outline, outline="", tags=tags)
+            canvas.create_rectangle(x1 + radius, y2 - 1, x2 - radius, y2, fill=outline, outline="", tags=tags)
+            canvas.create_rectangle(x1, y1 + radius, x1 + 1, y2 - radius, fill=outline, outline="", tags=tags)
+            canvas.create_rectangle(x2 - 1, y1 + radius, x2, y2 - radius, fill=outline, outline="", tags=tags)
 
-    def btn(x1, y1, x2, y2, text, bg_c, fg_c, fsize=10, font_family="Segoe UI"):
-        rrect(x1, y1, x2, y2, BTN_R, bg_c)
-        canvas.create_text((x1+x2)//2, (y1+y2)//2,
-                           text=text, fill=fg_c,
-                           font=(font_family, fsize, "bold"))
+    def button(x1, y1, x2, y2, text, bg_color, fg_color, family="Segoe UI"):
+        rrect(x1, y1, x2, y2, button_r, bg_color)
+        canvas.create_text(
+            (x1 + x2) / 2,
+            (y1 + y2) / 2,
+            text=text,
+            fill=fg_color,
+            font=font(10, "bold", family),
+        )
 
-    canvas.create_rectangle(0, 0, W, H, fill=bg, outline="")
-    canvas.create_rectangle(0, 0, W, TITLE_H, fill=titlebar, outline="")
-    tx = 12
+    def draw_layout(footprints, x1, y1, viewport_width, viewport_height, inset,
+                    fill_color, outline_color=None, show_names=False):
+        projection = _project_saved_layout(
+            footprints, viewport_width, viewport_height, inset
+        )
+        for footprint in projection:
+            fx1 = x1 + footprint["x"]
+            fy1 = y1 + footprint["y"]
+            fx2 = fx1 + footprint["width"]
+            fy2 = fy1 + footprint["height"]
+            rrect(
+                fx1, fy1, fx2, fy2,
+                2 if show_names else 1.5,
+                fill_color,
+                outline_color or "",
+            )
+            if show_names and footprint["width"] >= 48 and footprint["height"] >= 24:
+                canvas.create_text(
+                    (fx1 + fx2) / 2,
+                    (fy1 + fy2) / 2,
+                    text=footprint["name"],
+                    fill=txt1,
+                    font=font(8, "bold"),
+                )
+        return projection
+
+    def draw_profile_row(y1, name, description, display_count, footprints, selected=False,
+                         hotkey_text=None, default_badge=False, active_badge=False,
+                         show_apply=False):
+        x1 = g["profiles_x1"] + list_pad
+        x2 = g["profiles_x2"] - list_pad
+        row_h = 76
+        y2 = y1 + row_h
+        fill = selected_hover if selected else surf
+        outline = accent if selected else border
+        rrect(x1, y1, x2, y2, card_r, fill, outline)
+
+        visual_x1 = x1 + row_pad_x
+        visual_y1 = y1 + (row_h - visual_size) / 2
+        draw_layout(
+            footprints,
+            visual_x1,
+            visual_y1,
+            visual_size,
+            visual_size,
+            max(1.0, visual_size * 0.08),
+            txt1,
+        )
+
+        text_x = x1 + row_pad_x + visual_column
+        canvas.create_text(
+            text_x, y1 + row_pad_y,
+            text=name, fill=txt1, font=font(11, "bold"), anchor="nw",
+        )
+
+        badge_x = text_x + max(52, len(name) * 7.8) + 10
+        if default_badge:
+            canvas.create_text(
+                badge_x, y1 + row_pad_y + 2,
+                text="Default", fill=accent, font=font(8, "bold"), anchor="nw",
+            )
+            badge_x += 48
+        if active_badge:
+            canvas.create_text(
+                badge_x, y1 + row_pad_y + 2,
+                text="Active", fill=success, font=font(8, "bold"), anchor="nw",
+            )
+
+        description_y = y1 + row_pad_y + 21
+        canvas.create_text(
+            text_x, description_y,
+            text=description, fill=txt2, font=font(9), anchor="nw",
+        )
+
+        metadata_y = y1 + row_pad_y + 43
+        canvas.create_text(
+            text_x, metadata_y,
+            text=display_count,
+            fill=comment,
+            font=font(8),
+            anchor="nw",
+        )
+        if hotkey_text:
+            canvas.create_text(
+                text_x + 45, metadata_y,
+                text=" • ",
+                fill=comment,
+                font=font(8),
+                anchor="nw",
+            )
+            canvas.create_text(
+                text_x + 56, metadata_y,
+                text=hotkey_text,
+                fill=success,
+                font=font(8, "bold"),
+                anchor="nw",
+            )
+
+        if show_apply:
+            apply_x2 = x2 - row_pad_x
+            apply_x1 = apply_x2 - apply_size
+            apply_y1 = y1 + (row_h - apply_size) / 2
+            button(
+                apply_x1, apply_y1, apply_x2, apply_y1 + apply_size,
+                "\ue751", accent, btn_fg, family="Segoe MDL2 Assets",
+            )
+        return y2
+
+    def draw_display_card(y1, name, resolution, dpi, primary=False, hdr=False):
+        card_h = 116 if hdr and primary else 112 if primary else 94
+        y2 = y1 + card_h
+        if y1 >= g["content_y2"] or y2 > g["content_y2"]:
+            return y2
+
+        rrect(
+            details_left, y1, details_right, y2,
+            card_r, surf, details_border,
+        )
+        line_y = y1 + 8
+        canvas.create_text(
+            details_left + 8, line_y,
+            text=name, fill=txt1, font=font(10, "bold"), anchor="nw",
+        )
+        line_y += 22
+        canvas.create_text(
+            details_left + 8, line_y,
+            text=f"Resolution: {resolution}",
+            fill=txt2, font=font(9), anchor="nw",
+        )
+        line_y += 20
+        if hdr:
+            canvas.create_text(
+                details_left + 8, line_y,
+                text="HDR: On", fill=txt2, font=font(9), anchor="nw",
+            )
+            line_y += 20
+        canvas.create_text(
+            details_left + 8, line_y,
+            text=f"DPI: {dpi}",
+            fill=txt2, font=font(9), anchor="nw",
+        )
+        line_y += 23
+        if primary:
+            canvas.create_text(
+                details_left + 8, line_y,
+                text="Primary Display",
+                fill=accent, font=font(8, "bold"), anchor="nw",
+            )
+        return y2
+
+    canvas.create_rectangle(0, 0, width, height, fill=bg, outline="", tags=("root",))
+    canvas.create_rectangle(0, 0, width, g["title_h"], fill=titlebar, outline="", tags=("title",))
+
+    title_x = 12
     if dpm_img:
-        canvas.create_image(tx, TITLE_H//2, image=dpm_img, anchor="w")
-        tx += 24
-    canvas.create_text(tx, TITLE_H//2, text="Display Profile Manager",
-                       fill=txt2, font=("Segoe UI", 11), anchor="w")
-    for i, sym in enumerate(["−", "□", "✕"]):
-        bx1 = W - (3-i) * 46
-        canvas.create_rectangle(bx1, 0, bx1+45, TITLE_H, fill=titlebar, outline="")
-        canvas.create_text(bx1+22, TITLE_H//2, text=sym,
-                           fill=txt2, font=("Segoe UI", 11))
+        canvas.create_image(title_x, g["title_h"] / 2, image=dpm_img, anchor="w")
+        title_x += 24
+    canvas.create_text(
+        title_x,
+        g["title_h"] / 2,
+        text="Display Profile Manager",
+        fill=txt2,
+        font=font(9),
+        anchor="w",
+    )
+    for index, symbol in enumerate(["−", "□", "✕"]):
+        x1 = width - (3 - index) * 46
+        canvas.create_text(x1 + 23, g["title_h"] / 2, text=symbol, fill=txt2, font=font(9))
 
-    # ── Left panel ────────────────────────────────────────────────────
-    if left_x2 > left_x1 + 10:
-        rrect(left_x1, content_y1, left_x2, content_y2, BTN_R, surf, border)
+    rrect(
+        g["profiles_x1"], g["content_y1"],
+        g["profiles_x2"], g["content_y2"],
+        button_r, surf, border,
+    )
+    profiles_header_y2 = g["content_y1"] + header_h
+    canvas.create_text(
+        g["profiles_x1"] + header_pad,
+        g["content_y1"] + header_h / 2,
+        text="Profiles",
+        fill=txt1,
+        font=font(18, "bold"),
+        anchor="w",
+    )
 
-        prof_hdr_y2 = content_y1 + HDR_H
-        canvas.create_text(left_x1 + HDR_PAD, content_y1 + HDR_H//2,
-                           text="Profiles", fill=txt1,
-                           font=("Segoe UI", 16, "bold"), anchor="w")
+    button_y1 = g["content_y1"] + (header_h - button_h) / 2
+    button_y2 = button_y1 + button_h
+    create_x2 = g["profiles_x2"] - header_pad
+    button(create_x2 - 60, button_y1, create_x2, button_y2, "Create", accent, btn_fg)
+    button(create_x2 - 144, button_y1, create_x2 - 68, button_y2, "Duplicate", sec_bg, txt1)
 
-        b_y1      = content_y1 + (HDR_H - BTN_H) // 2
-        b_y2      = b_y1 + BTN_H
-        create_x2 = left_x2 - HDR_PAD
-        btn(create_x2 - 60, b_y1, create_x2, b_y2, "Create", accent, btn_fg)
-        btn(create_x2 - 128, b_y1, create_x2 - 68, b_y2, "Import", sec_bg, txt1)
-        btn(create_x2 - 212, b_y1, create_x2 - 136, b_y2, "Duplicate", sec_bg, txt1)
+    row_y = profiles_header_y2 + list_pad
+    row_y = draw_profile_row(
+        row_y,
+        "Desk Setup",
+        "Dual-monitor layout for everyday desktop use.",
+        "2 displays",
+        DESK_SAVED_LAYOUT,
+        default_badge=True,
+    )
+    draw_profile_row(
+        row_y + 6,
+        "TV Setup",
+        "4K HDR layout for games and media.",
+        "1 display",
+        TV_SAVED_LAYOUT,
+        selected=True,
+        hotkey_text="Ctrl + Alt + T",
+        active_badge=True,
+        show_apply=True,
+    )
 
-        ix1 = left_x1 + LIST_PAD
-        ix2 = left_x2 - LIST_PAD
-        iy1 = prof_hdr_y2 + LIST_PAD
-        iy2 = iy1 + ITEM_H
+    rrect(
+        g["details_x1"], g["content_y1"],
+        g["details_x2"], g["content_y2"],
+        button_r, surf, border,
+    )
+    details_header_y2 = g["content_y1"] + header_h
+    canvas.create_text(
+        g["details_x1"] + header_pad,
+        g["content_y1"] + header_h / 2,
+        text="Details",
+        fill=txt1,
+        font=font(18, "bold"),
+        anchor="w",
+    )
 
-        if iy2 <= content_y2 - LIST_PAD:
-            rrect(ix1, iy1, ix2, iy2, CARD_R, sec_bg, comment)
+    delete_x2 = g["details_x2"] - header_pad
+    button(delete_x2 - 60, button_y1, delete_x2, button_y2, "Delete", danger, btn_fg)
+    button(delete_x2 - 128, button_y1, delete_x2 - 68, button_y2, "Edit", sec_bg, txt1)
 
-            itx = ix1 + ITEM_PX
-            ity = iy1 + ITEM_PY
+    details_left = g["details_x1"] + details_inner_left
+    details_right = g["details_x2"] - details_inner_right
+    y = details_header_y2 + 8
+    canvas.create_text(
+        details_left, y,
+        text="TV Setup", fill=txt1, font=font(12, "bold"), anchor="nw",
+    )
 
-            canvas.create_text(itx, ity, text="Default", fill=txt1,
-                               font=("Segoe UI", 11, "bold"), anchor="nw")
-            tag1_x = itx + (len("Default") * 7) + 10
-            canvas.create_text(tag1_x, ity + 1, text="Default", fill=accent,
-                               font=("Segoe UI", 10, "bold"), anchor="nw")
-            tag2_x = tag1_x + (len("Default") * 7) + 4
-            canvas.create_text(tag2_x, ity + 1, text="Active", fill=success,
-                               font=("Segoe UI", 10, "bold"), anchor="nw")
+    description_y = y + 26
+    canvas.create_text(
+        details_left, description_y,
+        text="4K HDR layout for games and media.",
+        fill=txt2, font=font(9), anchor="nw",
+    )
 
-            # Apply button (MDL2 Asset icon)
-            apply_btn_size = 32
-            apply_x2 = ix2 - ITEM_PX
-            apply_x1 = apply_x2 - apply_btn_size
-            apply_y1 = iy1 + (ITEM_H - apply_btn_size) // 2
-            apply_y2 = apply_y1 + apply_btn_size
-            btn(apply_x1, apply_y1, apply_x2, apply_y2, "\ue751", accent, btn_fg, fsize=13, font_family="Segoe MDL2 Assets")
+    y = description_y + 38
+    canvas.create_text(
+        details_left, y,
+        text="Displays", fill=txt1, font=font(10, "bold"), anchor="nw",
+    )
+    y += 23
 
-            ity += NAME_H + DESC_MT
-            canvas.create_text(itx, ity,
-                               text="Default system profile created automatically",
-                               fill=txt2, font=("Segoe UI", 10), anchor="nw")
+    saved_layout_y1 = y
+    saved_layout_y2 = saved_layout_y1 + 168
+    rrect(
+        details_left, saved_layout_y1, details_right, saved_layout_y2,
+        card_r, surf, details_border,
+    )
+    layout_width = details_right - details_left
+    layout_height = saved_layout_y2 - saved_layout_y1
+    draw_layout(
+        TV_SAVED_LAYOUT,
+        details_left,
+        saved_layout_y1,
+        layout_width,
+        layout_height,
+        12,
+        surf,
+        details_border,
+        show_names=True,
+    )
 
-            ity += DESC_H + INFO_MT
-            canvas.create_text(itx, ity,
-                               text=f"1 display",
-                               fill=comment, font=("Segoe UI", 10), anchor="nw")
+    y = saved_layout_y2 + 12
+    y = draw_display_card(
+        y,
+        "Living Room TV",
+        "3840x2160 • 120Hz",
+        "150%",
+        primary=True,
+        hdr=True,
+    )
 
-    # ── Right panel (Details) ─────────────────────────────────────────
-    if right_x1 < right_x2 - 10:
-        rrect(right_x1, content_y1, right_x2, content_y2, BTN_R, surf, border)
+    audio_y = y + 16
+    audio_rendered = False
+    if audio_y + 42 <= g["content_y2"]:
+        canvas.create_text(
+            details_left, audio_y,
+            text="Audio", fill=txt1, font=font(10, "bold"), anchor="nw",
+        )
+        canvas.create_text(
+            details_left, audio_y + 22,
+            text="Output: TV Speakers", fill=txt2, font=font(9), anchor="nw",
+        )
+        y = audio_y + 42
+        audio_rendered = True
 
-        det_hdr_y2 = content_y1 + HDR_H
-        canvas.create_text(right_x1 + HDR_PAD, content_y1 + HDR_H//2,
-                           text="Details", fill=txt1,
-                           font=("Segoe UI", 16, "bold"), anchor="w")
+    hotkey_y = y + 16
+    hotkey_rendered = False
+    if audio_rendered and hotkey_y + 62 <= g["content_y2"]:
+        canvas.create_text(
+            details_left, hotkey_y,
+            text="Hotkey:", fill=txt1, font=font(10, "bold"), anchor="nw",
+        )
+        canvas.create_text(
+            details_left, hotkey_y + 22,
+            text="Ctrl + Alt + T", fill=txt2, font=font(9), anchor="nw",
+        )
+        canvas.create_text(
+            details_left, hotkey_y + 42,
+            text="Enabled", fill=success, font=font(9, "bold"), anchor="nw",
+        )
+        y = hotkey_y + 62
+        hotkey_rendered = True
 
-        db_y1   = content_y1 + (HDR_H - BTN_H) // 2
-        db_y2   = db_y1 + BTN_H
-        del_x2  = right_x2 - HDR_PAD
-        btn(del_x2 - 60,  db_y1, del_x2,  db_y2, "Delete", danger, btn_fg)
-        btn(del_x2 - 128, db_y1, del_x2 - 68, db_y2, "Edit", sec_bg, txt1)
+    meta_y = y + 16
+    if hotkey_rendered and meta_y + 38 <= g["content_y2"]:
+        canvas.create_text(
+            details_left, meta_y,
+            text="Created: Oct 1, 2026 at 12:00 AM",
+            fill=comment, font=font(8), anchor="nw",
+        )
+        canvas.create_text(
+            details_left, meta_y + 18,
+            text="Last Modified: Oct 1, 2026 at 12:00 AM",
+            fill=comment, font=font(8), anchor="nw",
+        )
 
-        dcx  = right_x1 + HDR_PAD
-        dcy  = det_hdr_y2 + 12
-        dcx2 = right_x2 - HDR_PAD
+    canvas.create_rectangle(
+        0, g["status_y1"], width, height,
+        fill=bg, outline="", tags=("status",),
+    )
+    status_mid = g["status_y1"] + g["status_h"] / 2
+    rrect(16, status_mid - 16, 48, status_mid + 16, button_r, sec_bg)
+    canvas.create_text(
+        32, status_mid,
+        text="\ue72c", fill=txt1, font=font(10, family="Segoe MDL2 Assets"),
+    )
+    canvas.create_text(
+        56, status_mid,
+        text="Ready", fill=comment, font=font(9), anchor="w",
+    )
+    button(
+        width - 86, status_mid - 16, width - 16, status_mid + 16,
+        "Settings", accent, btn_fg,
+    )
+    button(
+        width - 194, status_mid - 16, width - 94, status_mid + 16,
+        "Open Folder", sec_bg, txt1,
+    )
 
-        canvas.create_text(dcx, dcy, text="Default", fill=txt1,
-                           font=("Segoe UI", 13, "bold"), anchor="nw")
-        dcy += 20
-        canvas.create_text(dcx, dcy, text="Default system profile created automatically",
-                           fill=txt2, font=("Segoe UI", 10), anchor="nw")
-        dcy += 30
-        canvas.create_text(dcx, dcy, text="Displays",
-                           fill=txt1, font=("Segoe UI", 11, "bold"), anchor="nw")
-        dcy += 20
 
-        # Monitor card
-        mon_card_x1, mon_card_x2 = dcx, dcx2
-        mon_card_y1, mon_card_h = dcy, 105
-        mon_card_y2 = mon_card_y1 + mon_card_h
+# ---------------------------------------------------------------------------
+# Async request ownership and file output
+# ---------------------------------------------------------------------------
 
-        rrect(mon_card_x1, mon_card_y1, mon_card_x2, mon_card_y2, CARD_R, surf, border)
+class RequestGate:
+    def __init__(self):
+        self._generation = 0
+        self._owner: str | None = None
 
-        mcy, mcx = mon_card_y1 + CARD_PAD, mon_card_x1 + CARD_PAD
-        canvas.create_text(mcx, mcy, text="Generic Display",
-                           fill=txt1, font=("Segoe UI", 11, "bold"), anchor="nw")
-        mcy += 17
-        canvas.create_text(mcx, mcy, text="Resolution: 1920x1080 @ 60Hz",
-                           fill=txt2, font=("Segoe UI", 10), anchor="nw")
-        mcy += 17
-        canvas.create_text(mcx, mcy, text="Rotation: 0°",
-                           fill=txt2, font=("Segoe UI", 10), anchor="nw")
-        mcy += 16
-        canvas.create_text(mcx, mcy, text="DPI: 100%",
-                           fill=txt2, font=("Segoe UI", 10), anchor="nw")
-        mcy += 15
-        canvas.create_text(mcx, mcy, text="Primary Display",
-                           fill=accent, font=("Segoe UI", 10), anchor="nw")
+    def begin(self, owner: str | None = None) -> tuple[int, str | None]:
+        self._generation += 1
+        self._owner = owner
+        return self._generation, owner
 
-        dcy = mon_card_y2 + 16
-        canvas.create_text(dcx, dcy, text="Audio",
-                           fill=txt1, font=("Segoe UI", 11, "bold"), anchor="nw")
-        dcy += 17
-        canvas.create_text(dcx, dcy, text="Output: Default Device (Not Applied)",
-                           fill=txt2, font=("Segoe UI", 10), anchor="nw")
-        dcy += 15
-        canvas.create_text(dcx, dcy, text="Input: Default Device (Not Applied)",
-                           fill=txt2, font=("Segoe UI", 10), anchor="nw")
-        dcy += 30
-        canvas.create_text(dcx, dcy, text=f"Created: {time_str}",
-                           fill=comment, font=("Segoe UI", 9), anchor="nw")
-        dcy += 14
-        canvas.create_text(dcx, dcy, text=f"Last Modified: {time_str}",
-                           fill=comment, font=("Segoe UI", 9), anchor="nw")
+    def invalidate(self):
+        self.begin()
 
-    # ── Status bar ────────────────────────────────────────────────────
-    sb_y1 = H - STATUS_H
-    canvas.create_line(0, sb_y1, W, sb_y1, fill=border)
-    canvas.create_rectangle(0, sb_y1, W, H, fill=bg, outline="")
-    sb_mid = sb_y1 + STATUS_H // 2
+    def owns(self, request: tuple[int, str | None]) -> bool:
+        return request == (self._generation, self._owner)
 
-    ref_x1, ref_x2 = 16, 16 + SB_BTN_H
-    rrect(ref_x1, sb_mid - SB_BTN_H//2, ref_x2, sb_mid + SB_BTN_H//2, BTN_R, sec_bg)
-    canvas.create_text((ref_x1+ref_x2)//2, sb_mid, text="\ue72c", fill=txt1, font=("Segoe MDL2 Assets", 12))
-    canvas.create_text(ref_x2 + 8, sb_mid, text="Ready", fill=comment, font=("Segoe UI", 11), anchor="w")
 
-    settings_x2 = W - 16
-    btn(settings_x2 - 70, sb_mid - SB_BTN_H//2, settings_x2, sb_mid + SB_BTN_H//2, "Settings", accent, btn_fg)
-    btn(settings_x2 - 178, sb_mid - SB_BTN_H//2, settings_x2 - 78, sb_mid + SB_BTN_H//2, "Open Folder", sec_bg, txt1)
+MAX_THEME_FILE_BYTES = 1024 * 1024
+
+
+def write_theme_file(path: str, content: str):
+    with open(path, "w", encoding="utf-8") as stream:
+        stream.write(content)
+
+
+def _theme_path_key(path: str) -> str:
+    return os.path.normcase(os.path.abspath(path))
+
+
+def remember_builder_theme_write(writes: dict, path: str, content: str):
+    # Mirrors write_theme_file's text-mode newline translation
+    data = content.replace("\n", os.linesep).encode("utf-8")
+    writes[_theme_path_key(path)] = hashlib.sha256(data).hexdigest()
+
+
+def is_builder_theme_write(writes: dict, path: str) -> bool:
+    expected = writes.get(_theme_path_key(path))
+    if expected is None:
+        return False
+    try:
+        with open(path, "rb") as stream:
+            data = stream.read(MAX_THEME_FILE_BYTES + 1)
+    except OSError:
+        return False
+    return len(data) <= MAX_THEME_FILE_BYTES and hashlib.sha256(data).hexdigest() == expected
 
 
 # ---------------------------------------------------------------------------
@@ -752,6 +1099,10 @@ class App(tk.Tk):
         self._display_keys:  list[str]       = []
         self._current_xaml:  str             = ""
         self._current_scheme: dict           = {}
+        self._current_scheme_authoritative   = False
+        self._list_requests                  = RequestGate()
+        self._selection_requests             = RequestGate()
+        self._builder_theme_writes: dict[str, str] = {}
         self._token    = tk.StringVar()
         self._seamless = tk.BooleanVar(value=True)
 
@@ -796,8 +1147,8 @@ class App(tk.Tk):
 
     def _build_ui(self):
         self.columnconfigure(0, weight=1)
-        self.rowconfigure(2, weight=1)
-        self.rowconfigure(3, weight=3)
+        self.rowconfigure(2, weight=SCHEME_GRID_WEIGHT)
+        self.rowconfigure(3, weight=PREVIEW_GRID_WEIGHT)
 
         # ── Row 0: GitHub token ──────────────────────────
         tok = ttk.Frame(self, padding=(8, 8, 8, 2))
@@ -810,7 +1161,12 @@ class App(tk.Tk):
 
         token_entry = ttk.Entry(tok, textvariable=self._token, show="*")
         token_entry.grid(row=0, column=1, sticky="ew", padx=(8, 0))
+        token_entry.bind("<Return>", lambda _: self._load_scheme_list())
         Tooltip(token_entry, TOKEN_TOOLTIP)
+
+        reload_btn = ttk.Button(tok, text="Reload schemes",
+                                command=self._load_scheme_list)
+        reload_btn.grid(row=0, column=2, padx=(8, 0))
 
         # ── Row 1: System | Search ──────────────────────────
         filt = ttk.Frame(self, padding=(8, 2, 8, 4))
@@ -843,7 +1199,7 @@ class App(tk.Tk):
 
         self._listbox = tk.Listbox(
             list_surface,
-            height=15,
+            height=SCHEME_LIST_VISIBLE_ROWS,
             activestyle="dotbox",
             selectmode=tk.SINGLE,
             font=("Consolas", 9),
@@ -920,8 +1276,12 @@ class App(tk.Tk):
     # ── Seamless / preview ────────────────────────────────────────────────
 
     def _on_seamless_change(self):
-        if self._current_scheme:
-            self._refresh_output(self._current_scheme)
+        if not self._current_scheme:
+            return
+        if not self._current_scheme_authoritative:
+            self._redraw_preview()
+            return
+        self._refresh_output(self._current_scheme)
 
     def _on_canvas_resize(self, _=None):
         self._redraw_preview()
@@ -938,44 +1298,52 @@ class App(tk.Tk):
     # ── Scheme list ───────────────────────────────────────────────────────
 
     def _load_scheme_list(self):
+        request = self._list_requests.begin()
+        self._selection_requests.invalidate()
+        token = self._token.get()
         self._status.set("Fetching scheme list from GitHub…")
         self._listbox.delete(0, tk.END)
         self._schemes.clear()
-        self._current_xaml    = ""
-        self._current_scheme  = {}
+        self._current_xaml = ""
+        self._current_scheme = {}
+        self._current_scheme_authoritative = False
         self._btn_save.configure(state=tk.DISABLED)
         self._set_xaml_text("")
-        threading.Thread(target=self._fetch_list_thread, daemon=True).start()
+        self._canvas.delete("all")
+        threading.Thread(target=self._fetch_list_thread,
+                         args=(request, token), daemon=True).start()
 
-    def _fetch_list_thread(self):
+    def _fetch_list_thread(self, request: tuple[int, str | None], token: str):
         schemes: dict[str, dict] = {}
-        errors:  list[str]       = []
+        errors: list[str] = []
         for system in SYSTEMS:
             try:
-                entries = github_api_get(system, self._token.get())
+                entries = github_api_get(system, token)
                 for entry in entries:
                     if entry.get("type") == "file" and entry["name"].endswith(".yaml"):
                         slug = entry["name"][:-5]
-                        key  = f"{system}/{slug}"
+                        key = f"{system}/{slug}"
                         schemes[key] = {
                             "system": system,
-                            "slug":   slug,
-                            "name":   slug.replace("-", " ").title(),
-                            "path":   f"{system}/{entry['name']}",
+                            "slug": slug,
+                            "name": slug.replace("-", " ").title(),
+                            "path": f"{system}/{entry['name']}",
                         }
             except Exception as exc:
-                # One system failing should not prevent the other from loading
                 errors.append(f"{system}: {exc}")
-        self._schemes = schemes
-        self.after(0, self._populate_list, errors)
+        self.after(0, self._populate_list, request, schemes, errors)
 
-    def _populate_list(self, errors: list[str]):
-        if errors and not self._schemes:
+    def _populate_list(self, request: tuple[int, str | None],
+                       schemes: dict[str, dict], errors: list[str]):
+        if not self._list_requests.owns(request):
+            return
+        self._schemes = schemes
+        if errors and not schemes:
             self._status.set("Failed to load — " + "; ".join(errors))
         elif errors:
-            self._status.set(f"Loaded {len(self._schemes)} schemes (partial: {'; '.join(errors)})")
+            self._status.set(f"Loaded {len(schemes)} schemes (partial: {'; '.join(errors)})")
         else:
-            self._status.set(f"Loaded {len(self._schemes)} schemes.")
+            self._status.set(f"Loaded {len(schemes)} schemes.")
         self._filter_list()
 
     def _filter_list(self):
@@ -997,37 +1365,59 @@ class App(tk.Tk):
         sel = self._listbox.curselection()
         if not sel:
             return
-        meta = self._schemes[self._display_keys[sel[0]]]
+        key = self._display_keys[sel[0]]
+        meta = self._schemes[key]
+        request = self._selection_requests.begin(key)
+        token = self._token.get()
+        self._current_xaml = ""
+        self._current_scheme_authoritative = False
+        self._btn_save.configure(state=tk.DISABLED)
+        self._set_xaml_text("")
         self._status.set(f"Fetching {meta['path']}…")
         threading.Thread(target=self._fetch_and_convert,
-                         args=(meta,), daemon=True).start()
+                         args=(meta, token, request), daemon=True).start()
 
-    def _fetch_and_convert(self, meta: dict):
+    def _fetch_and_convert(self, meta: dict, token: str,
+                           request: tuple[int, str | None]):
         try:
-            raw    = fetch_raw(meta["path"], self._token.get())
+            raw = fetch_raw(meta["path"], token)
             scheme = parse_yaml(raw)
-            scheme.setdefault("name",   meta["name"])
+            scheme.setdefault("name", meta["name"])
             scheme.setdefault("system", meta["system"])
             label = (f"Converted: {scheme.get('name', meta['slug'])}"
                      f" ({scheme.get('system', meta['system'])})")
-            self.after(0, self._refresh_output, scheme, label)
+            self.after(0, self._complete_selection, request, scheme, label)
         except Exception as exc:
-            self.after(0, self._status.set, f"Error: {exc}")
+            self.after(0, self._selection_error, request, f"Error: {exc}")
+
+    def _complete_selection(self, request: tuple[int, str | None],
+                            scheme: dict, label: str):
+        if self._selection_requests.owns(request):
+            self._refresh_output(scheme, label)
+
+    def _selection_error(self, request: tuple[int, str | None], message: str):
+        if self._selection_requests.owns(request):
+            self._status.set(message)
 
     def _refresh_output(self, scheme: dict, status: str = ""):
-        """Update XAML text, preview canvas, and enable save — in that order."""
-        self._current_scheme = scheme
+        """Update XAML text, preview canvas, and Save authority together."""
         seamless = self._seamless.get()
 
-        # Generate XAML first — this must always succeed for Save to be available
         try:
             xaml = build_xaml(scheme, seamless)
-            self._current_xaml = xaml
-            self._set_xaml_text(xaml)
-            self._btn_save.configure(state=tk.NORMAL)
         except Exception as exc:
+            self._current_xaml = ""
+            self._current_scheme_authoritative = False
+            self._btn_save.configure(state=tk.DISABLED)
+            self._set_xaml_text("")
             self._status.set(f"XAML generation error: {exc}")
             return
+
+        self._current_scheme = scheme
+        self._current_scheme_authoritative = True
+        self._current_xaml = xaml
+        self._set_xaml_text(xaml)
+        self._btn_save.configure(state=tk.NORMAL)
 
         # Preview is best-effort — a failure here never blocks save
         self._redraw_preview()
@@ -1120,7 +1510,7 @@ class App(tk.Tk):
                     )
 
                     if action in interesting_actions and name.lower().endswith(".xaml"):
-                        self.after(0, self._apply_to_dpm, os.path.join(DEFAULT_SAVE_DIR, name))
+                        self.after(0, self._on_theme_file_changed, os.path.join(DEFAULT_SAVE_DIR, name))
 
                     if next_offset == 0:
                         break
@@ -1128,9 +1518,15 @@ class App(tk.Tk):
         finally:
             kernel32.CloseHandle(handle)
 
+    def _on_theme_file_changed(self, path: str):
+        # Other processes can drop arbitrary XAML here; only unchanged Builder output is applied
+        if is_builder_theme_write(self._builder_theme_writes, path):
+            self._apply_to_dpm(path)
+        else:
+            self._status.set(f"Detected \u2192 {os.path.basename(path)} (not applied: not saved by Theme Builder)")
+
     def _apply_to_dpm(self, saved_path: str):
         """Signals DPM to apply the theme or refresh the list."""
-        import subprocess
 
         dpm_exe = self._find_dpm_exe()
         if not dpm_exe:
@@ -1166,6 +1562,7 @@ class App(tk.Tk):
         script_dir = os.path.dirname(os.path.abspath(__file__))
         candidates = [
             os.path.join(prog_files, "Display Profile Manager", exe_name),
+            os.path.join(local_app,  "Programs", "Display Profile Manager", exe_name),
             os.path.join(local_app,  "Programs", "DisplayProfileManager", exe_name),
             os.path.join(local_app,  "DisplayProfileManager", exe_name),
             os.path.join(script_dir, exe_name),
@@ -1201,9 +1598,13 @@ class App(tk.Tk):
         if not path:
             return
 
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(self._current_xaml)
+        try:
+            write_theme_file(path, self._current_xaml)
+        except OSError as exc:
+            messagebox.showerror("Save failed", str(exc))
+            return
 
+        remember_builder_theme_write(self._builder_theme_writes, path, self._current_xaml)
         self._apply_to_dpm(path)
 
     def _load_local(self):
@@ -1221,6 +1622,7 @@ class App(tk.Tk):
                 os.path.splitext(os.path.basename(path))[0]
                 .replace("-", " ").title()
             )
+            self._selection_requests.invalidate()
             self._refresh_output(scheme, f"Converted: {os.path.basename(path)}")
         except ValueError as exc:
             messagebox.showerror("Unsupported file", str(exc))

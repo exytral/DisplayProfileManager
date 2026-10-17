@@ -1,0 +1,56 @@
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+using DisplayProfileManager.Displays.Models;
+using DisplayProfileManager.Tests.Helpers;
+
+namespace DisplayProfileManager.Tests.Displays
+{
+    [TestClass]
+    public class DisplaySettingTests
+    {
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void IsPartOfCloneGroup_DefaultConstruction_ReturnsFalse()
+        {
+            var setting = new DisplaySetting();
+
+            Assert.IsFalse(setting.IsPartOfCloneGroup(), "A DisplaySetting with no CloneGroupId must be treated as extended mode.");
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void IsPartOfCloneGroup_WhenCloneGroupIdIsNull_ReturnsFalse()
+        {
+            var setting = new DisplaySettingBuilder().WithCloneGroup(null).Build();
+
+            Assert.IsFalse(setting.IsPartOfCloneGroup());
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void IsPartOfCloneGroup_WhenCloneGroupIdIsSet_ReturnsTrue()
+        {
+            var setting = new DisplaySettingBuilder().WithCloneGroup("clone-group-1").Build();
+
+            Assert.IsTrue(setting.IsPartOfCloneGroup());
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void DisplaySetting_IsWcgEnabled_DefaultIsFalse()
+        {
+            var setting = new DisplaySetting();
+
+            Assert.IsFalse(setting.IsWcgEnabled);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void DisplaySetting_ColorProfile_DefaultIsNull()
+        {
+            var setting = new DisplaySetting();
+
+            Assert.IsNull(setting.ColorProfile);
+        }
+    }
+}

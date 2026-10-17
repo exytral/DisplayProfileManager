@@ -1,0 +1,48 @@
+#include <windows.h>
+#include "resource.h"
+#include "SetupVersion.generated.rcinc"
+
+#ifndef DPM_SETUP_VERSION_MAJOR
+#define DPM_SETUP_VERSION_MAJOR 0
+#endif
+#ifndef DPM_SETUP_VERSION_MINOR
+#define DPM_SETUP_VERSION_MINOR 0
+#endif
+#ifndef DPM_SETUP_VERSION_BUILD
+#define DPM_SETUP_VERSION_BUILD 0
+#endif
+#ifndef DPM_SETUP_VERSION_REVISION
+#define DPM_SETUP_VERSION_REVISION 0
+#endif
+#ifndef DPM_SETUP_VERSION_STRING
+#define DPM_SETUP_VERSION_STRING "0.0.0"
+#endif
+
+IDI_APP_ICON ICON "..\\DisplayProfileManager\\icon.ico"
+IDR_SETUP_PAYLOAD RCDATA "EmbeddedPayload.exe"
+
+1 VERSIONINFO
+ FILEVERSION DPM_SETUP_VERSION_MAJOR,DPM_SETUP_VERSION_MINOR,DPM_SETUP_VERSION_BUILD,DPM_SETUP_VERSION_REVISION
+ PRODUCTVERSION DPM_SETUP_VERSION_MAJOR,DPM_SETUP_VERSION_MINOR,DPM_SETUP_VERSION_BUILD,DPM_SETUP_VERSION_REVISION
+ FILEFLAGSMASK 0x3fL
+ FILEFLAGS 0x0L
+ FILEOS 0x40004L
+ FILETYPE 0x1L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName", "exytral\0"
+            VALUE "FileDescription", "Display Profile Manager Setup\0"
+            VALUE "FileVersion", DPM_SETUP_VERSION_STRING
+            VALUE "ProductName", "Display Profile Manager\0"
+            VALUE "ProductVersion", DPM_SETUP_VERSION_STRING
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 1200
+    END
+END

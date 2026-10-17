@@ -33,7 +33,7 @@ Use **"Import"** in the main or settings window to select a compatible `.xaml` t
 
 A successfully imported theme is loaded, applied immediately, and selected as the current theme.
 
-Files placed directly into the themes folder are discovered when the theme list is initialized or refreshed. Direct file drops do not go through the import validation step.
+Files placed directly into the themes folder are checked against the same restricted resource format during theme-list initialization or refresh. Invalid files are skipped.
 
 ### Required keys
 
@@ -46,13 +46,13 @@ Display Profile Manager requires these six resource keys when loading a custom t
 - `ButtonBackgroundBrush`
 - `ButtonForegroundBrush`
 
-A theme can define additional resources used by the shared styles and controls. Missing resources beyond the required six are not rejected by `ThemeHelper`, although the base theme may provide corresponding resources for shared controls.
+A theme can define additional resources used by the shared styles and controls. Missing resources beyond the required six are not rejected by `ThemeStore`, although the base theme may provide corresponding resources for shared controls.
 
 The built-in theme files are the best reference for the complete resource set expected by the current UI.
 
 ## Theme files
 
-Custom themes are ordinary WPF `ResourceDictionary` files. The file name becomes the theme name shown in Settings.
+Custom themes use a restricted declarative WPF `ResourceDictionary` format. The root can contain keyed `Color`, `SolidColorBrush`, and `DropShadowEffect` resources with literal color/number values and references to previously declared colors. General WPF objects, templates, nested dictionaries, external sources, arbitrary markup extensions, and executable XAML are not supported. Unsupported or malformed files are rejected rather than loaded. Packaged themes and the separate built-in base styles are unaffected. The file name becomes the theme name shown in Settings.
 
 `System` is reserved and cannot be used as a custom theme name.
 
@@ -88,7 +88,7 @@ When a generated theme is saved into the Display Profile Manager themes folder, 
 
 Theme Builder generates the six resource keys required by Display Profile Manager and the additional resources used by the application's shared theme styles.
 
-The generated file is a standard WPF `ResourceDictionary`, so custom themes can also be created manually. The built-in theme files under `UI/Themes/` are the authoritative reference for the current resource vocabulary.
+The generated file uses the application's restricted declarative `ResourceDictionary` subset. Manually authored `.xaml` themes may use supported named resources, safe literal values, and the limited color and system-accent resource references accepted by the parser, including supported `{StaticResource ...}` and system-accent `{DynamicResource {x:Static ...}}` forms. Unsupported markup extensions, arbitrary executable WPF markup, and external resource sources are rejected. The built-in theme files under `UI/Themes/` are the authoritative reference for the current resource vocabulary.
 
 ### Theme template
 
