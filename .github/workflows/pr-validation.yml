@@ -55,3 +55,49 @@ jobs:
           /p:Configuration=Release
           /p:Platform=x64
           /p:SolutionDir="${{ github.workspace }}\"
+      - name: Build ShellExt native regression tests x64
+        run: >
+          msbuild DisplayProfileManager.ShellExt.Tests/DisplayProfileManager.ShellExt.Tests.vcxproj
+          /p:Configuration=Release
+          /p:Platform=x64
+          /p:SolutionDir="${{ github.workspace }}\"
+
+      - name: Run ShellExt native regression tests x64
+        shell: pwsh
+        run: |
+          & "./DisplayProfileManager.ShellExt.Tests/bin/x64/Release/JsonReaderTests.exe"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13.15"
+
+      - name: Install Builder dependencies
+        run: pip install -r DPMBuilder/requirements-build.txt
+
+      - name: Verify Builder dependencies
+        shell: pwsh
+        run: |
+          python -c "import sys; from importlib.metadata import version; import PyInstaller, pythoncom, win32com.client; assert sys.version_info[:3] == (3, 13, 15); assert PyInstaller.__version__ == '6.22.2'; assert version('pywin32') == '312'; assert version('pyinstaller-hooks-contrib') == '2026.7'; print('Builder dependency imports PASS')"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m pip check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run Shortcut Builder unit tests
+        shell: pwsh
+        run: |
+          python -m unittest discover -s DPMBuilder/tests -p test_shortcut_builder.py -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run Theme Builder unit tests
+        shell: pwsh
+        run: |
+          python -m unittest discover -s DPMBuilder/tests -p test_theme_builder.py -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run Builder release recipe contract tests
+        shell: pwsh
+        run: |
+          python -m unittest discover -s DPMBuilder/tests -p test_release_recipe.py -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
