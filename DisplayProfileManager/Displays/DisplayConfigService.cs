@@ -660,7 +660,6 @@ namespace DisplayProfileManager.Displays
                 if (!sourceIdToCloneGroup.ContainsKey(sourceKey))
                     sourceIdToCloneGroup[sourceKey] = nextCloneGroup++;
             }
-
             // Keep desired clone membership outside the source-info union because non-virtual paths require the whole modeInfoIdx to remain DISPLAYCONFIG_PATH_MODE_IDX_INVALID
             var desiredCloneGroupByPathIndex = new Dictionary<int, uint>();
 
@@ -800,26 +799,90 @@ namespace DisplayProfileManager.Displays
                     return true;
                 }
 
-                if (result != ErrorGenFailure)
+                if (result != ErrorGenFailure && result != 87)
                 {
                     _logger.Error($"SetDisplayConfig failed to apply topology: Error {result}");
                     return false;
                 }
 
-                // Retry with supplied configuration on ERROR_GEN_FAILURE
-                _logger.Warn("Topology not in configuration database: retrying with supplied configuration (Error 31)");
+                // Retry with the complete path + mode configuration.
+                // The topology-only call can fail for non-virtual paths when the
+                // requested topology is not yet represented in the configuration database.
+                _logger.Warn("Topology database lookup failed -> retrying with full supplied configuration");
+
+                result = QueryDisplayConfigWithRetry(
+                    QueryDisplayConfigFlags.AllPaths,
+                    out uint recoveryPathCount,
+                    out DisplayConfigPathInfo[] recoveryPaths,
+                    out uint recoveryModeCount,
+                    out DisplayConfigModeInfo[] recoveryModes);
+
+                if (result != ErrorSuccess)
+                {
+                    _logger.Error($"Recovery display query failed: Error {result}");
+                    return false;
+                }
+
+                // Start with every path disabled, then enable the paths represented
+                // by the profile using the same source-ID normalization as the normal
+                // topology path. Keep QueryDisplayConfig's original modeInfoIdx values.
+                for (int i = 0; i < recoveryPaths.Length; i++)
+                    recoveryPaths[i].flags &= ~(uint)DisplayConfigPathInfoFlags.Active;
+
+                var recoverySourceIdMap = BuildSourceIdMap(displayConfigs);
+
+                foreach (var display in displayConfigs.Where(d => d.IsEnabled))
+                {
+                    var targetKey = CcdAddress.Target(display);
+                    var profileSourceKey = CcdAddress.Source(display);
+
+                    if (!recoverySourceIdMap.TryGetValue(profileSourceKey, out uint normalizedSourceId))
+                    {
+                        _logger.Error($"Recovery could not resolve source mapping for target {display.TargetId}");
+                        return false;
+                    }
+
+                    int pathIndex = Array.FindIndex(
+                        recoveryPaths,
+                        p =>
+                            CcdAddress.Target(
+                                ToManaged(p.targetInfo.adapterId),
+                                p.targetInfo.id
+                            ).Equals(targetKey)
+                            && p.sourceInfo.id == normalizedSourceId);
+
+                    if (pathIndex < 0)
+                    {
+                        _logger.Error(
+                            $"Recovery could not find path for target {display.TargetId}, normalized source {normalizedSourceId}");
+                        return false;
+                    }
+
+                    recoveryPaths[pathIndex].flags |= (uint)DisplayConfigPathInfoFlags.Active;
+
+                    _logger.Debug(
+                        $"Full recovery path: target {recoveryPaths[pathIndex].targetInfo.id & 0xFFFF} " +
+                        $"source {recoveryPaths[pathIndex].sourceInfo.id} " +
+                        $"sourceModeIdx {recoveryPaths[pathIndex].sourceInfo.modeInfoIdx} " +
+                        $"targetModeIdx {recoveryPaths[pathIndex].targetInfo.modeInfoIdx}");
+                }
 
                 var recoveryFlags =
                     SetDisplayConfigFlags.UseSuppliedDisplayConfig |
                     SetDisplayConfigFlags.Apply |
                     SetDisplayConfigFlags.SaveToDatabase |
-                    SetDisplayConfigFlags.VirtualModeAware;
+                    SetDisplayConfigFlags.AllowChanges;
 
-                result = SetDisplayConfig(pathCount, paths, 0, null, recoveryFlags);
+                result = SetDisplayConfig(
+                    recoveryPathCount,
+                    recoveryPaths,
+                    recoveryModeCount,
+                    recoveryModes,
+                    recoveryFlags);
 
                 if (result != ErrorSuccess)
                 {
-                    _logger.Error($"Topology recovery failed: Error {result}");
+                    _logger.Error($"Full topology recovery failed: Error {result}");
                     return false;
                 }
 
