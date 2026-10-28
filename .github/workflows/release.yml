@@ -82,6 +82,8 @@ jobs:
           if ($ghExit -eq 0 -or $statusLine -notmatch '^HTTP/\d+(?:\.\d+)?\s+404(?:\s|$)') {
             throw "Release absence not proven; gh exit=$ghExit, status=$statusLine"
           }
+          # The expected 404 leaves gh's native exit state nonzero even after the status is accepted.
+          $global:LASTEXITCODE = 0
           Write-Host "Verified signed tag $tag with no existing Release."
 
       - name: Restore

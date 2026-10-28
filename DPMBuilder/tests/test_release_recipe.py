@@ -66,6 +66,7 @@ class ReleaseRecipeTests(unittest.TestCase):
         self.assertIn("$tagObject.verification.verified", WORKFLOW)
         self.assertIn("releases/tags/$tag", WORKFLOW)
         self.assertIn("AssemblyInformationalVersion", WORKFLOW)
+        self.assertIn("$global:LASTEXITCODE = 0", WORKFLOW)
 
     def test_prerelease_metadata_never_runs_stable_downgrade(self):
         self.assertIn("prerelease: ${{ inputs.prerelease == true }}", WORKFLOW)
