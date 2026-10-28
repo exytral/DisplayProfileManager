@@ -76,8 +76,8 @@
 
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
-    <PackageReference Include="NLog" Version="6.2.1" />
-    <PackageReference Include="System.Management" Version="10.0.12" />
+    <PackageReference Include="NLog" Version="6.2.2" />
+    <PackageReference Include="System.Management" Version="10.0.14" />
   </ItemGroup>
 
   <!-- ═══════════════════════════════════════════════════════════

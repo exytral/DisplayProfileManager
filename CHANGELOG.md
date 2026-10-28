@@ -21,6 +21,10 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 
 - **Managed CCD regression coverage** — adds simulated native query/set tests for virtual packed mode unions, malformed or unavailable modes, duplicate targets, clone/extend mismatches, error-code gates and supplied recovery arguments. These tests do not establish physical-display validation.
 
+### build — dependencies
+
+- **Dependency updates** — NLog moves from 6.2.1 to 6.2.2, System.Management from 10.0.12 to 10.0.14, and MSTest from 4.5.1 to 4.5.2. Builder release pins move to PyInstaller 6.22.3, PyInstaller Community Hooks 2026.9, and setuptools 84.2.1; the setuptools update resolves the reported build-environment vulnerability.
+
 ---
 
 <a id="2.3.0"></a>
