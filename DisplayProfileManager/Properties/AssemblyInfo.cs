@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
@@ -27,6 +27,6 @@ using System.Windows;
 [assembly: InternalsVisibleTo("DisplayProfileManager.Tests")]
 
 // Versioning
-[assembly: AssemblyVersion("2.3.0.0")]
-[assembly: AssemblyFileVersion("2.3.0.0")]
-[assembly: AssemblyInformationalVersion("2.3.0")]
+[assembly: AssemblyVersion("2.3.1.0")]
+[assembly: AssemblyFileVersion("2.3.1.0")]
+[assembly: AssemblyInformationalVersion("2.3.1")]

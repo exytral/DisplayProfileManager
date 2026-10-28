@@ -39,7 +39,43 @@ def inspect_bytes(data, pdb_name=None):
         finally:
             PE.EXPECTED=original
 
-def check_portable(path):
+def portable_architecture(path):
+    match = re.fullmatch(r'DisplayProfileManager-[0-9]+\.[0-9]+\.[0-9]+-(x64|x86|arm64)-Portable\.zip', Path(path).name)
+    if match is None: raise ValueError('Invalid portable archive identity or architecture')
+    return {'x64':0x8664,'x86':0x014c,'arm64':0xaa64}[match.group(1)]
+
+def check_pe_machine(data, expected):
+    # A matching COFF Machine alone does not constitute a structurally valid PE.
+    if len(data) < 0x40 or data[:2] != b"MZ":
+        raise ValueError("Missing PE DOS header")
+    offset = struct.unpack_from("<I", data, 0x3c)[0]
+    if offset < 0x40 or offset > len(data) - 24 or data[offset:offset+4] != b"PE\x00\x00":
+        raise ValueError("Invalid or truncated PE signature/COFF header")
+    machine, sections = struct.unpack_from("<HH", data, offset + 4)
+    optional_size = struct.unpack_from("<H", data, offset + 20)[0]
+    if machine != expected:
+        raise ValueError("Wrong portable PE architecture")
+    if sections == 0 or sections > 96:
+        raise ValueError("Invalid PE section count")
+    optional_start = offset + 24
+    if optional_size < 96 or optional_start + optional_size > len(data):
+        raise ValueError("Invalid/truncated PE optional header")
+    magic = struct.unpack_from("<H", data, optional_start)[0]
+    if magic not in (0x10b, 0x20b) or optional_size < (96 if magic == 0x10b else 112):
+        raise ValueError("Invalid PE optional header magic/size")
+    section_start = optional_start + optional_size
+    if sections > (len(data) - section_start) // 40:
+        raise ValueError("Truncated PE section table")
+    for i in range(sections):
+        sh = section_start + i * 40
+        # Reject section payload pointers that overflow or point past the file.
+        raw_size, raw_pointer = struct.unpack_from("<II", data, sh + 16)
+        if raw_size and (raw_pointer < section_start + sections*40 or
+                         raw_pointer > len(data) or raw_size > len(data)-raw_pointer):
+            raise ValueError("Invalid PE section raw bounds")
+
+def check_portable(path, *, expected_machine=None):
+    if expected_machine is None: expected_machine=portable_architecture(path)
     with zipfile.ZipFile(path) as archive:
         if archive.testzip() is not None: raise ValueError("Bad ZIP CRC")
         names=archive.namelist()
@@ -51,17 +87,26 @@ def check_portable(path):
             safe_zip_name(item.filename)
             data=archive.read(item)
             inspect_bytes(data, {"DisplayProfileManager.dll":"DisplayProfileManager.pdb","ShellExt.dll":"ShellExt.pdb"}.get(item.filename))
+            if item.filename in ('DisplayProfileManager.exe','DisplayProfileManager.dll','ShellExt.dll'):
+                check_pe_machine(data,expected_machine)
     return names
 
 def check_builder(path):
-    name=path.name.split("-2.3.0.zip")[0]
+    match=re.fullmatch(r"(DPMShortcutBuilder|DPMThemeBuilder)-([0-9]+)\.([0-9]+)\.([0-9]+)\.zip",path.name)
+    if match is None: raise ValueError("Invalid Builder archive basename or numeric version")
+    name=match.group(1)
     with zipfile.ZipFile(path) as archive:
         if archive.testzip() is not None: raise ValueError("ZIP CRC failure")
         expected={f"{name}.exe",f"{name}.pyw","LICENSE","THIRD-PARTY-LICENSES.md"}
         names=archive.namelist()
         if len(names) != 4 or len(set(names)) != 4 or set(names) != expected: raise ValueError("Unexpected or duplicated Builder ZIP structure")
         for name in names:safe_zip_name(name)
-        for member in archive.namelist():clean(archive.read(member))
+        for member in archive.namelist():
+            data=archive.read(member)
+            clean(data)
+            if member in ('LICENSE','THIRD-PARTY-LICENSES.md'):
+                source=Path(__file__).resolve().parent/member
+                if data != source.read_bytes(): raise ValueError(f'Wrong Builder legal member bytes: {member}')
 
 def verify_lineage(repo, info):
     import subprocess

@@ -7,6 +7,7 @@ Style rules for `CHANGELOG.md`. These rules preserve the changelog's purpose as 
 - Every change belongs to the release where it actually occurred.
 - Do not move an older change into a later release because the later release rebuilt or corrected it.
 - Do not infer historical ownership from the current implementation.
+- When a release adapts a contributor fix or prototype that is materially changed before merge, place a release-level attribution line directly below the release/tag link using the established `- Adapting [PR/fixes](...) by [name](...) — concise relationship.` form. Keep implementation detail in the affected change bullets rather than adding a detached provenance bullet.
 - Preserve meaningful historical chains when a feature was introduced, corrected, rebuilt, replaced, retired, or removed.
 - Keep intra-cycle churn out of the historical record when it was resolved before release.
 - Use forward or backward references selectively when they materially clarify a historical relationship; do not reproduce the full later history inside every earlier entry.

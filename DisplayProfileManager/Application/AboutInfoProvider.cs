@@ -93,8 +93,14 @@ namespace DisplayProfileManager.Application
             public const string VivittelUrl = "https://github.com/vivittel";
             public const string VivittelLinkUrl = "https://github.com/vivittel/DisplayProfileManager";
             public const string VivittelLinkLabel = "PR #1";
-            public const string VivittelDesc = "Windows 11 24H2 HDR/WCG detection and HDR verification foundation";
+            public const string VivittelDesc = "Initial Windows 11 24H2 HDR/WCG detection and HDR verification foundation";
             
+            public const string Stormers16Name = "@Stormers16";
+            public const string Stormers16Url = "https://github.com/Stormers16";
+            public const string Stormers16LinkUrl = "https://github.com/exytral/DisplayProfileManager/pull/14";
+            public const string Stormers16LinkLabel = "PR #14";
+            public const string Stormers16Desc = "Initial display topology recovery prototype";
+
             // Upstream
             public const string Zac15987Name = "@zac15987";
             public const string Zac15987Url = "https://github.com/zac15987";

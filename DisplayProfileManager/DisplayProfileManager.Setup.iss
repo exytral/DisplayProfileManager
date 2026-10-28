@@ -68,6 +68,11 @@
   #error "Please set a valid TargetArch (x64 / x86 / arm64)"
 #endif
 
+; ---- Fail closed before wildcard DLL inclusion ----
+#if !FileExists(AddBackslash(SourcePath) + MyBuildFolder + "\ShellExt.dll")
+  #error "Required ShellExt.dll missing from selected architecture build folder"
+#endif
+
 ; ---- Setup Configuration ----
 [Setup]
 AppId={code:GetScopeAppId}

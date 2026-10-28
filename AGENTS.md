@@ -46,6 +46,10 @@ Source-code structure, comments, logging, tests, XAML, and supporting-format con
 
 Detailed changelog-writing rules are maintained in `styles/CHANGELOG.md`.
 
+## Engineering documentation routing
+
+Read docs/engineering/ARCHITECTURE.md for current application architecture and subsystem ownership. Read docs/engineering/DISPLAY-CONFIGURATION.md before changing display topology, configuration, identity, clone behavior, or recovery.
+
 ## Architecture Quick Map
 
 - `DisplayProfileManager/App.xaml.cs` is the manual composition root; the application does not use a DI container or process-global profile/settings/script manager singletons.

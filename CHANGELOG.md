@@ -6,6 +6,23 @@ For user-facing release notes, see the [GitHub Releases](https://github.com/exyt
 
 ---
 
+<a id="2.3.1"></a>
+## [2.3.1] - 2026-10-28
+
+_[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManager/releases/tag/2.3.1)_
+
+- Adapting [PR #14](https://github.com/exytral/DisplayProfileManager/pull/14) by [Stormers16](https://github.com/Stormers16) — initial display topology recovery prototype for Windows error 31; the release implementation adds fail-closed mode and identity validation plus recovery readback.
+
+### fix — display topology recovery
+
+- **Topology recovery after Windows error 31** — previously, the fallback retried with no complete mode array after the topology-only apply failed. The corrected fallback re-queries full virtual-mode-aware path and mode arrays, validates adapter-qualified targets, source/target/desktop-image indexes and clone/extend relationships, and verifies the active topology after recovery. Unsupported error 87 remains fail-closed rather than triggering the broad retry.
+
+### test — recovery safeguards
+
+- **Managed CCD regression coverage** — adds simulated native query/set tests for virtual packed mode unions, malformed or unavailable modes, duplicate targets, clone/extend mismatches, error-code gates and supplied recovery arguments. These tests do not establish physical-display validation.
+
+---
+
 <a id="2.3.0"></a>
 ## [2.3.0] - 2026-10-18
 
@@ -179,7 +196,7 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 
 _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManager/releases/tag/2.2.0)_
 
-- Adapting [fixes](https://github.com/vivittel/DisplayProfileManager) by [vivittel](https://github.com/vivittel) — unambiguous HDR and advanced color state detection fixes on Windows 11 24H2 and later.
+- Adapting [fixes](https://github.com/vivittel/DisplayProfileManager) by [vivittel](https://github.com/vivittel) — initial Windows 11 24H2 HDR/advanced-color detection fixes; the final release implementation unified HDR/ACM state handling, routed 24H2 HDR/WCG setters with earlier-build fallback, and used live target IDs for color application.
 
 ### feat — wallpaper
 
@@ -555,7 +572,7 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 
 _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManager/releases/tag/2.0.2)_
 
-- Adapting [fixes](https://github.com/xtrilla/DisplayProfileManager) by [xtrilla](https://github.com/xtrilla) — transient audio controller constructed and disposed per operation in place of persistent controller, atomic writes for settings and profiles, and synchronous settings save on exit.
+- Adapting [fixes](https://github.com/xtrilla/DisplayProfileManager) by [xtrilla](https://github.com/xtrilla) — audio-operation and save-persistence reliability fixes; the final release implementation used per-operation Core Audio controllers, atomic profile/settings writes, and synchronous settings persistence on exit.
 
 ### feat — profile schema
 

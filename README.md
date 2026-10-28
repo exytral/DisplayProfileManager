@@ -106,6 +106,7 @@ Display Profile Manager uses MIT + Commons Clause — see [LICENSE](LICENSE) for
 
 **This Project**
 
+- **[@Stormers16](https://github.com/Stormers16)** ([PR #14](https://github.com/exytral/DisplayProfileManager/pull/14)) — initial display topology recovery prototype
 - **[@vivittel](https://github.com/vivittel)** ([PR #1](https://github.com/vivittel/DisplayProfileManager/pull/1)) — Windows 11 24H2 HDR/WCG detection and dedicated Advanced Color API foundation
 
 **Upstream**

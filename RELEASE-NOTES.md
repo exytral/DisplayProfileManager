@@ -24,6 +24,12 @@ Create, edit, and switch display profiles through the application, Quick Switch,
 
 ---
 
+## 2.3.1 — Display topology recovery
+
+- **More reliable display switching** — when Windows rejects a display topology change with error 31, the application can retry using a validated complete display configuration and check the resulting active monitors. Cloned and extended arrangements receive additional safeguards; ambiguous configurations still fail conservatively instead of applying an unsafe fallback. This correction adapts [@Stormers16's original PR #14 prototype](https://github.com/exytral/DisplayProfileManager/pull/14), contributed after reporting and investigating the failure.
+
+---
+
 ## 2.3.0 — Quick Switch, profile shortcuts, and layout previews
 
 ### ✨ Profiles and interface

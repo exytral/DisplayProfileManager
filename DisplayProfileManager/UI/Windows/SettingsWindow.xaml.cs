@@ -1053,6 +1053,15 @@ namespace DisplayProfileManager.UI.Windows
                     },
                     new
                     {
+                        Name        = AboutInfoProvider.Contributors.Stormers16Name,
+                        Url         = AboutInfoProvider.Contributors.Stormers16Url,
+                        LinkLabel   = AboutInfoProvider.Contributors.Stormers16LinkLabel,
+                        LinkUrl     = AboutInfoProvider.Contributors.Stormers16LinkUrl,
+                        Description = AboutInfoProvider.Contributors.Stormers16Desc,
+                        SubText     = (string)null
+                    },
+                    new
+                    {
                         Name        = AboutInfoProvider.Contributors.Zac15987Name,
                         Url         = AboutInfoProvider.Contributors.Zac15987Url,
                         LinkLabel   = AboutInfoProvider.Contributors.Zac15987LinkLabel,
