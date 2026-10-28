@@ -6,6 +6,8 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 RECIPE = (ROOT / "DPMBuilder" / "build-release.ps1").read_text(encoding="utf-8")
 WORKFLOW = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+PR_WORKFLOW = (ROOT / ".github" / "workflows" / "pr-validation.yml").read_text(encoding="utf-8")
+REQUIREMENTS = (ROOT / "DPMBuilder" / "requirements-build.txt").read_text(encoding="utf-8")
 ASSEMBLY_INFO = (ROOT / "DisplayProfileManager" / "Properties" / "AssemblyInfo.cs").read_text(encoding="utf-8")
 VERSION_MATCH = re.search(r'\[assembly:\s*AssemblyInformationalVersion\("([^"]+)"\)\]', ASSEMBLY_INFO)
 if VERSION_MATCH is None:
@@ -31,6 +33,18 @@ class ReleaseRecipeTests(unittest.TestCase):
         self.assertIn('$env:PATH = $previousPath', RECIPE)
         self.assertIn('Join-Path $basePython "DLLs"', RECIPE)
         self.assertNotIn('$env:PATH +=', RECIPE)
+
+    def test_builder_dependency_verifiers_match_frozen_requirements(self):
+        for package, expression in (
+            ("PyInstaller", "PyInstaller.__version__ == '{version}'"),
+            ("pywin32", "version('pywin32') == '{version}'"),
+            ("pyinstaller-hooks-contrib", "version('pyinstaller-hooks-contrib') == '{version}'"),
+        ):
+            match = re.search(rf"(?m)^{re.escape(package)}==([^\s]+)$", REQUIREMENTS)
+            self.assertIsNotNone(match, package)
+            expected = expression.format(version=match.group(1))
+            self.assertIn(expected, WORKFLOW)
+            self.assertIn(expected, PR_WORKFLOW)
 
     def test_shortcut_only_module_exclusion_and_dependency_gates(self):
         self.assertIn('if ($Builder -eq "DPMShortcutBuilder")', RECIPE)
