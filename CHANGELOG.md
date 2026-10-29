@@ -6,6 +6,19 @@ For user-facing release notes, see the [GitHub Releases](https://github.com/exyt
 
 ---
 
+<a id="unreleased"></a>
+## [Unreleased]
+
+### fix — display topology submission
+
+- **Legacy topology submission for paths without virtual-mode support** — previously, every topology change was submitted with `SDC_VIRTUAL_MODE_AWARE`, and Windows rejected the submission with `ERROR_INVALID_PARAMETER` (87) whenever a requested display path lacked `DISPLAYCONFIG_PATH_SUPPORT_VIRTUAL_MODE`, so profiles enabling such displays never applied while profiles limited to virtual-mode-capable displays on the same machine applied normally. The virtual-mode-aware query now doubles as a capability probe: when any requested path lacks virtual-mode support, the topology is re-queried with plain `QDC_ALL_PATHS`, prepared with all-invalid mode indices, and submitted with `SDC_TOPOLOGY_SUPPLIED` without `SDC_VIRTUAL_MODE_AWARE`, and the error 31 recovery for that submission also queries and submits without virtual-mode awareness. Submissions whose requested paths all support virtual mode are unchanged, and error 87 remains fail-closed in both forms.
+
+### test — topology submission modes
+
+- **Legacy and virtual-aware submission coverage** — adds simulated native query/set tests for the legacy submission path (query ordering, flag sets, error 31 recovery, and fail-closed error 87) alongside the existing virtual-mode-aware cases, plus direct coverage of the capability probe. These tests do not establish physical-display validation.
+
+---
+
 <a id="2.3.1"></a>
 ## [2.3.1] - 2026-10-28
 

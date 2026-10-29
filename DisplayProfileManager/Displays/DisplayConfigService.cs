@@ -917,6 +917,12 @@ namespace DisplayProfileManager.Displays
                 modes[index].id == id;
         }
 
+        internal static bool RequiresLegacyTopologySubmission(DisplayConfigPathInfo[] paths)
+        {
+            return paths.Any(p => (p.flags & (uint)DisplayConfigPathInfoFlags.Active) != 0 &&
+                (p.flags & (uint)DisplayConfigPathInfoFlags.SupportVirtualMode) == 0);
+        }
+
         internal delegate int TopologyQueryDelegate(
             QueryDisplayConfigFlags flags, out uint pathCount, out DisplayConfigPathInfo[] paths,
             out uint modeCount, out DisplayConfigModeInfo[] modes);
@@ -980,6 +986,29 @@ namespace DisplayProfileManager.Displays
 
                 PreparePathsForTopology(paths, displayConfigs);
 
+                // Windows rejects a virtual-mode-aware submission that activates a path without DISPLAYCONFIG_PATH_SUPPORT_VIRTUAL_MODE (error 87), so those requests use the legacy query, encoding, and flags
+                bool virtualModeAware = !RequiresLegacyTopologySubmission(paths);
+                if (!virtualModeAware)
+                {
+                    _logger.Info("Topology submission -> legacy (requested path without virtual-mode support)");
+                    result = query(
+                        compareQueryFlags,
+                        out pathCount,
+                        out paths,
+                        out modeCount,
+                        out modes);
+                    if (result != ErrorSuccess)
+                    {
+                        _logger.Error($"Display topology legacy apply query failed with error: {result}");
+                        return false;
+                    }
+
+                    PreparePathsForTopology(paths, displayConfigs);
+                }
+
+                var submissionQueryFlags = virtualModeAware ? topologyQueryFlags : compareQueryFlags;
+                var virtualModeFlag = virtualModeAware ? SetDisplayConfigFlags.VirtualModeAware : default(SetDisplayConfigFlags);
+
                 int activeCount = paths.Count(p => (p.flags & (uint)DisplayConfigPathInfoFlags.Active) != 0);
                 if (activeCount == 0)
                 {
@@ -991,7 +1020,7 @@ namespace DisplayProfileManager.Displays
                     SetDisplayConfigFlags.TopologySupplied |
                     SetDisplayConfigFlags.Apply |
                     SetDisplayConfigFlags.AllowPathOrderChanges |
-                    SetDisplayConfigFlags.VirtualModeAware;
+                    virtualModeFlag;
 
                 result = set(pathCount, paths, 0, null, topologyFlags);
 
@@ -1017,7 +1046,7 @@ namespace DisplayProfileManager.Displays
                 _logger.Warn("Topology database lookup failed (Error 31) -> evaluating complete supplied configuration");
 
                 result = query(
-                    topologyQueryFlags,
+                    submissionQueryFlags,
                     out uint recoveryPathCount,
                     out DisplayConfigPathInfo[] recoveryPaths,
                     out uint recoveryModeCount,
@@ -1034,7 +1063,7 @@ namespace DisplayProfileManager.Displays
                     SetDisplayConfigFlags.Apply |
                     SetDisplayConfigFlags.SaveToDatabase |
                     SetDisplayConfigFlags.AllowChanges |
-                    SetDisplayConfigFlags.VirtualModeAware;
+                    virtualModeFlag;
 
                 result = set(recoveryPathCount, recoveryPaths, recoveryModeCount, recoveryModes, recoveryFlags);
 
