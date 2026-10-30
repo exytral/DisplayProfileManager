@@ -34,7 +34,7 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 
 _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManager/releases/tag/2.3.1)_
 
-- Adapting [PR #14](https://github.com/exytral/DisplayProfileManager/pull/14) by [@Stormers16](https://github.com/Stormers16) — initial full-configuration topology recovery source work for Windows display-switching failures.
+- Adapting [PR #14](https://github.com/exytral/DisplayProfileManager/pull/14) by [@Stormers16](https://github.com/Stormers16) — initial full-configuration topology recovery source work for Windows display-switching failures; the release implementation integrated guarded Error-31 recovery, while first-setter Error-87 failures remained unresolved until [2.3.2](#2.3.2).
 
 ### fix — display topology recovery
 
@@ -223,7 +223,7 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 
 _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManager/releases/tag/2.2.0)_
 
-- Adapting [fixes](https://github.com/vivittel/DisplayProfileManager) by [vivittel](https://github.com/vivittel) — initial Windows 11 24H2 HDR/advanced-color detection fixes; the final release implementation unified HDR/ACM state handling, routed 24H2 HDR/WCG setters with earlier-build fallback, and used live target IDs for color application.
+- Adapting [fixes](https://github.com/vivittel/DisplayProfileManager) by [vivittel](https://github.com/vivittel) — initial Windows 11 24H2 HDR/advanced-color detection fixes; the release implementation unified HDR/ACM state handling, routed 24H2 HDR/WCG setters with earlier-build fallback, and used live target IDs for color application.
 
 ### feat — wallpaper
 
@@ -599,7 +599,7 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 
 _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManager/releases/tag/2.0.2)_
 
-- Adapting [fixes](https://github.com/xtrilla/DisplayProfileManager) by [xtrilla](https://github.com/xtrilla) — audio-operation and save-persistence reliability fixes; the final release implementation used per-operation Core Audio controllers, atomic profile/settings writes, and synchronous settings persistence on exit.
+- Adapting [fixes](https://github.com/xtrilla/DisplayProfileManager) by [xtrilla](https://github.com/xtrilla) — audio-operation and save-persistence reliability fixes; the release implementation used per-operation Core Audio controllers, atomic profile/settings writes, and synchronous settings persistence on exit.
 
 ### feat — profile schema
 
