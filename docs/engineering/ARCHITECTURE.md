@@ -26,7 +26,7 @@ Do not treat historical plans, changelog entries, release records, or cleanup no
 - **ProfileEditorService** (`DisplayProfileManager/Application/ProfileEditorService.cs`) — cross-capability editor-session orchestration used by the profile editor.
 - **SettingsCoordinator** (`DisplayProfileManager/Application/SettingsCoordinator.cs`) — reconciles settings mutations that require OS/integration work.
 - **ShellCommandCoordinator** (`DisplayProfileManager/Application/ShellCommandCoordinator.cs`) — coordinates shell registration settings and exit-code semantics through `IShellExtensionRegistrar`.
-- **GitHubUpdateChecker** (`DisplayProfileManager/Integration/GitHubUpdateChecker.cs`) — performs the opt-in release metadata check and settling-window policy.
+- **GitHubUpdateChecker** (`DisplayProfileManager/Integration/GitHubUpdateChecker.cs`) — performs the default-enabled release metadata check with explicit opt-out and settling-window policy.
 - **ShellExtensionRegistrar** (`DisplayProfileManager/Integration/ShellExtensionRegistrar.cs`) — owns per-user ShellExt COM registration/removal and Explorer refresh behavior.
 - **WindowActivator** (`DisplayProfileManager/Integration/WindowActivator.cs`) — Win32 existing-window activation.
 - **AutoStartService** (`DisplayProfileManager/Integration/AutoStartService.cs`) — Registry/Task Scheduler auto-start operations.
@@ -99,9 +99,9 @@ DPMBuilder/                               Separate Python builder tools
 
 - **.NET 10 (`net10.0-windows`)** — WPF through `UseWPF`; focused native Win32 interop is used where Windows APIs have no managed WPF equivalent.
 - **Newtonsoft.Json 13.0.4** — JSON serialization for profiles and settings.
-- **NLog 6.2.1** — application logging with daily file rotation.
-- **System.Management 10.0.12** — Windows system-management APIs used by the application.
-- **MSTest 4.5.1** — test framework metapackage for the unit-test project.
+- **NLog 6.2.2** — application logging with daily file rotation.
+- **System.Management 10.0.14** — Windows system-management APIs used by the application.
+- **MSTest 4.5.2** — test framework metapackage for the unit-test project.
 - **PackageReference** — SDK-style project dependency management.
 
 ### Load-bearing project settings
@@ -370,7 +370,7 @@ Windows accent handling is not theme-owned: packaged themes derive their accent 
 
 ### Update Check
 
-Update checking is disabled by default through `checkForUpdates` in `Settings.json`.
+Update checking is enabled by default through `checkForUpdates` in `Settings.json`; an explicitly persisted `false` remains an opt-out.
 
 When enabled:
 

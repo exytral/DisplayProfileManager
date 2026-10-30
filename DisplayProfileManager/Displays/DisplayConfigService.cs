@@ -610,7 +610,7 @@ namespace DisplayProfileManager.Displays
             return needsUpdate;
         }
 
-        internal static void PreparePathsForTopology(DisplayConfigPathInfo[] targetPaths, List<DisplayConfigInfo> displayConfigs)
+        internal static void PreparePathsForTopology(DisplayConfigPathInfo[] targetPaths, List<DisplayConfigInfo> displayConfigs, bool virtualAware = true)
         {
             if (targetPaths == null) throw new ArgumentNullException(nameof(targetPaths));
             if (displayConfigs == null) throw new ArgumentNullException(nameof(displayConfigs));
@@ -678,7 +678,7 @@ namespace DisplayProfileManager.Displays
                     uint cloneGroup = sourceIdToCloneGroup[CcdAddress.Source(targetKey.AdapterId, display.SourceId)];
                     path.flags |= (uint)DisplayConfigPathInfoFlags.Active;
 
-                    if ((path.flags & (uint)DisplayConfigPathInfoFlags.SupportVirtualMode) != 0)
+                    if (virtualAware && (path.flags & (uint)DisplayConfigPathInfoFlags.SupportVirtualMode) != 0)
                         path.sourceInfo.ResetModeAndSetCloneGroup(cloneGroup);
                     else
                         path.sourceInfo.modeInfoIdx = DisplayconfigPathModeIdxInvalid;
@@ -790,6 +790,7 @@ namespace DisplayProfileManager.Displays
                 {
                     return false;
                 }
+
                 actualSourceByDesiredGroup[entry.Value] = actualSource;
                 desiredGroupByActualSource[actualSource] = entry.Value;
             }
@@ -797,133 +798,62 @@ namespace DisplayProfileManager.Displays
             return true;
         }
 
-        internal static bool TryPrepareRecoveryPaths(DisplayConfigPathInfo[] paths, DisplayConfigModeInfo[] modes, List<DisplayConfigInfo> requested, out string failure)
+        private static bool TrySnapshotRequestedRoutes(DisplayConfigPathInfo[] paths, List<DisplayConfigInfo> requested, out List<string> routes)
         {
-            failure = null;
-            if (paths == null || modes == null || requested == null)
+            routes = [];
+            if (paths == null || requested == null)
             {
-                failure = "Recovery input missing";
                 return false;
             }
 
-            var candidates = paths.Select((path, index) => (path, index))
-                .GroupBy(entry => CcdAddress.Target(ToManaged(entry.path.targetInfo.adapterId), entry.path.targetInfo.id))
-                .ToDictionary(group => group.Key, group => group.ToList());
-            var chosen = new Dictionary<int, CcdSourceKey>();
             var claimed = new HashSet<CcdTargetKey>();
-            var normalized = BuildSourceIdMap(requested);
 
             foreach (var display in requested.Where(d => d.IsEnabled))
             {
-                var key = CcdAddress.Target(display);
-                if (display.AdapterId.HighPart == 0 && display.AdapterId.LowPart == 0)
+                var candidates = paths.Where(path =>
+                    (display.AdapterId.HighPart == 0 && display.AdapterId.LowPart == 0 || ToManaged(path.targetInfo.adapterId).Equals(display.AdapterId)) &&
+                    (path.targetInfo.id & 0xFFFF) == (display.TargetId & 0xFFFF)).ToList();
+                if (candidates.Count == 0)
                 {
-                    var matches = candidates.Keys.Where(candidate => candidate.TargetId == (display.TargetId & 0xFFFF)).ToList();
-                    if (matches.Count != 1)
-                    {
-                        failure = "Recovery target has no unique adapter-qualified match";
-                        return false;
-                    }
-                    key = matches[0];
-                }
-
-                if (!claimed.Add(key) || !candidates.TryGetValue(key, out var targetPaths))
-                {
-                    failure = "Recovery target missing or duplicated";
                     return false;
                 }
 
-                uint desiredSource = normalized[CcdAddress.Source(display)];
-                var matching = targetPaths.Where(entry => entry.path.sourceInfo.id == desiredSource &&
-                    entry.path.sourceInfo.adapterId.Equals(entry.path.targetInfo.adapterId) &&
-                    ValidRecoveryMode(entry.path, modes)).ToList();
-
-                if (matching.Count != 1)
+                var targetKeys = candidates
+                    .Select(path => CcdAddress.Target(ToManaged(path.targetInfo.adapterId), path.targetInfo.id))
+                    .Distinct()
+                    .ToList();
+                if (targetKeys.Count != 1 || !claimed.Add(targetKeys[0]))
                 {
-                    failure = "Recovery path or complete mode mapping not uniquely available";
                     return false;
                 }
 
-                chosen.Add(matching[0].index, CcdAddress.Source(key.AdapterId, display.SourceId));
-            }
-
-            if (chosen.Count == 0)
-            {
-                failure = "Recovery has no active targets";
-                return false;
-            }
-
-            var groups = new Dictionary<CcdSourceKey, uint>();
-            foreach (var entry in chosen)
-            {
-                uint actualSource = paths[entry.Key].sourceInfo.id;
-                if (groups.TryGetValue(entry.Value, out uint prior) && prior != actualSource)
+                var active = candidates.Where(path => (path.flags & (uint)DisplayConfigPathInfoFlags.Active) != 0).ToList();
+                if (active.Count > 1 || candidates.Any(path => !path.sourceInfo.adapterId.Equals(path.targetInfo.adapterId)))
                 {
-                    failure = "Recovery clone group does not share an existing source";
                     return false;
                 }
-                groups[entry.Value] = actualSource;
-            }
 
-            foreach (var path in paths)
-            {
-                if ((path.flags & (uint)DisplayConfigPathInfoFlags.Active) != 0 &&
-                    !ValidRecoveryMode(path, modes))
+                var outputTechnologies = candidates.Select(path => path.targetInfo.outputTechnology).Distinct().ToList();
+                if (outputTechnologies.Count != 1)
                 {
-                    failure = "Recovery query contains invalid active mode indices";
                     return false;
                 }
-            }
 
-            for (int i = 0; i < paths.Length; i++)
-            {
-                if (chosen.ContainsKey(i))
-                {
-                    paths[i].flags |= (uint)DisplayConfigPathInfoFlags.Active;
-                }
-                else
-                {
-                    paths[i].flags &= ~(uint)DisplayConfigPathInfoFlags.Active;
-                }
+                var key = targetKeys[0];
+                routes.Add($"{key.AdapterId.HighPart}:{key.AdapterId.LowPart}:{key.TargetId}:{outputTechnologies[0]}");
             }
-
-            return true;
+            routes.Sort(StringComparer.Ordinal);
+            return routes.Count > 0;
         }
 
-        private static bool ValidRecoveryMode(DisplayConfigPathInfo path, DisplayConfigModeInfo[] modes)
+        private static bool ValidTopologyQueryResult(uint pathCount, DisplayConfigPathInfo[] paths, uint modeCount, DisplayConfigModeInfo[] modes)
         {
-            uint source = path.sourceInfo.modeInfoIdx;
-            uint target = path.targetInfo.modeInfoIdx;
-            if ((path.flags & (uint)DisplayConfigPathInfoFlags.SupportVirtualMode) != 0)
-            {
-                uint desktop = target & 0xFFFF;
-                source >>= 16;
-                target >>= 16;
-                if (desktop != 0xFFFF && !ValidRecoveryModeIndex(desktop, modes, DisplayConfigModeInfoType.DesktopImage, path.targetInfo.adapterId, path.targetInfo.id))
-                {
-                    return false;
-                }
-            }
-
-            return ValidRecoveryModeIndex(source, modes, DisplayConfigModeInfoType.Source, path.sourceInfo.adapterId, path.sourceInfo.id) &&
-                ValidRecoveryModeIndex(target, modes, DisplayConfigModeInfoType.Target, path.targetInfo.adapterId, path.targetInfo.id);
+            return paths != null && modes != null && pathCount == (uint)paths.Length && modeCount == (uint)modes.Length;
         }
 
-        private static bool ValidRecoveryModeIndex(uint index, DisplayConfigModeInfo[] modes, DisplayConfigModeInfoType type, LUID adapter, uint id)
-        {
-            return index != 0xFFFFFFFF && index != 0xFFFF && index < modes.Length &&
-                modes[index].infoType == type &&
-                modes[index].adapterId.Equals(adapter) &&
-                modes[index].id == id;
-        }
+        internal delegate int TopologyQueryDelegate(QueryDisplayConfigFlags flags, out uint pathCount, out DisplayConfigPathInfo[] paths, out uint modeCount, out DisplayConfigModeInfo[] modes);
 
-        internal delegate int TopologyQueryDelegate(
-            QueryDisplayConfigFlags flags, out uint pathCount, out DisplayConfigPathInfo[] paths,
-            out uint modeCount, out DisplayConfigModeInfo[] modes);
-
-        internal delegate int TopologySetDelegate(
-            uint pathCount, DisplayConfigPathInfo[] paths, uint modeCount,
-            DisplayConfigModeInfo[] modes, SetDisplayConfigFlags flags);
+        internal delegate int TopologySetDelegate(uint pathCount, DisplayConfigPathInfo[] paths, uint modeCount, DisplayConfigModeInfo[] modes, SetDisplayConfigFlags flags);
 
         public static bool ApplyDisplayTopology(List<DisplayConfigInfo> displayConfigs, bool forceTopologyRecovery = false)
         {
@@ -938,18 +868,17 @@ namespace DisplayProfileManager.Displays
             {
                 _logger.Info("Applying display topology...");
 
-                // Compare without virtual mode so source IDs remain comparable
                 const QueryDisplayConfigFlags compareQueryFlags = QueryDisplayConfigFlags.AllPaths;
                 const QueryDisplayConfigFlags topologyQueryFlags = QueryDisplayConfigFlags.AllPaths | QueryDisplayConfigFlags.VirtualModeAware;
 
                 int result = query(
-                    compareQueryFlags,
+                    topologyQueryFlags,
                     out uint pathCount,
                     out DisplayConfigPathInfo[] paths,
                     out uint modeCount,
                     out DisplayConfigModeInfo[] modes);
 
-                if (result != ErrorSuccess)
+                if (result != ErrorSuccess || !ValidTopologyQueryResult(pathCount, paths, modeCount, modes))
                 {
                     _logger.Error($"Display topology query failed with error: {result}");
                     return false;
@@ -965,20 +894,33 @@ namespace DisplayProfileManager.Displays
 
                 _logger.Info("Display mismatch detected -> Applying topology update");
 
-                // Re-query with VirtualModeAware so clone-group encoding is preserved
-                result = query(
-                    topologyQueryFlags,
-                    out pathCount,
-                    out paths,
-                    out modeCount,
-                    out modes);
-                if (result != ErrorSuccess)
+                if (!TrySnapshotRequestedRoutes(paths, displayConfigs, out var requestedRoutes))
                 {
-                    _logger.Error($"Display topology apply query failed with error: {result}");
+                    _logger.Error("Display topology requested routes are missing or ambiguous");
                     return false;
                 }
 
                 PreparePathsForTopology(paths, displayConfigs);
+
+                // Requested legacy paths need the legacy query and setter representation
+                bool virtualSubmission = paths.Where(p => (p.flags & (uint)DisplayConfigPathInfoFlags.Active) != 0).All(p => (p.flags & (uint)DisplayConfigPathInfoFlags.SupportVirtualMode) != 0);
+                QueryDisplayConfigFlags submissionQueryFlags = virtualSubmission ? topologyQueryFlags : compareQueryFlags;
+                if (!virtualSubmission)
+                {
+                    result = query(submissionQueryFlags, out pathCount, out paths, out modeCount, out modes);
+                    if (result != ErrorSuccess || !ValidTopologyQueryResult(pathCount, paths, modeCount, modes))
+                    {
+                        _logger.Error($"Display topology legacy query failed with error: {result}");
+                        return false;
+                    }
+                    if (!TrySnapshotRequestedRoutes(paths, displayConfigs, out var freshRoutes)
+                        || !requestedRoutes.SequenceEqual(freshRoutes))
+                    {
+                        _logger.Error("Display topology requested route changed during legacy re-query");
+                        return false;
+                    }
+                    PreparePathsForTopology(paths, displayConfigs, virtualAware: false);
+                }
 
                 int activeCount = paths.Count(p => (p.flags & (uint)DisplayConfigPathInfoFlags.Active) != 0);
                 if (activeCount == 0)
@@ -987,15 +929,24 @@ namespace DisplayProfileManager.Displays
                     return false;
                 }
 
+                if (!RecoveryMatchesRequested(paths, displayConfigs))
+                {
+                    _logger.Error("Display topology preflight does not match requested active paths");
+                    return false;
+                }
+
+                int nonVirtualActive = paths.Count(p => (p.flags & (uint)DisplayConfigPathInfoFlags.Active) != 0 && (p.flags & (uint)DisplayConfigPathInfoFlags.SupportVirtualMode) == 0);
+                _logger.Debug($"Topology CCD route={(virtualSubmission ? "virtual" : "legacy")} active={activeCount} nonVirtual={nonVirtualActive} query={submissionQueryFlags}");
                 var topologyFlags =
                     SetDisplayConfigFlags.TopologySupplied |
                     SetDisplayConfigFlags.Apply |
-                    SetDisplayConfigFlags.AllowPathOrderChanges |
-                    SetDisplayConfigFlags.VirtualModeAware;
+                    SetDisplayConfigFlags.AllowPathOrderChanges;
+                if (virtualSubmission)
+                    topologyFlags |= SetDisplayConfigFlags.VirtualModeAware;
 
                 result = set(pathCount, paths, 0, null, topologyFlags);
 
-                // Exercise the Error 31 recovery path without changing its normal production trigger
+                // Reaching recovery normally requires blank configuration database
                 if (forceTopologyRecovery && result == ErrorSuccess)
                 {
                     _logger.Warn("event=EngineeringForcedTopologyRecovery");
@@ -1004,7 +955,19 @@ namespace DisplayProfileManager.Displays
 
                 if (result == ErrorSuccess)
                 {
-                    _logger.Info("Applied display topology.");
+                    result = query(
+                        QueryDisplayConfigFlags.AllPaths, out uint firstReadbackPathCount,
+                        out DisplayConfigPathInfo[] firstReadbackPaths,
+                        out uint firstReadbackModeCount, out DisplayConfigModeInfo[] firstReadbackModes);
+                    if (result != ErrorSuccess ||
+                        !ValidTopologyQueryResult(firstReadbackPathCount, firstReadbackPaths, firstReadbackModeCount, firstReadbackModes) ||
+                        !RecoveryMatchesRequested(firstReadbackPaths, displayConfigs))
+                    {
+                        _logger.Error($"Display topology readback does not match requested configuration: query={result}");
+                        return false;
+                    }
+
+                    _logger.Info("Applied display topology and verified active path configuration.");
                     return true;
                 }
 
@@ -1014,29 +977,15 @@ namespace DisplayProfileManager.Displays
                     return false;
                 }
 
-                _logger.Warn("Topology database lookup failed (Error 31) -> evaluating complete supplied configuration");
-
-                result = query(
-                    topologyQueryFlags,
-                    out uint recoveryPathCount,
-                    out DisplayConfigPathInfo[] recoveryPaths,
-                    out uint recoveryModeCount,
-                    out DisplayConfigModeInfo[] recoveryModes);
-                string failure = "QueryDisplayConfig failed";
-                if (result != ErrorSuccess || !TryPrepareRecoveryPaths(recoveryPaths, recoveryModes, displayConfigs, out failure))
-                {
-                    _logger.Error($"Topology recovery preflight failed: query={result}, reason={failure}");
-                    return false;
-                }
+                _logger.Warn("Topology database lookup failed (Error 31) -> retrying prepared paths with best-mode selection");
 
                 var recoveryFlags =
                     SetDisplayConfigFlags.UseSuppliedDisplayConfig |
                     SetDisplayConfigFlags.Apply |
-                    SetDisplayConfigFlags.SaveToDatabase |
-                    SetDisplayConfigFlags.AllowChanges |
-                    SetDisplayConfigFlags.VirtualModeAware;
+                    SetDisplayConfigFlags.SaveToDatabase;
+                if (virtualSubmission) recoveryFlags |= SetDisplayConfigFlags.VirtualModeAware;
 
-                result = set(recoveryPathCount, recoveryPaths, recoveryModeCount, recoveryModes, recoveryFlags);
+                result = set(pathCount, paths, 0, null, recoveryFlags);
 
                 if (result != ErrorSuccess)
                 {
@@ -1045,12 +994,10 @@ namespace DisplayProfileManager.Displays
                 }
 
                 result = query(
-                    QueryDisplayConfigFlags.AllPaths,
-                    out uint actualPathCount,
+                    QueryDisplayConfigFlags.AllPaths, out uint actualPathCount,
                     out DisplayConfigPathInfo[] actualPaths,
-                    out uint actualModeCount,
-                    out DisplayConfigModeInfo[] actualModes);
-                if (result != ErrorSuccess || !RecoveryMatchesRequested(actualPaths, displayConfigs))
+                    out uint actualModeCount, out DisplayConfigModeInfo[] actualModes);
+                if (result != ErrorSuccess || !ValidTopologyQueryResult(actualPathCount, actualPaths, actualModeCount, actualModes) || !RecoveryMatchesRequested(actualPaths, displayConfigs))
                 {
                     _logger.Error($"Topology recovery readback does not match requested configuration: query={result}");
                     return false;

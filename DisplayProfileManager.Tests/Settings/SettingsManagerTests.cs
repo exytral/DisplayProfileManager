@@ -53,12 +53,40 @@ namespace DisplayProfileManager.Tests.Settings
 
         [TestMethod]
         [TestCategory("Unit")]
+        public void AppSettings_CheckForUpdates_DefaultsEnabled()
+        {
+            Assert.IsTrue(new AppSettings().CheckForUpdates);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void DeserializeSettingsTolerant_MissingCheckForUpdates_DefaultsEnabled()
+        {
+            Assert.IsTrue(DeserializeSettingsTolerant(@"{ ""theme"": ""Dark"" }").CheckForUpdates);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void DeserializeSettingsTolerant_ExplicitCheckForUpdatesTrue_RemainsEnabled()
+        {
+            Assert.IsTrue(DeserializeSettingsTolerant(@"{ ""checkForUpdates"": true }").CheckForUpdates);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void DeserializeSettingsTolerant_ExplicitCheckForUpdatesFalse_RemainsDisabled()
+        {
+            Assert.IsFalse(DeserializeSettingsTolerant(@"{ ""checkForUpdates"": false }").CheckForUpdates);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
         public void DeserializeSettingsTolerant_MalformedBooleanMember_FallsBackToDefaultAndPreservesSiblingMember()
         {
             var settings = DeserializeSettingsTolerant(@"{ ""theme"": ""Dark"", ""checkForUpdates"": ""not-a-bool"" }");
             Assert.IsNotNull(settings);
             Assert.AreEqual("Dark", settings.Theme);
-            Assert.IsFalse(settings.CheckForUpdates);
+            Assert.IsTrue(settings.CheckForUpdates);
         }
 
         [TestMethod]

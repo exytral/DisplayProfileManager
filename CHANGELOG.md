@@ -6,16 +6,39 @@ For user-facing release notes, see the [GitHub Releases](https://github.com/exyt
 
 ---
 
+<a id="2.3.2"></a>
+## [2.3.2] - 2026-10-30
+
+_[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManager/releases/tag/2.3.2)_
+
+- Adapting [PR #17](https://github.com/exytral/DisplayProfileManager/pull/17) by [@jason-murray](https://github.com/jason-murray) — capability-based topology submission for requested paths without virtual-mode support; the release implementation integrates the representation choice into the existing topology pipeline.
+
+### fix — display topology submission and recovery
+
+- **Capability-selected topology representation** — topology apply now starts from a virtual-mode-aware all-paths snapshot and chooses the submission representation from the requested active paths before the first state-changing call. Requests whose active paths all advertise virtual-mode support retain the virtual-aware clone encoding. If any requested active path does not, the complete requested topology is rebuilt from one fresh plain all-paths snapshot and submitted without `SDC_VIRTUAL_MODE_AWARE`; virtual-capable members remain in the transaction, while inactive nonvirtual alternatives do not force the plain route.
+- **Bounded recovery and verification** — `ERROR_INVALID_PARAMETER (87)` remains terminal after representation selection instead of selecting another route after failure. `ERROR_GEN_FAILURE (31)` retries the same prepared paths with `SDC_USE_SUPPLIED_DISPLAY_CONFIG` and Windows best-mode selection, preserving the selected representation without another recovery query or reconstructed mode array. Successful first applies and recoveries both require fresh readback matching the requested active targets and clone relationships.
+- **Unavailable target-mode handling** — topology preparation accepts Windows' valid `0xFFFFFFFF` unavailable target-mode index. The stricter 2.3.1 recovery validation rejected this valid path shape.
+
+### fix — update checking defaults
+
+- **Enabled by default for new settings** — new or missing `CheckForUpdates` state now defaults to enabled. An explicitly persisted `false` value remains disabled. Update checking continues to be notification-only, with the existing three-day settling window and no direct download or installation.
+
+### test — regression discrimination
+
+- **Topology regression and mutation coverage** — tests distinguish virtual-only, mixed/nonvirtual, inactive-alternate, route-drift, clone, Error-31, terminal Error-87, sentinel, and readback behavior. Mutation checks verify that the suite rejects unconditional virtual-aware submission, failure-driven Error-87 route switching, requested-member loss, invalid sentinel handling, and skipped post-apply verification.
+
+---
+
 <a id="2.3.1"></a>
 ## [2.3.1] - 2026-10-28
 
 _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManager/releases/tag/2.3.1)_
 
-- Adapting [PR #14](https://github.com/exytral/DisplayProfileManager/pull/14) by [Stormers16](https://github.com/Stormers16) — initial display topology recovery prototype for Windows error 31; the release implementation adds fail-closed mode and identity validation plus recovery readback.
+- Adapting [PR #14](https://github.com/exytral/DisplayProfileManager/pull/14) by [@Stormers16](https://github.com/Stormers16) — initial full-configuration topology recovery source work for Windows display-switching failures.
 
 ### fix — display topology recovery
 
-- **Topology recovery after Windows error 31** — previously, the fallback retried with no complete mode array after the topology-only apply failed. The corrected fallback re-queries full virtual-mode-aware path and mode arrays, validates adapter-qualified targets, source/target/desktop-image indexes and clone/extend relationships, and verifies the active topology after recovery. Unsupported error 87 remains fail-closed rather than triggering the broad retry.
+- ~~**Topology recovery after Windows error 31** — previously, the fallback retried with no complete mode array after the topology-only apply failed. The corrected fallback re-queries full virtual-mode-aware path and mode arrays, validates adapter-qualified targets, source/target/desktop-image indexes and clone/extend relationships, and verifies the active topology after recovery. Unsupported error 87 remains fail-closed rather than triggering the broad retry.~~ *The guarded Error-31 recovery shipped, but the affected first-setter Error-87 path reported in PR #14 remained unresolved. Corrected in [2.3.2](#2.3.2) by selecting the topology representation before the first state-changing call.*
 
 ### test — recovery safeguards
 

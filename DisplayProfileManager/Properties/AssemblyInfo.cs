@@ -27,6 +27,6 @@ using System.Windows;
 [assembly: InternalsVisibleTo("DisplayProfileManager.Tests")]
 
 // Versioning
-[assembly: AssemblyVersion("2.3.1.0")]
-[assembly: AssemblyFileVersion("2.3.1.0")]
-[assembly: AssemblyInformationalVersion("2.3.1")]
+[assembly: AssemblyVersion("2.3.2.0")]
+[assembly: AssemblyFileVersion("2.3.2.0")]
+[assembly: AssemblyInformationalVersion("2.3.2")]

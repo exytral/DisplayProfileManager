@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -19,8 +20,7 @@ namespace DisplayProfileManager.Tests.Displays
             {
                 sourceInfo = new() { adapterId = DisplayConfigNative.ToNative(Adapter(adapter)), id = 0, modeInfoIdx = virtualMode ? 0x00000005u : 0u },
                 targetInfo = new() { adapterId = DisplayConfigNative.ToNative(Adapter(adapter)), id = target, modeInfoIdx = virtualMode ? 0x0001FFFFu : 1u },
-                flags = (uint)DisplayConfigNative.DisplayConfigPathInfoFlags.Active |
-                    (virtualMode ? (uint)DisplayConfigNative.DisplayConfigPathInfoFlags.SupportVirtualMode : 0)
+                flags = (uint)DisplayConfigNative.DisplayConfigPathInfoFlags.Active | (virtualMode ? (uint)DisplayConfigNative.DisplayConfigPathInfoFlags.SupportVirtualMode : 0)
             };
         }
 
@@ -47,9 +47,10 @@ namespace DisplayProfileManager.Tests.Displays
             {
                 queries++;
                 var path = Path(1);
-                if (queries <= 2 || (queries == 4 && !matchingReadback))
+                const int readbackQuery = 3;
+                if (queries <= 2 || (queries == readbackQuery && !matchingReadback))
                     path.flags &= ~(uint)DisplayConfigNative.DisplayConfigPathInfoFlags.Active;
-                paths = new[] { path };
+                paths = [path];
                 modes = Modes();
                 pathCount = 1;
                 modeCount = 2;
@@ -74,25 +75,482 @@ namespace DisplayProfileManager.Tests.Displays
 
         [TestMethod]
         [TestCategory("Unit")]
-        public void ApplyTopology_Error31_UsesCompleteVirtualAwareRecoveryAndReadback()
+        public void TopologyRequiresUpdate_VirtualRepresentation_IsEquivalent()
+        {
+            var cloneRequested = new List<DisplayConfigInfo> { Display(1), Display(2) };
+            var plainClone = new[] { Path(1), Path(2) };
+            var virtualClone = new[] { Path(1, virtualMode: true), Path(2, virtualMode: true) };
+            virtualClone[0].sourceInfo.modeInfoIdx = 0x00030005u;
+            virtualClone[0].targetInfo.modeInfoIdx = 0x00040006u;
+            virtualClone[1].sourceInfo.modeInfoIdx = 0x00070008u;
+            virtualClone[1].targetInfo.modeInfoIdx = 0x0009000Au;
+
+            Assert.IsFalse(DisplayConfigService.TopologyRequiresUpdate(plainClone, cloneRequested));
+            Assert.IsFalse(DisplayConfigService.TopologyRequiresUpdate(virtualClone, cloneRequested));
+
+            var extendRequested = new List<DisplayConfigInfo> { Display(1), Display(2) };
+            extendRequested[1].SourceId = 1;
+            var plainExtend = new[] { Path(1), Path(2) };
+            plainExtend[1].sourceInfo.id = 1;
+            var virtualExtend = new[] { Path(1, virtualMode: true), Path(2, virtualMode: true) };
+            virtualExtend[1].sourceInfo.id = 1;
+            virtualExtend[0].sourceInfo.modeInfoIdx = 0x000B000Cu;
+            virtualExtend[1].targetInfo.modeInfoIdx = 0x000D000Eu;
+
+            Assert.IsFalse(DisplayConfigService.TopologyRequiresUpdate(plainExtend, extendRequested));
+            Assert.IsFalse(DisplayConfigService.TopologyRequiresUpdate(virtualExtend, extendRequested));
+
+            plainClone[1].sourceInfo.id = 1;
+            virtualClone[1].sourceInfo.id = 1;
+            Assert.IsTrue(DisplayConfigService.TopologyRequiresUpdate(plainClone, cloneRequested));
+            Assert.IsTrue(DisplayConfigService.TopologyRequiresUpdate(virtualClone, cloneRequested));
+
+            plainClone[1].sourceInfo.id = 0;
+            virtualClone[1].sourceInfo.id = 0;
+            plainClone[1].flags &= ~(uint)DisplayConfigNative.DisplayConfigPathInfoFlags.Active;
+            virtualClone[1].flags &= ~(uint)DisplayConfigNative.DisplayConfigPathInfoFlags.Active;
+            Assert.IsTrue(DisplayConfigService.TopologyRequiresUpdate(plainClone, cloneRequested));
+            Assert.IsTrue(DisplayConfigService.TopologyRequiresUpdate(virtualClone, cloneRequested));
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void ApplyTopology_VirtualAwareFirstQueryMatchingTopology_IsNoOp()
+        {
+            int queries = 0;
+            int sets = 0;
+
+            int Query(DisplayConfigNative.QueryDisplayConfigFlags flags, out uint pathCount,
+                out DisplayConfigNative.DisplayConfigPathInfo[] paths,
+                out uint modeCount, out DisplayConfigNative.DisplayConfigModeInfo[] modes)
+            {
+                queries++;
+                Assert.AreEqual(
+                    DisplayConfigNative.QueryDisplayConfigFlags.AllPaths |
+                    DisplayConfigNative.QueryDisplayConfigFlags.VirtualModeAware,
+                    flags);
+                paths = [Path(1, virtualMode: true)];
+                modes = Modes();
+                pathCount = 1;
+                modeCount = (uint)modes.Length;
+                return 0;
+            }
+
+            int Set(uint pathCount, DisplayConfigNative.DisplayConfigPathInfo[] paths,
+                uint modeCount, DisplayConfigNative.DisplayConfigModeInfo[] modes,
+                DisplayConfigNative.SetDisplayConfigFlags flags)
+            {
+                sets++;
+                return 0;
+            }
+
+            Assert.IsTrue(DisplayConfigService.ApplyDisplayTopologyCore(new() { Display(1) }, false, Query, Set));
+            Assert.AreEqual(1, queries);
+            Assert.AreEqual(0, sets);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        [DataRow(true, true, true, 2)]
+        [DataRow(false, false, false, 3)]
+        [DataRow(true, false, true, 2)]
+        public void ApplyTopology_RequestedPathCapability_SelectsSubmissionMode(bool requestedVirtual, bool includeLegacyPath, bool expectedVirtual, int expectedQueries)
+        {
+            int queries = 0;
+            int sets = 0;
+
+            int Query(DisplayConfigNative.QueryDisplayConfigFlags flags, out uint pathCount,
+                out DisplayConfigNative.DisplayConfigPathInfo[] paths,
+                out uint modeCount, out DisplayConfigNative.DisplayConfigModeInfo[] modes)
+            {
+                queries++;
+                var requested = Path(1, virtualMode: requestedVirtual);
+                if (queries == 1)
+                    requested.flags &= ~(uint)DisplayConfigNative.DisplayConfigPathInfoFlags.Active;
+                if (includeLegacyPath)
+                {
+                    var inactive = Path(2);
+                    inactive.flags &= ~(uint)DisplayConfigNative.DisplayConfigPathInfoFlags.Active;
+                    paths = [requested, inactive];
+                }
+                else
+                    paths = [requested];
+
+                modes = Modes();
+                pathCount = (uint)paths.Length;
+                modeCount = (uint)modes.Length;
+                if (queries == 2 && !requestedVirtual)
+                    Assert.IsFalse(flags.HasFlag(DisplayConfigNative.QueryDisplayConfigFlags.VirtualModeAware));
+                return 0;
+            }
+
+            int Set(uint pathCount, DisplayConfigNative.DisplayConfigPathInfo[] paths,
+                uint modeCount, DisplayConfigNative.DisplayConfigModeInfo[] modes,
+                DisplayConfigNative.SetDisplayConfigFlags flags)
+            {
+                sets++;
+                Assert.AreEqual(expectedVirtual, flags.HasFlag(DisplayConfigNative.SetDisplayConfigFlags.VirtualModeAware));
+                Assert.AreEqual(0u, modeCount);
+                Assert.IsNull(modes);
+                return 0;
+            }
+
+            Assert.IsTrue(DisplayConfigService.ApplyDisplayTopologyCore(new() { Display(1) }, false, Query, Set));
+            Assert.AreEqual(expectedQueries, queries);
+            Assert.AreEqual(1, sets);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void ApplyTopology_MixedRequestedAdapters_UsesLegacyBestModeRecovery()
+        {
+            int queries = 0;
+            int sets = 0;
+            var input = new List<DisplayConfigInfo> { Display(1), Display(2, 2) };
+
+            int Query(DisplayConfigNative.QueryDisplayConfigFlags flags, out uint pathCount,
+                out DisplayConfigNative.DisplayConfigPathInfo[] paths,
+                out uint modeCount, out DisplayConfigNative.DisplayConfigModeInfo[] modes)
+            {
+                queries++;
+                var virtualPath = Path(1, virtualMode: true);
+                virtualPath.sourceInfo.modeInfoIdx = 0;
+                virtualPath.targetInfo.modeInfoIdx = 1;
+                var legacyPath = Path(2, adapter: 2);
+                legacyPath.sourceInfo.modeInfoIdx = 2;
+                legacyPath.targetInfo.modeInfoIdx = 3;
+                if (queries == 1)
+                    legacyPath.flags &= ~(uint)DisplayConfigNative.DisplayConfigPathInfoFlags.Active;
+                paths = [virtualPath, legacyPath];
+                modes =
+                [
+                    Modes()[0], Modes()[1],
+                    new DisplayConfigNative.DisplayConfigModeInfo { infoType = DisplayConfigNative.DisplayConfigModeInfoType.Source, adapterId = DisplayConfigNative.ToNative(Adapter(2)), id = 0 },
+                    new DisplayConfigNative.DisplayConfigModeInfo { infoType = DisplayConfigNative.DisplayConfigModeInfoType.Target, adapterId = DisplayConfigNative.ToNative(Adapter(2)), id = 2 }
+                ];
+                pathCount = 2;
+                modeCount = 4;
+                if (queries >= 2)
+                    Assert.IsFalse(flags.HasFlag(DisplayConfigNative.QueryDisplayConfigFlags.VirtualModeAware));
+                return 0;
+            }
+
+            int Set(uint pathCount, DisplayConfigNative.DisplayConfigPathInfo[] paths,
+                uint modeCount, DisplayConfigNative.DisplayConfigModeInfo[] modes,
+                DisplayConfigNative.SetDisplayConfigFlags flags)
+            {
+                sets++;
+                Assert.IsFalse(flags.HasFlag(DisplayConfigNative.SetDisplayConfigFlags.VirtualModeAware));
+                Assert.AreEqual(2u, pathCount);
+                if (sets == 1)
+                {
+                    Assert.AreEqual(uint.MaxValue, paths[0].sourceInfo.modeInfoIdx);
+                    Assert.AreEqual(uint.MaxValue, paths[0].targetInfo.modeInfoIdx);
+                    Assert.AreEqual(0u, modeCount);
+                    return 31;
+                }
+                Assert.AreEqual(0u, modeCount);
+                Assert.IsNull(modes);
+                Assert.IsTrue(flags.HasFlag(DisplayConfigNative.SetDisplayConfigFlags.UseSuppliedDisplayConfig));
+                Assert.IsFalse(flags.HasFlag(DisplayConfigNative.SetDisplayConfigFlags.AllowChanges));
+                return 0;
+            }
+
+            Assert.IsTrue(DisplayConfigService.ApplyDisplayTopologyCore(input, false, Query, Set));
+            Assert.AreEqual(3, queries);
+            Assert.AreEqual(2, sets);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        [DataRow(1, 0)]
+        [DataRow(2, 0)]
+        [DataRow(3, 2)]
+        public void ApplyTopology_MismatchedQueryArrays_FailsBeforeAffectedSubmission(int invalidQuery, int expectedSets)
+        {
+            int queries = 0;
+            int sets = 0;
+
+            int Query(DisplayConfigNative.QueryDisplayConfigFlags flags, out uint pathCount,
+                out DisplayConfigNative.DisplayConfigPathInfo[] paths,
+                out uint modeCount, out DisplayConfigNative.DisplayConfigModeInfo[] modes)
+            {
+                queries++;
+                var path = Path(1);
+                if (queries == 1)
+                    path.flags &= ~(uint)DisplayConfigNative.DisplayConfigPathInfoFlags.Active;
+                paths = new[] { path };
+                modes = Modes();
+                pathCount = 1;
+                modeCount = (uint)(queries == invalidQuery ? 5 : modes.Length);
+                return 0;
+            }
+
+            int Set(uint pathCount, DisplayConfigNative.DisplayConfigPathInfo[] paths,
+                uint modeCount, DisplayConfigNative.DisplayConfigModeInfo[] modes,
+                DisplayConfigNative.SetDisplayConfigFlags flags)
+            {
+                sets++;
+                return sets == 1 ? 31 : 0;
+            }
+
+            Assert.IsFalse(DisplayConfigService.ApplyDisplayTopologyCore(new() { Display(1) }, false, Query, Set));
+            Assert.AreEqual(expectedSets, sets);
+            Assert.AreEqual(invalidQuery, queries);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        [DataRow("missing")]
+        [DataRow("adapter")]
+        [DataRow("route")]
+        public void ApplyTopology_LegacyRequeryRouteDrift_FailsBeforeSet(string mutation)
+        {
+            int queries = 0;
+            int sets = 0;
+            int Query(DisplayConfigNative.QueryDisplayConfigFlags flags,
+                out uint pathCount, out DisplayConfigNative.DisplayConfigPathInfo[] paths,
+                out uint modeCount, out DisplayConfigNative.DisplayConfigModeInfo[] modes)
+            {
+                queries++;
+                var path = Path(1);
+                if (queries == 1) path.flags = 0;
+                if (queries == 2)
+                {
+                    switch (mutation)
+                    {
+                        case "missing":
+                            path.targetInfo.id = 8;
+                            break;
+                        case "adapter":
+                            path.sourceInfo.adapterId = DisplayConfigNative.ToNative(Adapter(2));
+                            path.targetInfo.adapterId = DisplayConfigNative.ToNative(Adapter(2));
+                            break;
+                        case "route":
+                            path.targetInfo.outputTechnology = (DisplayConfigNative.DisplayConfigVideoOutputTechnology)2;
+                            break;
+                    }
+                }
+                paths = mutation == "duplicate" && queries == 2
+                    ? [path, path]
+                    : [path];
+                modes = Modes();
+                pathCount = (uint)paths.Length;
+                modeCount = (uint)modes.Length;
+                return 0;
+            }
+            int Set(uint pathCount, DisplayConfigNative.DisplayConfigPathInfo[] paths,
+                uint modeCount, DisplayConfigNative.DisplayConfigModeInfo[] modes,
+                DisplayConfigNative.SetDisplayConfigFlags flags)
+            {
+                sets++;
+                return 0;
+            }
+
+            Assert.IsFalse(DisplayConfigService.ApplyDisplayTopologyCore(new() { Display(1) }, false, Query, Set));
+            Assert.AreEqual(0, sets);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void ApplyTopology_InconsistentSourceTargetAdapter_FailsBeforeSet()
+        {
+            int sets = 0;
+            int Query(DisplayConfigNative.QueryDisplayConfigFlags flags, out uint pathCount,
+                out DisplayConfigNative.DisplayConfigPathInfo[] paths, out uint modeCount,
+                out DisplayConfigNative.DisplayConfigModeInfo[] modes)
+            {
+                var path = Path(1);
+                path.flags = 0;
+                path.sourceInfo.adapterId = DisplayConfigNative.ToNative(Adapter(2));
+                paths = new[] { path };
+                modes = Modes();
+                pathCount = 1;
+                modeCount = (uint)modes.Length;
+                return 0;
+            }
+            int Set(uint pathCount, DisplayConfigNative.DisplayConfigPathInfo[] paths,
+                uint modeCount, DisplayConfigNative.DisplayConfigModeInfo[] modes,
+                DisplayConfigNative.SetDisplayConfigFlags flags)
+            {
+                sets++;
+                return 0;
+            }
+
+            Assert.IsFalse(DisplayConfigService.ApplyDisplayTopologyCore(new() { Display(1) }, false, Query, Set));
+            Assert.AreEqual(0, sets);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void ApplyTopology_DistinctInactiveTargetRoutes_FailsBeforeSet()
+        {
+            int sets = 0;
+            int Query(DisplayConfigNative.QueryDisplayConfigFlags flags, out uint pathCount,
+                out DisplayConfigNative.DisplayConfigPathInfo[] paths, out uint modeCount,
+                out DisplayConfigNative.DisplayConfigModeInfo[] modes)
+            {
+                var first = Path(1);
+                first.flags = 0;
+                var second = first;
+                second.sourceInfo.id = 1;
+                second.targetInfo.outputTechnology = (DisplayConfigNative.DisplayConfigVideoOutputTechnology)2;
+                paths = new[] { first, second };
+                modes = Modes();
+                pathCount = 2;
+                modeCount = (uint)modes.Length;
+                return 0;
+            }
+            int Set(uint pathCount, DisplayConfigNative.DisplayConfigPathInfo[] paths,
+                uint modeCount, DisplayConfigNative.DisplayConfigModeInfo[] modes,
+                DisplayConfigNative.SetDisplayConfigFlags flags)
+            {
+                sets++;
+                return 0;
+            }
+
+            Assert.IsFalse(DisplayConfigService.ApplyDisplayTopologyCore(new() { Display(1) }, false, Query, Set));
+            Assert.AreEqual(0, sets);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void ApplyTopology_DuplicateRequestedTarget_FailsBeforeSet()
+        {
+            int sets = 0;
+            int Query(DisplayConfigNative.QueryDisplayConfigFlags flags, out uint pathCount,
+                out DisplayConfigNative.DisplayConfigPathInfo[] paths, out uint modeCount,
+                out DisplayConfigNative.DisplayConfigModeInfo[] modes)
+            {
+                var path = Path(1);
+                path.flags = 0;
+                paths = new[] { path };
+                modes = Modes();
+                pathCount = 1;
+                modeCount = (uint)modes.Length;
+                return 0;
+            }
+            int Set(uint pathCount, DisplayConfigNative.DisplayConfigPathInfo[] paths,
+                uint modeCount, DisplayConfigNative.DisplayConfigModeInfo[] modes,
+                DisplayConfigNative.SetDisplayConfigFlags flags)
+            {
+                sets++;
+                return 0;
+            }
+
+            Assert.IsFalse(DisplayConfigService.ApplyDisplayTopologyCore(new() { Display(1), Display(1) }, false, Query, Set));
+            Assert.AreEqual(0, sets);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void ApplyTopology_LegacyRequerySourcePlacementChange_Submits()
+        {
+            int queries = 0;
+            int sets = 0;
+            int Query(DisplayConfigNative.QueryDisplayConfigFlags flags, out uint pathCount,
+                out DisplayConfigNative.DisplayConfigPathInfo[] paths, out uint modeCount,
+                out DisplayConfigNative.DisplayConfigModeInfo[] modes)
+            {
+                queries++;
+                var path = Path(1);
+                if (queries == 1)
+                    path.flags = 0;
+                if (queries == 2)
+                    path.sourceInfo.id = 7;
+                paths = new[] { path };
+                modes = Modes();
+                pathCount = 1;
+                modeCount = (uint)modes.Length;
+                return 0;
+            }
+            int Set(uint pathCount, DisplayConfigNative.DisplayConfigPathInfo[] paths,
+                uint modeCount, DisplayConfigNative.DisplayConfigModeInfo[] modes,
+                DisplayConfigNative.SetDisplayConfigFlags flags)
+            {
+                sets++;
+                return 0;
+            }
+
+            Assert.IsTrue(DisplayConfigService.ApplyDisplayTopologyCore(new() { Display(1) }, false, Query, Set));
+            Assert.AreEqual(1, sets);
+            Assert.AreEqual(3, queries);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void ApplyTopology_InactiveTargetWithSevenSourceCandidates_Submits()
+        {
+            int queries = 0;
+            int sets = 0;
+            int Query(DisplayConfigNative.QueryDisplayConfigFlags flags, out uint pathCount,
+                out DisplayConfigNative.DisplayConfigPathInfo[] paths, out uint modeCount,
+                out DisplayConfigNative.DisplayConfigModeInfo[] modes)
+            {
+                queries++;
+                if (queries == 1)
+                {
+                    var candidates = new List<DisplayConfigNative.DisplayConfigPathInfo>();
+                    for (uint sourceId = 0; sourceId < 7; sourceId++)
+                    {
+                        var candidate = Path(4242, adapter: 0x1234, virtualMode: true);
+                        candidate.flags &= ~(uint)DisplayConfigNative.DisplayConfigPathInfoFlags.Active;
+                        candidate.sourceInfo.id = sourceId;
+                        candidate.targetInfo.outputTechnology = DisplayConfigNative.DisplayConfigVideoOutputTechnology.Hdmi;
+                        candidates.Add(candidate);
+                    }
+                    paths = candidates.ToArray();
+                }
+                else
+                {
+                    var active = Path(4242, adapter: 0x1234, virtualMode: true);
+                    active.targetInfo.outputTechnology = DisplayConfigNative.DisplayConfigVideoOutputTechnology.Hdmi;
+                    paths = new[] { active };
+                }
+
+                modes = Modes(4242, 0x1234);
+                pathCount = (uint)paths.Length;
+                modeCount = (uint)modes.Length;
+                return 0;
+            }
+            int Set(uint pathCount, DisplayConfigNative.DisplayConfigPathInfo[] paths,
+                uint modeCount, DisplayConfigNative.DisplayConfigModeInfo[] modes,
+                DisplayConfigNative.SetDisplayConfigFlags flags)
+            {
+                sets++;
+                Assert.IsTrue(flags.HasFlag(DisplayConfigNative.SetDisplayConfigFlags.VirtualModeAware));
+                Assert.AreEqual(1, paths.Count(path => (path.flags & (uint)DisplayConfigNative.DisplayConfigPathInfoFlags.Active) != 0));
+                return 0;
+            }
+
+            Assert.IsTrue(DisplayConfigService.ApplyDisplayTopologyCore(new() { Display(4242, 0x1234) }, false, Query, Set));
+            Assert.AreEqual(1, sets);
+            Assert.AreEqual(2, queries);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void ApplyTopology_Error31_UsesSamePreparedPathsAndReadback()
         {
             bool ok = RunTopologyWithNativeFakes(31, true, out int calls, out int queries, out var flags);
 
             Assert.IsTrue(ok);
             Assert.AreEqual(2, calls);
-            Assert.AreEqual(4, queries);
-            Assert.IsTrue(flags.HasFlag(DisplayConfigNative.SetDisplayConfigFlags.VirtualModeAware));
-            Assert.IsTrue(flags.HasFlag(DisplayConfigNative.SetDisplayConfigFlags.AllowChanges));
+            Assert.AreEqual(3, queries);
+            Assert.IsFalse(flags.HasFlag(DisplayConfigNative.SetDisplayConfigFlags.VirtualModeAware));
+            Assert.IsFalse(flags.HasFlag(DisplayConfigNative.SetDisplayConfigFlags.AllowChanges));
             Assert.IsTrue(flags.HasFlag(DisplayConfigNative.SetDisplayConfigFlags.UseSuppliedDisplayConfig));
+            Assert.IsTrue(flags.HasFlag(DisplayConfigNative.SetDisplayConfigFlags.SaveToDatabase));
         }
 
         [TestMethod]
         [TestCategory("Unit")]
-        public void ApplyTopology_Error31_VirtualRecoverySetReceivesPackedModes()
+        public void ApplyTopology_Error31_VirtualRecoveryReusesPreparedPathsWithoutModes()
         {
             int queryCalls = 0;
             int setCalls = 0;
             bool inspectedRecovery = false;
+            DisplayConfigNative.DisplayConfigPathInfo[] firstSubmissionPaths = null;
 
             int Query(DisplayConfigNative.QueryDisplayConfigFlags flags,
                 out uint pathCount, out DisplayConfigNative.DisplayConfigPathInfo[] paths,
@@ -102,12 +560,13 @@ namespace DisplayProfileManager.Tests.Displays
                 var path = Path(1, virtualMode: true);
                 if (queryCalls == 1)
                     path.flags &= ~(uint)DisplayConfigNative.DisplayConfigPathInfoFlags.Active;
-                if (queryCalls == 3)
+                if (queryCalls == 2)
                     path.targetInfo.modeInfoIdx = 0x00010002u;
-                paths = new[] { path };
+                paths = [path];
                 var typedModes = new List<DisplayConfigNative.DisplayConfigModeInfo>(Modes())
                 {
-                    new() { infoType = DisplayConfigNative.DisplayConfigModeInfoType.DesktopImage, adapterId = DisplayConfigNative.ToNative(Adapter(1)), id = 1 }
+                    new() { infoType = DisplayConfigNative.DisplayConfigModeInfoType.DesktopImage,
+                        adapterId = DisplayConfigNative.ToNative(Adapter(1)), id = 1 }
                 };
                 modes = typedModes.ToArray();
                 pathCount = (uint)paths.Length;
@@ -122,34 +581,25 @@ namespace DisplayProfileManager.Tests.Displays
                 setCalls++;
                 if (setCalls == 1)
                 {
+                    firstSubmissionPaths = paths;
+                    Assert.AreEqual(0u, modeCount);
+                    Assert.IsNull(modes);
                     return 31;
                 }
 
                 Assert.AreEqual(2, setCalls);
+                Assert.AreSame(firstSubmissionPaths, paths);
                 Assert.AreEqual(1u, pathCount);
-                Assert.AreEqual(3u, modeCount);
+                Assert.AreEqual(0u, modeCount);
+                Assert.IsNull(modes);
                 Assert.AreEqual(1, paths.Length);
-                Assert.AreEqual(3, modes.Length);
                 Assert.IsTrue(flags.HasFlag(DisplayConfigNative.SetDisplayConfigFlags.UseSuppliedDisplayConfig));
-                Assert.IsTrue(flags.HasFlag(DisplayConfigNative.SetDisplayConfigFlags.AllowChanges));
+                Assert.IsFalse(flags.HasFlag(DisplayConfigNative.SetDisplayConfigFlags.AllowChanges));
                 Assert.IsTrue(flags.HasFlag(DisplayConfigNative.SetDisplayConfigFlags.VirtualModeAware));
                 Assert.IsTrue(flags.HasFlag(DisplayConfigNative.SetDisplayConfigFlags.SaveToDatabase));
                 Assert.IsTrue(flags.HasFlag(DisplayConfigNative.SetDisplayConfigFlags.Apply));
                 Assert.IsTrue((paths[0].flags & (uint)DisplayConfigNative.DisplayConfigPathInfoFlags.Active) != 0);
                 Assert.IsTrue((paths[0].flags & (uint)DisplayConfigNative.DisplayConfigPathInfoFlags.SupportVirtualMode) != 0);
-                Assert.AreEqual(5u, paths[0].sourceInfo.modeInfoIdx & 0xFFFF);
-                Assert.AreEqual(0u, paths[0].sourceInfo.modeInfoIdx >> 16);
-                Assert.AreEqual(1u, paths[0].targetInfo.modeInfoIdx >> 16);
-                Assert.AreEqual(2u, paths[0].targetInfo.modeInfoIdx & 0xFFFF);
-                Assert.AreEqual(DisplayConfigNative.DisplayConfigModeInfoType.Source, modes[0].infoType);
-                Assert.AreEqual(DisplayConfigNative.DisplayConfigModeInfoType.Target, modes[1].infoType);
-                Assert.AreEqual(DisplayConfigNative.DisplayConfigModeInfoType.DesktopImage, modes[2].infoType);
-                Assert.AreEqual(DisplayConfigNative.ToNative(Adapter(1)), modes[0].adapterId);
-                Assert.AreEqual(DisplayConfigNative.ToNative(Adapter(1)), modes[1].adapterId);
-                Assert.AreEqual(DisplayConfigNative.ToNative(Adapter(1)), modes[2].adapterId);
-                Assert.AreEqual(0u, modes[0].id);
-                Assert.AreEqual(1u, modes[1].id);
-                Assert.AreEqual(1u, modes[2].id);
                 inspectedRecovery = true;
                 return 0;
             }
@@ -159,7 +609,135 @@ namespace DisplayProfileManager.Tests.Displays
             Assert.IsTrue(ok);
             Assert.IsTrue(inspectedRecovery);
             Assert.AreEqual(2, setCalls);
-            Assert.AreEqual(4, queryCalls);
+            Assert.AreEqual(2, queryCalls);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void ApplyTopology_FirstSetSuccess_ReadbackMismatch_FailsClosed()
+        {
+            bool ok = RunTopologyWithNativeFakes(0, false, out int calls, out int queries, out _);
+
+            Assert.IsFalse(ok);
+            Assert.AreEqual(1, calls);
+            Assert.AreEqual(3, queries);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void ApplyTopology_FirstSetSuccess_VirtualCloneReadbackMatch_Succeeds()
+        {
+            int queries = 0;
+            int sets = 0;
+            var requested = new List<DisplayConfigInfo> { Display(1), Display(2) };
+
+            int Query(DisplayConfigNative.QueryDisplayConfigFlags flags, out uint pathCount,
+                out DisplayConfigNative.DisplayConfigPathInfo[] paths,
+                out uint modeCount, out DisplayConfigNative.DisplayConfigModeInfo[] modes)
+            {
+                queries++;
+                var first = Path(1, virtualMode: true);
+                var second = Path(2, virtualMode: true);
+                if (queries == 1)
+                {
+                    first.flags &= ~(uint)DisplayConfigNative.DisplayConfigPathInfoFlags.Active;
+                    second.flags &= ~(uint)DisplayConfigNative.DisplayConfigPathInfoFlags.Active;
+                }
+                paths = [first, second];
+                modes = Modes();
+                pathCount = (uint)paths.Length;
+                modeCount = (uint)modes.Length;
+                return 0;
+            }
+
+            int Set(uint pathCount, DisplayConfigNative.DisplayConfigPathInfo[] paths,
+                uint modeCount, DisplayConfigNative.DisplayConfigModeInfo[] modes,
+                DisplayConfigNative.SetDisplayConfigFlags flags)
+            {
+                sets++;
+                Assert.IsTrue(flags.HasFlag(DisplayConfigNative.SetDisplayConfigFlags.VirtualModeAware));
+                return 0;
+            }
+
+            Assert.IsTrue(DisplayConfigService.ApplyDisplayTopologyCore(requested, false, Query, Set));
+            Assert.AreEqual(2, queries);
+            Assert.AreEqual(1, sets);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void ApplyTopology_FirstSetSuccess_MixedLegacyReadbackMatch_Succeeds()
+        {
+            int queries = 0;
+            int sets = 0;
+            var requested = new List<DisplayConfigInfo> { Display(1), Display(2, 2) };
+
+            int Query(DisplayConfigNative.QueryDisplayConfigFlags flags, out uint pathCount,
+                out DisplayConfigNative.DisplayConfigPathInfo[] paths,
+                out uint modeCount, out DisplayConfigNative.DisplayConfigModeInfo[] modes)
+            {
+                queries++;
+                var first = Path(1, virtualMode: true);
+                var second = Path(2, 2);
+                if (queries == 1)
+                {
+                    first.flags &= ~(uint)DisplayConfigNative.DisplayConfigPathInfoFlags.Active;
+                    second.flags &= ~(uint)DisplayConfigNative.DisplayConfigPathInfoFlags.Active;
+                }
+                paths = [first, second];
+                modes = Modes();
+                pathCount = (uint)paths.Length;
+                modeCount = (uint)modes.Length;
+                return 0;
+            }
+
+            int Set(uint pathCount, DisplayConfigNative.DisplayConfigPathInfo[] paths,
+                uint modeCount, DisplayConfigNative.DisplayConfigModeInfo[] modes,
+                DisplayConfigNative.SetDisplayConfigFlags flags)
+            {
+                sets++;
+                Assert.IsFalse(flags.HasFlag(DisplayConfigNative.SetDisplayConfigFlags.VirtualModeAware));
+                return 0;
+            }
+
+            Assert.IsTrue(DisplayConfigService.ApplyDisplayTopologyCore(requested, false, Query, Set));
+            Assert.AreEqual(3, queries);
+            Assert.AreEqual(1, sets);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void ApplyTopology_FirstSetSuccess_InvalidReadbackCounts_FailsClosed()
+        {
+            int queries = 0;
+            int sets = 0;
+
+            int Query(DisplayConfigNative.QueryDisplayConfigFlags flags, out uint pathCount,
+                out DisplayConfigNative.DisplayConfigPathInfo[] paths,
+                out uint modeCount, out DisplayConfigNative.DisplayConfigModeInfo[] modes)
+            {
+                queries++;
+                var path = Path(1);
+                if (queries == 1)
+                    path.flags &= ~(uint)DisplayConfigNative.DisplayConfigPathInfoFlags.Active;
+                paths = [path];
+                modes = Modes();
+                pathCount = queries == 3 ? 2u : 1u;
+                modeCount = (uint)modes.Length;
+                return 0;
+            }
+
+            int Set(uint pathCount, DisplayConfigNative.DisplayConfigPathInfo[] paths,
+                uint modeCount, DisplayConfigNative.DisplayConfigModeInfo[] modes,
+                DisplayConfigNative.SetDisplayConfigFlags flags)
+            {
+                sets++;
+                return 0;
+            }
+
+            Assert.IsFalse(DisplayConfigService.ApplyDisplayTopologyCore(new() { Display(1) }, false, Query, Set));
+            Assert.AreEqual(3, queries);
+            Assert.AreEqual(1, sets);
         }
 
         [TestMethod]
@@ -181,35 +759,35 @@ namespace DisplayProfileManager.Tests.Displays
 
             Assert.IsFalse(ok);
             Assert.AreEqual(2, calls);
-            Assert.AreEqual(4, queries);
+            Assert.AreEqual(3, queries);
         }
 
         [TestMethod]
         [TestCategory("Unit")]
         public void RecoveryReadback_ExactActiveTarget_Succeeds()
         {
-            Assert.IsTrue(DisplayConfigService.RecoveryMatchesRequested(new[] { Path(1) }, new() { Display(1) }));
+            Assert.IsTrue(DisplayConfigService.RecoveryMatchesRequested([Path(1)], new() { Display(1) }));
         }
 
         [TestMethod]
         [TestCategory("Unit")]
         public void RecoveryReadback_MissingTarget_FailsClosed()
         {
-            Assert.IsFalse(DisplayConfigService.RecoveryMatchesRequested(new[] { Path(1) }, new() { Display(2) }));
+            Assert.IsFalse(DisplayConfigService.RecoveryMatchesRequested([Path(1)], new() { Display(2) }));
         }
 
         [TestMethod]
         [TestCategory("Unit")]
         public void RecoveryReadback_UnexpectedActiveTarget_FailsClosed()
         {
-            Assert.IsFalse(DisplayConfigService.RecoveryMatchesRequested(new[] { Path(1), Path(2) }, new() { Display(1) }));
+            Assert.IsFalse(DisplayConfigService.RecoveryMatchesRequested([Path(1), Path(2)], new() { Display(1) }));
         }
 
         [TestMethod]
         [TestCategory("Unit")]
         public void RecoveryReadback_DuplicateActiveTarget_FailsClosed()
         {
-            Assert.IsFalse(DisplayConfigService.RecoveryMatchesRequested(new[] { Path(1), Path(1) }, new() { Display(1) }));
+            Assert.IsFalse(DisplayConfigService.RecoveryMatchesRequested([Path(1), Path(1)], new() { Display(1) }));
         }
 
         [TestMethod]
@@ -234,165 +812,12 @@ namespace DisplayProfileManager.Tests.Displays
         }
 
         [TestMethod]
-        [TestCategory("Unit")]
-        public void PrepareRecovery_CompleteLegacyModes_PreservesIndices()
-        {
-            var paths = new[] { Path(1) };
-
-            bool ok = DisplayConfigService.TryPrepareRecoveryPaths(paths, Modes(), new() { Display(1) }, out _);
-
-            Assert.IsTrue(ok);
-            Assert.AreEqual(0u, paths[0].sourceInfo.modeInfoIdx);
-            Assert.AreEqual(1u, paths[0].targetInfo.modeInfoIdx);
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void PrepareRecovery_VirtualMode_PreservesModeUnion()
-        {
-            var paths = new[] { Path(1, virtualMode: true) };
-
-            bool ok = DisplayConfigService.TryPrepareRecoveryPaths(paths, Modes(), new() { Display(1) }, out _);
-
-            Assert.IsTrue(ok);
-            Assert.AreEqual(5u, paths[0].sourceInfo.modeInfoIdx);
-            Assert.AreEqual(0x0001FFFFu, paths[0].targetInfo.modeInfoIdx);
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void PrepareRecovery_VirtualTargetUpperModeAndDesktopImage_Succeeds()
-        {
-            var paths = new[] { Path(1, virtualMode: true) };
-            paths[0].targetInfo.modeInfoIdx = 0x00010002u;
-            var modes = new List<DisplayConfigNative.DisplayConfigModeInfo>(Modes())
-            {
-                new() { infoType = DisplayConfigNative.DisplayConfigModeInfoType.DesktopImage, adapterId = DisplayConfigNative.ToNative(Adapter(1)), id = 1 }
-            };
-
-            Assert.IsTrue(DisplayConfigService.TryPrepareRecoveryPaths(paths, modes.ToArray(), new() { Display(1) }, out _));
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void PrepareRecovery_VirtualTargetWrongDesktopTypeOrBounds_FailsClosed()
-        {
-            var paths = new[] { Path(1, virtualMode: true) };
-            paths[0].targetInfo.modeInfoIdx = 0x00010002u;
-            Assert.IsFalse(DisplayConfigService.TryPrepareRecoveryPaths(paths, Modes(), new() { Display(1) }, out _));
-
-            var modes = new List<DisplayConfigNative.DisplayConfigModeInfo>(Modes())
-            {
-                new() { infoType = DisplayConfigNative.DisplayConfigModeInfoType.Target, adapterId = DisplayConfigNative.ToNative(Adapter(1)), id = 1 }
-            };
-            Assert.IsFalse(DisplayConfigService.TryPrepareRecoveryPaths(paths, modes.ToArray(), new() { Display(1) }, out _));
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void PrepareRecovery_VirtualTargetWrongUpperTargetTypeOrBounds_FailsClosed()
-        {
-            var paths = new[] { Path(1, virtualMode: true) };
-            paths[0].targetInfo.modeInfoIdx = 0x0002FFFFu;
-            Assert.IsFalse(DisplayConfigService.TryPrepareRecoveryPaths(paths, Modes(), new() { Display(1) }, out _));
-            paths[0].targetInfo.modeInfoIdx = 0x0000FFFFu;
-            Assert.IsFalse(DisplayConfigService.TryPrepareRecoveryPaths(paths, Modes(), new() { Display(1) }, out _));
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void PrepareRecovery_VirtualTargetReversedLegacyFixture_FailsClosed()
-        {
-            var paths = new[] { Path(1, virtualMode: true) };
-            paths[0].targetInfo.modeInfoIdx = 1;
-
-            Assert.IsFalse(DisplayConfigService.TryPrepareRecoveryPaths(paths, Modes(), new() { Display(1) }, out _));
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void PrepareRecovery_InactiveCandidateMissingModes_FailsClosed()
-        {
-            var paths = new[] { Path(1) };
-            paths[0].flags &= ~(uint)DisplayConfigNative.DisplayConfigPathInfoFlags.Active;
-            paths[0].sourceInfo.modeInfoIdx = 0xFFFFFFFFu;
-
-            Assert.IsFalse(DisplayConfigService.TryPrepareRecoveryPaths(paths, Modes(), new() { Display(1) }, out _));
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void PrepareRecovery_OutOfBoundsMode_FailsClosed()
-        {
-            var paths = new[] { Path(1) };
-            paths[0].targetInfo.modeInfoIdx = 9;
-
-            bool ok = DisplayConfigService.TryPrepareRecoveryPaths(paths, Modes(), new() { Display(1) }, out _);
-
-            Assert.IsFalse(ok);
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void PrepareRecovery_ModeTypeMismatch_FailsClosed()
-        {
-            var paths = new[] { Path(1) };
-            var modes = Modes();
-            modes[1].infoType = DisplayConfigNative.DisplayConfigModeInfoType.Source;
-
-            Assert.IsFalse(DisplayConfigService.TryPrepareRecoveryPaths(paths, modes, new() { Display(1) }, out _));
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void PrepareRecovery_AbsentModeArray_FailsClosed()
-        {
-            Assert.IsFalse(DisplayConfigService.TryPrepareRecoveryPaths(new[] { Path(1) }, [], new() { Display(1) }, out _));
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void PrepareRecovery_DuplicateAdapterQualifiedTarget_FailsClosed()
-        {
-            var paths = new[] { Path(1), Path(1) };
-
-            Assert.IsFalse(DisplayConfigService.TryPrepareRecoveryPaths(paths, Modes(), new() { Display(1) }, out _));
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void PrepareRecovery_LegacyZeroAdapterUniqueTarget_Resolves()
-        {
-            var paths = new[] { Path(1) };
-
-            Assert.IsTrue(DisplayConfigService.TryPrepareRecoveryPaths(paths, Modes(), new() { Display(1, 0) }, out _));
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void PrepareRecovery_LegacyZeroAdapterAmbiguousTarget_FailsClosed()
-        {
-            var paths = new[] { Path(1), Path(1, 2) };
-
-            Assert.IsFalse(DisplayConfigService.TryPrepareRecoveryPaths(paths, Modes(), new() { Display(1, 0) }, out _));
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void PrepareRecovery_UnknownRequestedTarget_FailsClosed()
-        {
-            Assert.IsFalse(DisplayConfigService.TryPrepareRecoveryPaths(new[] { Path(1) }, Modes(), new() { Display(2) }, out _));
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
         public void ReleaseQuality_QueryFlagsAndSetFlags_AreStrictlyOrdered()
         {
             int queries = 0, sets = 0;
             var expectedQueries = new[] {
+                DisplayConfigNative.QueryDisplayConfigFlags.AllPaths | DisplayConfigNative.QueryDisplayConfigFlags.VirtualModeAware,
                 DisplayConfigNative.QueryDisplayConfigFlags.AllPaths,
-                DisplayConfigNative.QueryDisplayConfigFlags.AllPaths | DisplayConfigNative.QueryDisplayConfigFlags.VirtualModeAware,
-                DisplayConfigNative.QueryDisplayConfigFlags.AllPaths | DisplayConfigNative.QueryDisplayConfigFlags.VirtualModeAware,
                 DisplayConfigNative.QueryDisplayConfigFlags.AllPaths
             };
             int Query(DisplayConfigNative.QueryDisplayConfigFlags flags, out uint pc,
@@ -402,11 +827,9 @@ namespace DisplayProfileManager.Tests.Displays
                 Assert.IsTrue(queries < expectedQueries.Length);
                 Assert.AreEqual(expectedQueries[queries], flags);
                 queries++;
-                paths = new[] { Path(1) };
-                if (queries <= 2) paths[0].flags = 0;
-                modes = Modes();
-                pc = 1;
-                mc = 2;
+                paths = [Path(1)];
+                if (queries == 1) paths[0].flags = 0;
+                modes = Modes(); pc = 1; mc = 2;
                 return 0;
             }
             int Set(uint pc, DisplayConfigNative.DisplayConfigPathInfo[] paths, uint mc,
@@ -422,53 +845,20 @@ namespace DisplayProfileManager.Tests.Displays
                     Assert.AreEqual(
                         DisplayConfigNative.SetDisplayConfigFlags.TopologySupplied |
                         DisplayConfigNative.SetDisplayConfigFlags.Apply |
-                        DisplayConfigNative.SetDisplayConfigFlags.AllowPathOrderChanges |
-                        DisplayConfigNative.SetDisplayConfigFlags.VirtualModeAware, flags);
+                        DisplayConfigNative.SetDisplayConfigFlags.AllowPathOrderChanges, flags);
                     return 31;
                 }
-                Assert.AreEqual(2u, mc);
-                Assert.AreEqual(2, modes.Length);
+                Assert.AreEqual(0u, mc);
+                Assert.IsNull(modes);
                 Assert.AreEqual(
                     DisplayConfigNative.SetDisplayConfigFlags.UseSuppliedDisplayConfig |
                     DisplayConfigNative.SetDisplayConfigFlags.Apply |
-                    DisplayConfigNative.SetDisplayConfigFlags.SaveToDatabase |
-                    DisplayConfigNative.SetDisplayConfigFlags.AllowChanges |
-                    DisplayConfigNative.SetDisplayConfigFlags.VirtualModeAware, flags);
+                    DisplayConfigNative.SetDisplayConfigFlags.SaveToDatabase, flags);
                 return 0;
             }
             Assert.IsTrue(DisplayConfigService.ApplyDisplayTopologyCore(new() { Display(1) }, false, Query, Set));
-            Assert.AreEqual(4, queries);
+            Assert.AreEqual(3, queries);
             Assert.AreEqual(2, sets);
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public void ReleaseQuality_ModeAdapterIdentity_FailsClosedForEachRecord()
-        {
-            foreach (int slot in new[] { 0, 1 })
-            {
-                var modes = Modes();
-                modes[slot].adapterId = DisplayConfigNative.ToNative(Adapter(2));
-                Assert.IsFalse(DisplayConfigService.TryPrepareRecoveryPaths(new[] { Path(1) }, modes, new() { Display(1) }, out _), $"Wrong adapter at mode index {slot}");
-            }
-            Assert.IsTrue(DisplayConfigService.TryPrepareRecoveryPaths(new[] { Path(1) }, Modes(), new() { Display(1) }, out _));
-            var virtualPath = Path(1, virtualMode: true);
-            virtualPath.targetInfo.modeInfoIdx = 0x00010002u;
-            var good = new List<DisplayConfigNative.DisplayConfigModeInfo>(Modes())
-            {
-                new() { infoType = DisplayConfigNative.DisplayConfigModeInfoType.DesktopImage, adapterId = DisplayConfigNative.ToNative(Adapter(1)), id = 1 }
-            };
-            Assert.IsTrue(DisplayConfigService.TryPrepareRecoveryPaths(new[] { virtualPath }, good.ToArray(), new() { Display(1) }, out _));
-            var mismatchedDesktop = good[2];
-            mismatchedDesktop.adapterId = DisplayConfigNative.ToNative(Adapter(2));
-            good[2] = mismatchedDesktop;
-            Assert.IsFalse(DisplayConfigService.TryPrepareRecoveryPaths(new[] { virtualPath }, good.ToArray(), new() { Display(1) }, out _));
-            var wrongSourceId = Modes();
-            wrongSourceId[0].id = 9;
-            Assert.IsFalse(DisplayConfigService.TryPrepareRecoveryPaths(new[] { Path(1) }, wrongSourceId, new() { Display(1) }, out _));
-            var wrongTargetId = Modes();
-            wrongTargetId[1].id = 9;
-            Assert.IsFalse(DisplayConfigService.TryPrepareRecoveryPaths(new[] { Path(1) }, wrongTargetId, new() { Display(1) }, out _));
         }
     }
 }
