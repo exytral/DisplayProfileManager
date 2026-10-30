@@ -107,7 +107,7 @@ Display Profile Manager uses MIT + Commons Clause — see [LICENSE](LICENSE) for
 **This Project**
 
 - **[@vivittel](https://github.com/vivittel)** ([PR #1](https://github.com/vivittel/DisplayProfileManager/pull/1)) — Windows 11 24H2 HDR/WCG detection and dedicated Advanced Color API foundation
-- **[@jason-murray](https://github.com/jason-murray)** ([PR #17](https://github.com/exytral/DisplayProfileManager/pull/17)) — Capability-based topology submission for paths without virtual-mode support
+- **[@jason-murray](https://github.com/jason-murray)** ([PR #17](https://github.com/exytral/DisplayProfileManager/pull/17)) — Improved display topology compatibility through virtual-mode capability-aware submission
 
 **Upstream**
 
@@ -118,11 +118,11 @@ Display Profile Manager uses MIT + Commons Clause — see [LICENSE](LICENSE) for
 
 **Community**
 
-- **[@Stormers16](https://github.com/Stormers16)** ([PR #14](https://github.com/exytral/DisplayProfileManager/pull/14)) — Historical full-configuration recovery prototype and affected-hardware validation
 - **[@Catriks](https://github.com/Catriks)** ([#1](https://github.com/zac15987/DisplayProfileManager/issues/1)) — Requested audio device switching
 - **[@anodynos](https://github.com/anodynos)** ([#2](https://github.com/zac15987/DisplayProfileManager/issues/2)) — Requested global hotkeys for profile switching
 - **[@xtrilla](https://github.com/xtrilla)** ([#4](https://github.com/zac15987/DisplayProfileManager/issues/4)) — Requested monitor enable/disable configuration
 - **[@ffgtthr](https://github.com/ffgtthr)** ([#2](https://github.com/zac15987/DisplayProfileManager/issues/2)) — Requested custom profile icons
+- **[@Stormers16](https://github.com/Stormers16)** ([PR #14](https://github.com/exytral/DisplayProfileManager/pull/14)) — Investigated and reported display-topology submission failures on paths without virtual-mode support
 
 ---
 

@@ -95,11 +95,11 @@ namespace DisplayProfileManager.Application
             public const string VivittelLinkLabel = "PR #1";
             public const string VivittelDesc = "Initial Windows 11 24H2 HDR/WCG detection and HDR verification foundation";
             
-            public const string Stormers16Name = "@Stormers16";
-            public const string Stormers16Url = "https://github.com/Stormers16";
-            public const string Stormers16LinkUrl = "https://github.com/exytral/DisplayProfileManager/pull/14";
-            public const string Stormers16LinkLabel = "PR #14";
-            public const string Stormers16Desc = "Initial display topology recovery prototype";
+            public const string JasonMurrayName = "@jason-murray";
+            public const string JasonMurrayUrl = "https://github.com/jason-murray";
+            public const string JasonMurrayLinkUrl = "https://github.com/exytral/DisplayProfileManager/pull/17";
+            public const string JasonMurrayLinkLabel = "PR #17";
+            public const string JasonMurrayDesc = "Improved display topology compatibility through virtual-mode capability-aware submission";
 
             // Upstream
             public const string Zac15987Name = "@zac15987";
