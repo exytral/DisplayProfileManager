@@ -48,7 +48,7 @@ A lightweight Windows desktop application for managing display profiles — save
 - 📌 **System tray** — open the profile list from the taskbar to switch profiles
 - 🖱️ **Desktop context menu** — apply profiles directly from the desktop classic right-click menu
 - 💻 **CLI support** — automate profile switching and application control with scripts or external tools
-- 🔔 **Optional update checking** — check GitHub for newer releases; no direct downloads or installation, and off by default
+- 🔔 **Update checking** — check GitHub for newer releases; enabled by default with an explicit opt-out, with no direct downloads or installation
 
 **🎮 DPM Shortcut Builder** — included standalone Python tool for creating game/app launch shortcuts that switch display profiles before launch and restore a selected profile on exit, with guided launcher integration for Steam, Epic Games, GOG Galaxy, Heroic, and Playnite
 
@@ -106,8 +106,8 @@ Display Profile Manager uses MIT + Commons Clause — see [LICENSE](LICENSE) for
 
 **This Project**
 
-- **[@Stormers16](https://github.com/Stormers16)** ([PR #14](https://github.com/exytral/DisplayProfileManager/pull/14)) — initial display topology recovery prototype
 - **[@vivittel](https://github.com/vivittel)** ([PR #1](https://github.com/vivittel/DisplayProfileManager/pull/1)) — Windows 11 24H2 HDR/WCG detection and dedicated Advanced Color API foundation
+- **[@jason-murray](https://github.com/jason-murray)** ([PR #17](https://github.com/exytral/DisplayProfileManager/pull/17)) — Capability-based topology submission for paths without virtual-mode support
 
 **Upstream**
 
@@ -118,6 +118,7 @@ Display Profile Manager uses MIT + Commons Clause — see [LICENSE](LICENSE) for
 
 **Community**
 
+- **[@Stormers16](https://github.com/Stormers16)** ([PR #14](https://github.com/exytral/DisplayProfileManager/pull/14)) — Historical full-configuration recovery prototype and affected-hardware validation
 - **[@Catriks](https://github.com/Catriks)** ([#1](https://github.com/zac15987/DisplayProfileManager/issues/1)) — Requested audio device switching
 - **[@anodynos](https://github.com/anodynos)** ([#2](https://github.com/zac15987/DisplayProfileManager/issues/2)) — Requested global hotkeys for profile switching
 - **[@xtrilla](https://github.com/xtrilla)** ([#4](https://github.com/zac15987/DisplayProfileManager/issues/4)) — Requested monitor enable/disable configuration

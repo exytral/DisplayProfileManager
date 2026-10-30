@@ -20,13 +20,22 @@ Customize the application with shared control styles and packaged Light, Dark, a
 
 ### ⚙️ Automation & integration
 
-Create, edit, and switch display profiles through the application, Quick Switch, the system tray, global hotkeys, the desktop context menu, and optional Start Menu shortcuts. Profile files remain in the managed Profiles folder; the main-window "Import" button is no longer available. Theme, icon, and script imports remain supported. The CLI supports external automation, while optional update checking notifies about newer releases without downloading or installing them.
+Create, edit, and switch display profiles through the application, Quick Switch, the system tray, global hotkeys, the desktop context menu, and optional Start Menu shortcuts. Profile files remain in the managed Profiles folder; the main-window "Import" button is no longer available. Theme, icon, and script imports remain supported. The CLI supports external automation, while update checking is enabled by default with an explicit opt-out and notifies about newer releases without downloading or installing them.
+
+---
+
+## 2.3.2 — Display topology compatibility
+
+- Adapted from [PR #17](https://github.com/exytral/DisplayProfileManager/pull/17) by @jason-murray — capability-based topology submission for requested paths without virtual-mode support, integrated with the existing topology pipeline.
+- **Display switching across mixed path capabilities** — Topology apply now chooses Windows' representation from the requested active display paths before applying a change. Fully virtual-mode-capable requests keep the virtual-aware topology path; requests containing a path that does not advertise virtual-mode support use the plain CCD representation for the complete requested topology instead of failing with Error 87.
+- **Simpler bounded recovery** — Error 31 retries the same prepared topology with Windows best-mode selection, while successful applies and recoveries are verified against fresh active-topology readback. Error 87 remains a terminal invalid-parameter failure after the correct representation has been selected.
+- **Update checks enabled by default** — new or missing settings enable update notifications by default. An existing explicit opt-out remains disabled, and update checks still do not download or install updates.
 
 ---
 
 ## 2.3.1 — Display topology recovery
 
-- **More reliable display switching** — adapted fixes from @Stormers16 in [PR #14](https://github.com/exytral/DisplayProfileManager/pull/14) improve topology recovery when Windows rejects a display change with error 31. The application retries with a validated complete display configuration, verifies the resulting active monitors, and adds safeguards for cloned and extended layouts while ambiguous configurations still fail conservatively.
+- **More reliable topology recovery** — adapted fixes from @Stormers16 in [PR #14](https://github.com/exytral/DisplayProfileManager/pull/14) improve topology recovery when Windows rejects a display change with error 31. The application retries with a validated complete display configuration, verifies the resulting active monitors, and adds safeguards for cloned and extended layouts while ambiguous configurations still fail conservatively.
 
 ---
 

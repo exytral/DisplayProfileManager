@@ -46,7 +46,7 @@ namespace DisplayProfileManager.Settings.Models
         [JsonProperty("autoStartMode")]
         public AutoStartMode AutoStartMode { get; set; } = AutoStartMode.Registry;
         [JsonProperty("checkForUpdates")]
-        public bool CheckForUpdates { get; set; } = false;
+        public bool CheckForUpdates { get; set; } = true;
         [JsonProperty("applyStartupProfile")]
         public bool ApplyStartupProfile { get; set; } = false;
 

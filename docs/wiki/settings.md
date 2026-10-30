@@ -33,7 +33,7 @@ When an elevated Task Scheduler operation is canceled, Settings restores the pre
 
 Configure actions that occur when Display Profile Manager launches.
 
-- **Check for new versions on startup** — off by default. When enabled, Display Profile Manager checks GitHub for a newer release immediately and at startup. Newer releases are shown in the status bar, About section, and Windows notifications after the three-day age threshold.
+- **Check for new versions on startup** — enabled by default with an explicit opt-out. When enabled, Display Profile Manager checks GitHub for a newer release immediately and at startup. Newer releases are shown in the status bar, About section, and Windows notifications after the three-day age threshold.
 - **Apply startup profile on launch** — apply a selected profile when Display Profile Manager starts.
 
 Update checking is not continuously polled. Display Profile Manager checks release metadata only; it does not download, install, or execute updates.
