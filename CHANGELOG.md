@@ -34,7 +34,7 @@ _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManage
 
 _[exytral/DisplayProfileManager](https://github.com/exytral/DisplayProfileManager/releases/tag/2.3.1)_
 
-- Adapting [PR #14](https://github.com/exytral/DisplayProfileManager/pull/14) by [@Stormers16](https://github.com/Stormers16) — initial full-configuration topology recovery source work for Windows display-switching failures; the release implementation integrated guarded Error-31 recovery, while first-setter Error-87 failures remained unresolved until [2.3.2](#2.3.2).
+- Adapting [PR #14](https://github.com/exytral/DisplayProfileManager/pull/14) by [@Stormers16](https://github.com/Stormers16) — initial full-configuration topology recovery source work for Windows display-switching failures; the release implementation integrated guarded Error-31 recovery.
 
 ### fix — display topology recovery
 
