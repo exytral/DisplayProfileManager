@@ -84,6 +84,9 @@ Choose wording according to the actual relationship rather than a fixed vocabula
 ## Version and Test Counts
 
 - Release test counts must match the final test-suite state of the release being documented.
+- Use `### test — regression coverage` for release test sections so the historical record has one stable shape.
+- When an authoritative managed-suite count is available, lead with `**Managed suite — N tests** — ...` and summarize the meaningful behavior it constrains. The release context already establishes that the count belongs to that release; do not add redundant qualifiers such as "final", "current", or "release suite".
+- Additional test bullets are for materially distinct native, packaging, mutation, or test-tooling evidence. Keep one-off maintainer/hardware qualification and review-process evidence in the corresponding issue or pull request unless it changes a supported user-facing compatibility claim.
 - Do not carry an intermediate working-tree count into a release entry.
 - Do not infer a historical release count from a later suite state.
 - Avoid unnecessary current-state test counts outside historical release entries.

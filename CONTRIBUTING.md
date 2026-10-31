@@ -46,11 +46,7 @@ When a maintainer materially reworks an external contribution before integration
 
 For larger pull requests, use a changelog-like breakdown by subsystem or responsibility so reviewers can understand the change without reconstructing it from the commit history. The repository pull-request template is recommended because it keeps review evidence easy to scan, but equivalent structure and section names are fine; conventional-title formatting is not required.
 
-Pull-request prose is repository-facing and should stand on its own:
-
-- follow `styles/GENERAL.md` for project terminology and documentation style;
-- describe the submitted change, not internal release or coordination mechanics;
-- report validation outcomes and meaningful limits rather than the infrastructure or coordination path used to obtain them.
+Use `styles/GENERAL.md` for project terminology and documentation style. Keep pull-request prose focused on the submitted change, validation results, and meaningful coverage limits.
 
 ## AI assistance
 

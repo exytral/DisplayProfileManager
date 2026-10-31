@@ -46,6 +46,10 @@ Source-code structure, comments, logging, tests, XAML, and supporting-format con
 
 Detailed changelog-writing rules are maintained in `styles/CHANGELOG.md`.
 
+### Release Documentation Preflight
+
+Before drafting, editing, or handing off release prose, read `styles/GENERAL.md`, `styles/CHANGELOG.md`, and `styles/RELEASE-NOTES.md`. Treat the changelog and release notes as separate outputs for different audiences, and check the actual diff against all three authorities before handoff. Confirm terminology, user-facing versus technical detail, test/validation placement, release version/date, and historical test counts rather than relying on memory or a prior release's shape.
+
 ## Engineering documentation routing
 
 Read docs/engineering/ARCHITECTURE.md for current application architecture and subsystem ownership. Read docs/engineering/DISPLAY-CONFIGURATION.md before changing display topology, configuration, identity, clone behavior, or recovery.

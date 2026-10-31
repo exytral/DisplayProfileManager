@@ -24,6 +24,12 @@ Create, edit, and switch display profiles through the application, Quick Switch,
 
 ---
 
+## 2.3.3 — Display topology correction
+
+- **Topology readback reverted** — Reverted an over-eager post-setter topology readback since no native false-success case had been demonstrated and it could occasionally turn a successful Windows topology change into a reported failure.
+
+---
+
 ## 2.3.2 — Display topology compatibility
 
 - Adapted from [PR #17](https://github.com/exytral/DisplayProfileManager/pull/17) by @jason-murray — capability-based topology submission for requested paths without virtual-mode support, integrated with the existing topology pipeline.

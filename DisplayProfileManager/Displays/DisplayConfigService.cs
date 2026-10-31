@@ -955,19 +955,7 @@ namespace DisplayProfileManager.Displays
 
                 if (result == ErrorSuccess)
                 {
-                    result = query(
-                        QueryDisplayConfigFlags.AllPaths, out uint firstReadbackPathCount,
-                        out DisplayConfigPathInfo[] firstReadbackPaths,
-                        out uint firstReadbackModeCount, out DisplayConfigModeInfo[] firstReadbackModes);
-                    if (result != ErrorSuccess ||
-                        !ValidTopologyQueryResult(firstReadbackPathCount, firstReadbackPaths, firstReadbackModeCount, firstReadbackModes) ||
-                        !RecoveryMatchesRequested(firstReadbackPaths, displayConfigs))
-                    {
-                        _logger.Error($"Display topology readback does not match requested configuration: query={result}");
-                        return false;
-                    }
-
-                    _logger.Info("Applied display topology and verified active path configuration.");
+                    _logger.Info("Applied display topology.");
                     return true;
                 }
 
@@ -993,17 +981,7 @@ namespace DisplayProfileManager.Displays
                     return false;
                 }
 
-                result = query(
-                    QueryDisplayConfigFlags.AllPaths, out uint actualPathCount,
-                    out DisplayConfigPathInfo[] actualPaths,
-                    out uint actualModeCount, out DisplayConfigModeInfo[] actualModes);
-                if (result != ErrorSuccess || !ValidTopologyQueryResult(actualPathCount, actualPaths, actualModeCount, actualModes) || !RecoveryMatchesRequested(actualPaths, displayConfigs))
-                {
-                    _logger.Error($"Topology recovery readback does not match requested configuration: query={result}");
-                    return false;
-                }
-
-                _logger.Info("Applied display topology and verified active path configuration.");
+                _logger.Info("Applied display topology via recovery.");
                 return true;
             }
             catch (Exception ex)

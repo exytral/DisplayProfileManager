@@ -35,7 +35,7 @@ namespace DisplayProfileManager.Tests.Displays
             AdapterId = Adapter(adapter), TargetId = target, SourceId = 0, IsEnabled = true
         };
 
-        private static bool RunTopologyWithNativeFakes(int topologyResult, bool matchingReadback, out int setCalls, out int queryCalls, out DisplayConfigNative.SetDisplayConfigFlags recoveryFlags)
+        private static bool RunTopologyWithNativeFakes(int topologyResult, bool hypotheticalReadbackMatches, out int setCalls, out int queryCalls, out DisplayConfigNative.SetDisplayConfigFlags recoveryFlags, int recoveryResult = 0)
         {
             int sets = 0;
             int queries = 0;
@@ -48,7 +48,7 @@ namespace DisplayProfileManager.Tests.Displays
                 queries++;
                 var path = Path(1);
                 const int readbackQuery = 3;
-                if (queries <= 2 || (queries == readbackQuery && !matchingReadback))
+                if (queries <= 2 || (queries == readbackQuery && !hypotheticalReadbackMatches))
                     path.flags &= ~(uint)DisplayConfigNative.DisplayConfigPathInfoFlags.Active;
                 paths = [path];
                 modes = Modes();
@@ -63,7 +63,7 @@ namespace DisplayProfileManager.Tests.Displays
             {
                 sets++;
                 observedFlags = flags;
-                return sets == 1 ? topologyResult : 0;
+                return sets == 1 ? topologyResult : recoveryResult;
             }
 
             bool result = DisplayConfigService.ApplyDisplayTopologyCore(new() { Display(1) }, false, Query, Set);
@@ -151,9 +151,9 @@ namespace DisplayProfileManager.Tests.Displays
 
         [TestMethod]
         [TestCategory("Unit")]
-        [DataRow(true, true, true, 2)]
-        [DataRow(false, false, false, 3)]
-        [DataRow(true, false, true, 2)]
+        [DataRow(true, true, true, 1)]
+        [DataRow(false, false, false, 2)]
+        [DataRow(true, false, true, 1)]
         public void ApplyTopology_RequestedPathCapability_SelectsSubmissionMode(bool requestedVirtual, bool includeLegacyPath, bool expectedVirtual, int expectedQueries)
         {
             int queries = 0;
@@ -257,7 +257,7 @@ namespace DisplayProfileManager.Tests.Displays
             }
 
             Assert.IsTrue(DisplayConfigService.ApplyDisplayTopologyCore(input, false, Query, Set));
-            Assert.AreEqual(3, queries);
+            Assert.AreEqual(2, queries);
             Assert.AreEqual(2, sets);
         }
 
@@ -265,7 +265,6 @@ namespace DisplayProfileManager.Tests.Displays
         [TestCategory("Unit")]
         [DataRow(1, 0)]
         [DataRow(2, 0)]
-        [DataRow(3, 2)]
         public void ApplyTopology_MismatchedQueryArrays_FailsBeforeAffectedSubmission(int invalidQuery, int expectedSets)
         {
             int queries = 0;
@@ -474,7 +473,7 @@ namespace DisplayProfileManager.Tests.Displays
 
             Assert.IsTrue(DisplayConfigService.ApplyDisplayTopologyCore(new() { Display(1) }, false, Query, Set));
             Assert.AreEqual(1, sets);
-            Assert.AreEqual(3, queries);
+            Assert.AreEqual(2, queries);
         }
 
         [TestMethod]
@@ -525,18 +524,18 @@ namespace DisplayProfileManager.Tests.Displays
 
             Assert.IsTrue(DisplayConfigService.ApplyDisplayTopologyCore(new() { Display(4242, 0x1234) }, false, Query, Set));
             Assert.AreEqual(1, sets);
-            Assert.AreEqual(2, queries);
+            Assert.AreEqual(1, queries);
         }
 
         [TestMethod]
         [TestCategory("Unit")]
-        public void ApplyTopology_Error31_UsesSamePreparedPathsAndReadback()
+        public void ApplyTopology_Error31_UsesSamePreparedPathsAndNativeSuccess()
         {
             bool ok = RunTopologyWithNativeFakes(31, true, out int calls, out int queries, out var flags);
 
             Assert.IsTrue(ok);
             Assert.AreEqual(2, calls);
-            Assert.AreEqual(3, queries);
+            Assert.AreEqual(2, queries);
             Assert.IsFalse(flags.HasFlag(DisplayConfigNative.SetDisplayConfigFlags.VirtualModeAware));
             Assert.IsFalse(flags.HasFlag(DisplayConfigNative.SetDisplayConfigFlags.AllowChanges));
             Assert.IsTrue(flags.HasFlag(DisplayConfigNative.SetDisplayConfigFlags.UseSuppliedDisplayConfig));
@@ -609,23 +608,23 @@ namespace DisplayProfileManager.Tests.Displays
             Assert.IsTrue(ok);
             Assert.IsTrue(inspectedRecovery);
             Assert.AreEqual(2, setCalls);
-            Assert.AreEqual(2, queryCalls);
+            Assert.AreEqual(1, queryCalls);
         }
 
         [TestMethod]
         [TestCategory("Unit")]
-        public void ApplyTopology_FirstSetSuccess_ReadbackMismatch_FailsClosed()
+        public void ApplyTopology_FirstSetSuccess_IgnoresHypotheticalReadbackMismatch()
         {
             bool ok = RunTopologyWithNativeFakes(0, false, out int calls, out int queries, out _);
 
-            Assert.IsFalse(ok);
+            Assert.IsTrue(ok);
             Assert.AreEqual(1, calls);
-            Assert.AreEqual(3, queries);
+            Assert.AreEqual(2, queries);
         }
 
         [TestMethod]
         [TestCategory("Unit")]
-        public void ApplyTopology_FirstSetSuccess_VirtualCloneReadbackMatch_Succeeds()
+        public void ApplyTopology_FirstSetSuccess_VirtualCloneSubmitsWithoutReadback()
         {
             int queries = 0;
             int sets = 0;
@@ -660,13 +659,13 @@ namespace DisplayProfileManager.Tests.Displays
             }
 
             Assert.IsTrue(DisplayConfigService.ApplyDisplayTopologyCore(requested, false, Query, Set));
-            Assert.AreEqual(2, queries);
+            Assert.AreEqual(1, queries);
             Assert.AreEqual(1, sets);
         }
 
         [TestMethod]
         [TestCategory("Unit")]
-        public void ApplyTopology_FirstSetSuccess_MixedLegacyReadbackMatch_Succeeds()
+        public void ApplyTopology_FirstSetSuccess_MixedLegacySubmitsWithoutReadback()
         {
             int queries = 0;
             int sets = 0;
@@ -701,13 +700,13 @@ namespace DisplayProfileManager.Tests.Displays
             }
 
             Assert.IsTrue(DisplayConfigService.ApplyDisplayTopologyCore(requested, false, Query, Set));
-            Assert.AreEqual(3, queries);
+            Assert.AreEqual(2, queries);
             Assert.AreEqual(1, sets);
         }
 
         [TestMethod]
         [TestCategory("Unit")]
-        public void ApplyTopology_FirstSetSuccess_InvalidReadbackCounts_FailsClosed()
+        public void ApplyTopology_FirstSetSuccess_DoesNotQueryHypotheticalInvalidReadback()
         {
             int queries = 0;
             int sets = 0;
@@ -735,8 +734,8 @@ namespace DisplayProfileManager.Tests.Displays
                 return 0;
             }
 
-            Assert.IsFalse(DisplayConfigService.ApplyDisplayTopologyCore(new() { Display(1) }, false, Query, Set));
-            Assert.AreEqual(3, queries);
+            Assert.IsTrue(DisplayConfigService.ApplyDisplayTopologyCore(new() { Display(1) }, false, Query, Set));
+            Assert.AreEqual(2, queries);
             Assert.AreEqual(1, sets);
         }
 
@@ -753,15 +752,77 @@ namespace DisplayProfileManager.Tests.Displays
 
         [TestMethod]
         [TestCategory("Unit")]
-        public void ApplyTopology_Error31_ReadbackMismatch_FailsClosed()
+        public void ApplyTopology_Error31_NativeSuccessIgnoresHypotheticalMismatch()
         {
             bool ok = RunTopologyWithNativeFakes(31, false, out int calls, out int queries, out _);
 
-            Assert.IsFalse(ok);
+            Assert.IsTrue(ok);
             Assert.AreEqual(2, calls);
-            Assert.AreEqual(3, queries);
+            Assert.AreEqual(2, queries);
         }
 
+        [TestMethod]
+        [TestCategory("Unit")]
+        public void ApplyTopology_Error31_RecoverySetterError_FailsWithoutReadback()
+        {
+            bool ok = RunTopologyWithNativeFakes(31, true, out int calls, out int queries, out _, recoveryResult: 87);
+
+            Assert.IsFalse(ok);
+            Assert.AreEqual(2, calls);
+            Assert.AreEqual(2, queries);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        [DataRow(5)]
+        [DataRow(122)]
+        public void ApplyTopology_OtherNativeError_FailsWithoutRecovery(int nativeResult)
+        {
+            bool ok = RunTopologyWithNativeFakes(nativeResult, true, out int calls, out int queries, out _);
+
+            Assert.IsFalse(ok);
+            Assert.AreEqual(1, calls);
+            Assert.AreEqual(2, queries);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        [DataRow(0, true)]
+        [DataRow(87, false)]
+        public void ApplyTopology_ForcedRecovery_UsesOnlySecondNativeSetterResult(int recoveryResult, bool expectedSuccess)
+        {
+            int queries = 0;
+            int sets = 0;
+            int Query(DisplayConfigNative.QueryDisplayConfigFlags flags, out uint pathCount,
+                out DisplayConfigNative.DisplayConfigPathInfo[] paths, out uint modeCount,
+                out DisplayConfigNative.DisplayConfigModeInfo[] modes)
+            {
+                queries++;
+                var path = Path(1);
+                if (queries == 1) path.flags &= ~(uint)DisplayConfigNative.DisplayConfigPathInfoFlags.Active;
+                paths = [path];
+                modes = Modes();
+                pathCount = (uint)paths.Length;
+                modeCount = (uint)modes.Length;
+                return 0;
+            }
+            int Set(uint pathCount, DisplayConfigNative.DisplayConfigPathInfo[] paths, uint modeCount,
+                DisplayConfigNative.DisplayConfigModeInfo[] modes, DisplayConfigNative.SetDisplayConfigFlags flags)
+            {
+                sets++;
+                if (sets == 2)
+                {
+                    Assert.IsTrue(flags.HasFlag(DisplayConfigNative.SetDisplayConfigFlags.UseSuppliedDisplayConfig));
+                    Assert.AreEqual(0u, modeCount);
+                    Assert.IsNull(modes);
+                }
+                return sets == 1 ? 0 : recoveryResult;
+            }
+
+            Assert.AreEqual(expectedSuccess, DisplayConfigService.ApplyDisplayTopologyCore(new() { Display(1) }, true, Query, Set));
+            Assert.AreEqual(2, sets);
+            Assert.AreEqual(2, queries);
+        }
         [TestMethod]
         [TestCategory("Unit")]
         public void RecoveryReadback_ExactActiveTarget_Succeeds()
@@ -817,7 +878,6 @@ namespace DisplayProfileManager.Tests.Displays
             int queries = 0, sets = 0;
             var expectedQueries = new[] {
                 DisplayConfigNative.QueryDisplayConfigFlags.AllPaths | DisplayConfigNative.QueryDisplayConfigFlags.VirtualModeAware,
-                DisplayConfigNative.QueryDisplayConfigFlags.AllPaths,
                 DisplayConfigNative.QueryDisplayConfigFlags.AllPaths
             };
             int Query(DisplayConfigNative.QueryDisplayConfigFlags flags, out uint pc,
@@ -857,7 +917,7 @@ namespace DisplayProfileManager.Tests.Displays
                 return 0;
             }
             Assert.IsTrue(DisplayConfigService.ApplyDisplayTopologyCore(new() { Display(1) }, false, Query, Set));
-            Assert.AreEqual(3, queries);
+            Assert.AreEqual(2, queries);
             Assert.AreEqual(2, sets);
         }
     }
