@@ -12,9 +12,11 @@ using DisplayProfileManager.Audio;
 using DisplayProfileManager.Common;
 using DisplayProfileManager.Displays;
 using DisplayProfileManager.Displays.Events;
+using DisplayProfileManager.Gsync;
 using DisplayProfileManager.Hotkeys;
 using DisplayProfileManager.Hotkeys.Interop;
 using DisplayProfileManager.Integration;
+using DisplayProfileManager.Pointer;
 using DisplayProfileManager.Profiles;
 using DisplayProfileManager.Profiles.Models;
 using DisplayProfileManager.Profiles.Persistence;
@@ -54,6 +56,8 @@ namespace DisplayProfileManager
         private IScriptRunner _scriptRunner;
         private IWallpaperService _wallpaperService;
         private IAudioDeviceService _audioService;
+        private IGsyncService _gsyncService;
+        private IMouseSettingsService _mouseService;
         private IDisplayApplyAdapter _displayApplyAdapter;
         private DisplayEditorService _displayEditorService;
         private DisplayEventMonitor _displayEventMonitor;
@@ -367,6 +371,8 @@ namespace DisplayProfileManager
             _scriptRunner = new ScriptRunner(_scriptLibrary);
             _wallpaperService = new WallpaperService();
             _audioService = new AudioDeviceService();
+            _gsyncService = new GsyncService();
+            _mouseService = new MouseSettingsService();
             _displayApplyAdapter = new DisplayApplyAdapter(() => engineeringOverrides.ForceTopologyRecovery, displayEventOptions.TraceEnabled);
             _displayEditorService = new DisplayEditorService();
             if (displayEventOptions.EvidenceMode != DisplayEventEvidenceMode.Disabled)
@@ -396,6 +402,8 @@ namespace DisplayProfileManager
                 _displayApplyAdapter,
                 _wallpaperService,
                 _audioService,
+                _gsyncService,
+                _mouseService,
                 _scriptRunner,
                 _settingsService,
                 _profileService.GetProfile,
@@ -423,6 +431,8 @@ namespace DisplayProfileManager
                 _displayEditorService,
                 _scriptLibrary,
                 _audioService,
+                _gsyncService,
+                _mouseService,
                 _wallpaperService);
             _trayMenuController = new TrayMenuController(_profileService, _profileApplyService);
             _singleInstanceCoordinator = new SingleInstanceCoordinator();

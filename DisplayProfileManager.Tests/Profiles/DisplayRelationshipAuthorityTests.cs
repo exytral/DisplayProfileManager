@@ -9,6 +9,8 @@ using DisplayProfileManager.Audio;
 using DisplayProfileManager.Displays;
 using DisplayProfileManager.Displays.Models;
 using DisplayProfileManager.Displays.Policy;
+using DisplayProfileManager.Gsync;
+using DisplayProfileManager.Pointer;
 using DisplayProfileManager.Profiles;
 using DisplayProfileManager.Profiles.Models;
 using DisplayProfileManager.Profiles.Persistence;
@@ -203,6 +205,8 @@ namespace DisplayProfileManager.Tests.Profiles
                     adapter,
                     new WallpaperService(),
                     new AudioDeviceService(),
+                    new GsyncService(),
+                    new MouseSettingsService(),
                     new ScriptRunner(scripts),
                     settings,
                     profiles.GetProfile,

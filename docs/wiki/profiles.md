@@ -1,6 +1,6 @@
 # Creating and Managing Profiles
 
-Profiles store display settings such as monitor layout, resolution, refresh rate, rotation, HDR/WCG state, and DPI scaling. A profile can also store wallpaper, audio, scripts, and a global hotkey.
+Profiles store display settings such as monitor layout, resolution, refresh rate, rotation, HDR/WCG state, and DPI scaling. A profile can also store wallpaper, audio, NVIDIA G-SYNC mode, mouse settings, scripts, and a global hotkey.
 
 ---
 
@@ -75,9 +75,39 @@ The device dropdown menus enumerate currently available devices when opened. A s
 
 ---
 
+## G-SYNC
+
+When **Enable G-SYNC** is active, the profile sets the global NVIDIA G-SYNC mode, the same setting as **Enable G-SYNC, G-SYNC Compatible** in the NVIDIA Control Panel:
+
+| Mode                        | Effect                                                           |
+| --------------------------- | ---------------------------------------------------------------- |
+| **Off**                     | G-SYNC is turned off                                             |
+| **Fullscreen only**         | G-SYNC is active for fullscreen applications                     |
+| **Fullscreen and windowed** | G-SYNC is also active for windowed and borderless applications   |
+
+The section shows the current driver mode, or a notice when NVIDIA G-SYNC settings are not available on the PC. G-SYNC is applied before the display stage. Turning G-SYNC on or off makes NVIDIA displays go dark briefly while the driver resets them; Display Profile Manager waits for the displays to return and restores their previous refresh rate when the driver lowers it. Applications that are already running keep their current G-SYNC behavior until they restart.
+
+---
+
+## Mouse
+
+When **Enable Mouse** is active, the profile applies each checked mouse setting. Unchecked settings are left unchanged.
+
+| Setting               | Values                                                   |
+| --------------------- | -------------------------------------------------------- |
+| **Pointer speed**     | 1 (slowest) to 20 (fastest); 10 is the Windows default   |
+| **Pointer precision** | Enhanced or Not enhanced (Windows mouse acceleration)    |
+| **Vertical scroll**   | 1 to 100 lines per wheel notch                           |
+| **Horizontal scroll** | 1 to 100 characters per horizontal wheel notch           |
+| **Primary button**    | Left or Right                                            |
+
+**Load** fills the values from the current Windows mouse settings without changing which settings are checked. New profiles start from the current Windows values with every setting unchecked. The settings are the per-user values from the Windows Mouse control panel and apply to every connected mouse.
+
+---
+
 ## Scripts
 
-When **Enable Scripts** is active, the profile runs its enabled scripts after the display, wallpaper, and audio stages. Imported scripts are copied into the application-managed Scripts folder.
+When **Enable Scripts** is active, the profile runs its enabled scripts after the display, wallpaper, audio, and mouse stages. Imported scripts are copied into the application-managed Scripts folder.
 
 Each script has its own enable checkbox. Disabling a row keeps the script, its file, and its arguments in the profile but skips that script during apply.
 

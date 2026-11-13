@@ -1,6 +1,6 @@
 # Scripts
 
-A profile can run scripts after the display, wallpaper, and audio stages have completed. Scripts can launch applications, invoke automation tools, or perform other changes associated with a change of display context.
+A profile can run scripts after the display, wallpaper, audio, and mouse stages have completed. Scripts can launch applications, invoke automation tools, or perform other changes associated with a change of display context.
 
 ---
 

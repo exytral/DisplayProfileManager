@@ -695,6 +695,45 @@ namespace DisplayProfileManager.UI.Windows
                 ProfileDetailsPanel.Children.Add(audioPanel);
             }
 
+            // G-SYNC Section
+            if (profile.GsyncSettings?.Enabled == true)
+            {
+                ProfileDetailsPanel.Children.Add(new TextBlock
+                {
+                    Text = "G-SYNC",
+                    Style = (Style)FindResource("PrimaryTextBlockStyle"),
+                    FontWeight = FontWeights.Medium,
+                    Margin = new Thickness(0, 8, 0, 8)
+                });
+                ProfileDetailsPanel.Children.Add(SetThemeResourceReference(new TextBlock
+                {
+                    Text = $"Mode: {profile.GsyncSettings}",
+                    Style = (Style)FindResource("PrimaryTextBlockStyle"),
+                    FontSize = 12,
+                    Margin = new Thickness(0, 0, 0, 12)
+                }, TextBlock.ForegroundProperty, "SecondaryTextBrush"));
+            }
+
+            // Mouse Section
+            if (profile.MouseSettings?.AppliesAny() == true)
+            {
+                ProfileDetailsPanel.Children.Add(new TextBlock
+                {
+                    Text = profile.MouseSettings.Enabled ? "Mouse" : "Mouse (Disabled)",
+                    Style = (Style)FindResource("PrimaryTextBlockStyle"),
+                    FontWeight = FontWeights.Medium,
+                    Margin = new Thickness(0, 8, 0, 8)
+                });
+                ProfileDetailsPanel.Children.Add(SetThemeResourceReference(new TextBlock
+                {
+                    Text = profile.MouseSettings.ToString(),
+                    Style = (Style)FindResource("PrimaryTextBlockStyle"),
+                    FontSize = 12,
+                    TextWrapping = TextWrapping.Wrap,
+                    Margin = new Thickness(0, 0, 0, 12)
+                }, TextBlock.ForegroundProperty, profile.MouseSettings.Enabled ? "SecondaryTextBrush" : "TertiaryTextBrush"));
+            }
+
             // Script Section
             if (profile.ScriptSettings?.Scripts?.Count > 0)
             {
