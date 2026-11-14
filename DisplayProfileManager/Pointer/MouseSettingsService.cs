@@ -37,6 +37,15 @@ namespace DisplayProfileManager.Pointer
                 current.HorizontalScrollChars = (int)Math.Clamp(chars, (uint)MouseSetting.MinScrollAmount, (uint)MouseSetting.MaxScrollAmount);
 
             current.SwapButtons = GetSystemMetrics(SmSwapButton) != 0;
+
+            uint doubleClick = GetDoubleClickTime();
+            if (doubleClick > 0)
+                current.DoubleClickTime = MouseSetting.ClampDoubleClickTime((int)Math.Min(doubleClick, (uint)MouseSetting.MaxDoubleClickTime));
+
+            int trails = 0;
+            if (SystemParametersInfo(SpiGetMouseTrails, 0, ref trails, 0))
+                current.MouseTrails = MouseSetting.NormalizeMouseTrails(trails);
+
             return current;
         }
 
@@ -78,6 +87,20 @@ namespace DisplayProfileManager.Pointer
             {
                 if (!SystemParametersInfo(SpiSetMouseButtonSwap, settings.SwapButtons ? 1u : 0u, IntPtr.Zero, SpifUpdateIniFileAndSendChange))
                     failures.Add($"button swap ({Marshal.GetLastWin32Error()})");
+            }
+
+            if (settings.ApplyDoubleClickTime)
+            {
+                uint ms = (uint)MouseSetting.ClampDoubleClickTime(settings.DoubleClickTime);
+                if (!SystemParametersInfo(SpiSetDoubleClickTime, ms, IntPtr.Zero, SpifUpdateIniFileAndSendChange))
+                    failures.Add($"double-click speed ({Marshal.GetLastWin32Error()})");
+            }
+
+            if (settings.ApplyMouseTrails)
+            {
+                uint length = (uint)MouseSetting.NormalizeMouseTrails(settings.MouseTrails);
+                if (!SystemParametersInfo(SpiSetMouseTrails, length, IntPtr.Zero, SpifUpdateIniFileAndSendChange))
+                    failures.Add($"mouse trails ({Marshal.GetLastWin32Error()})");
             }
 
             if (failures.Count > 0)

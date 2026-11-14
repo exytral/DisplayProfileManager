@@ -612,6 +612,13 @@ namespace DisplayProfileManager.UI.Windows
                 return false;
             }
 
+            if (ApplyDoubleClickTimeCheckBox.IsChecked == true && !TryReadDoubleClickTime(out _))
+            {
+                MessageBox.Show($"Double-click speed must be a whole number from {MouseSetting.MinDoubleClickTime} to {MouseSetting.MaxDoubleClickTime} ms.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                DoubleClickTimeTextBox.Focus();
+                return false;
+            }
+
             return true;
         }
 
@@ -1407,6 +1414,23 @@ namespace DisplayProfileManager.UI.Windows
             HorizontalScrollTextBox.Text = settings.HorizontalScrollChars.ToString();
             ApplySwapButtonsCheckBox.IsChecked = settings.ApplySwapButtons;
             SelectComboBoxTag(PrimaryButtonComboBox, settings.SwapButtons.ToString());
+            ApplyDoubleClickTimeCheckBox.IsChecked = settings.ApplyDoubleClickTime;
+            DoubleClickTimeTextBox.Text = settings.DoubleClickTime.ToString();
+            ApplyMouseTrailsCheckBox.IsChecked = settings.ApplyMouseTrails;
+            SelectMouseTrails(MouseSetting.NormalizeMouseTrails(settings.MouseTrails));
+        }
+
+        // A captured length outside the Control Panel set gets its own entry so it still shows
+        private void SelectMouseTrails(int length)
+        {
+            foreach (var extra in MouseTrailsComboBox.Items.OfType<ComboBoxItem>().Where(item => item.Name == "ExtraMouseTrailsItem").ToList())
+                MouseTrailsComboBox.Items.Remove(extra);
+
+            string tag = length.ToString();
+            if (!MouseTrailsComboBox.Items.OfType<ComboBoxItem>().Any(item => item.Tag as string == tag))
+                MouseTrailsComboBox.Items.Add(new ComboBoxItem { Name = "ExtraMouseTrailsItem", Content = tag, Tag = tag });
+
+            SelectComboBoxTag(MouseTrailsComboBox, tag);
         }
 
         private MouseSetting ReadMouseSettingsFromUi()
@@ -1433,12 +1457,23 @@ namespace DisplayProfileManager.UI.Windows
             if (PrimaryButtonComboBox.SelectedItem is ComboBoxItem { Tag: string swap })
                 settings.SwapButtons = bool.Parse(swap);
 
+            settings.ApplyDoubleClickTime = ApplyDoubleClickTimeCheckBox.IsChecked == true;
+            if (TryReadDoubleClickTime(out int doubleClick))
+                settings.DoubleClickTime = doubleClick;
+
+            settings.ApplyMouseTrails = ApplyMouseTrailsCheckBox.IsChecked == true;
+            if (MouseTrailsComboBox.SelectedItem is ComboBoxItem { Tag: string trails })
+                settings.MouseTrails = int.Parse(trails);
+
             settings.Enabled = EnableMouseCheckBox.IsChecked == true && settings.AppliesAny();
             return settings;
         }
 
         private static bool TryReadScrollAmount(TextBox textBox, out int value) =>
             int.TryParse(textBox.Text, out value) && value >= MouseSetting.MinScrollAmount && value <= MouseSetting.MaxScrollAmount;
+
+        private bool TryReadDoubleClickTime(out int value) =>
+            int.TryParse(DoubleClickTimeTextBox.Text, out value) && value >= MouseSetting.MinDoubleClickTime && value <= MouseSetting.MaxDoubleClickTime;
 
         private static void SelectComboBoxTag(ComboBox comboBox, string tag) =>
             comboBox.SelectedItem = comboBox.Items.OfType<ComboBoxItem>().FirstOrDefault(item => string.Equals(item.Tag as string, tag, StringComparison.OrdinalIgnoreCase));
@@ -1469,6 +1504,8 @@ namespace DisplayProfileManager.UI.Windows
                 ApplyPointerPrecisionCheckBox.IsChecked = true;
             else if (sender == PrimaryButtonComboBox)
                 ApplySwapButtonsCheckBox.IsChecked = true;
+            else if (sender == MouseTrailsComboBox)
+                ApplyMouseTrailsCheckBox.IsChecked = true;
         }
 
         private void MouseNumberTextBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -1479,6 +1516,8 @@ namespace DisplayProfileManager.UI.Windows
                 ApplyVerticalScrollCheckBox.IsChecked = true;
             else if (sender == HorizontalScrollTextBox)
                 ApplyHorizontalScrollCheckBox.IsChecked = true;
+            else if (sender == DoubleClickTimeTextBox)
+                ApplyDoubleClickTimeCheckBox.IsChecked = true;
         }
 
         private void NumberTextBox_PreviewTextInput(object sender, TextCompositionEventArgs e) => e.Handled = !e.Text.All(char.IsDigit);
@@ -1494,6 +1533,8 @@ namespace DisplayProfileManager.UI.Windows
                 loaded.VerticalScrollLines = current.VerticalScrollLines;
                 loaded.HorizontalScrollChars = current.HorizontalScrollChars;
                 loaded.SwapButtons = current.SwapButtons;
+                loaded.DoubleClickTime = current.DoubleClickTime;
+                loaded.MouseTrails = current.MouseTrails;
 
                 _suppressDeviceSettingEvents = true;
                 LoadMouseSettingsIntoUi(loaded);
@@ -1516,7 +1557,8 @@ namespace DisplayProfileManager.UI.Windows
             bool sectionOn = EnableMouseCheckBox.IsChecked == true;
             bool anyOn = ApplyPointerSpeedCheckBox.IsChecked == true || ApplyPointerPrecisionCheckBox.IsChecked == true
                 || ApplyVerticalScrollCheckBox.IsChecked == true || ApplyHorizontalScrollCheckBox.IsChecked == true
-                || ApplySwapButtonsCheckBox.IsChecked == true;
+                || ApplySwapButtonsCheckBox.IsChecked == true || ApplyDoubleClickTimeCheckBox.IsChecked == true
+                || ApplyMouseTrailsCheckBox.IsChecked == true;
 
             EnableMouseCheckBox.Opacity = !anyOn ? UiOpacity.Blocked : (sectionOn ? 1.0 : UiOpacity.Inactive);
 
@@ -1526,7 +1568,9 @@ namespace DisplayProfileManager.UI.Windows
                 (ApplyPointerPrecisionCheckBox, PointerPrecisionComboBox),
                 (ApplyVerticalScrollCheckBox, VerticalScrollTextBox),
                 (ApplyHorizontalScrollCheckBox, HorizontalScrollTextBox),
-                (ApplySwapButtonsCheckBox, PrimaryButtonComboBox)
+                (ApplySwapButtonsCheckBox, PrimaryButtonComboBox),
+                (ApplyDoubleClickTimeCheckBox, DoubleClickTimeTextBox),
+                (ApplyMouseTrailsCheckBox, MouseTrailsComboBox)
             })
             {
                 check.Opacity = sectionOn ? 1.0 : UiOpacity.Inactive;

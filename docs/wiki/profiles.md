@@ -86,6 +86,8 @@ When **Enable Mouse** is active, the profile applies each checked mouse setting.
 | **Vertical scroll**   | 1 to 100 lines per wheel notch                           |
 | **Horizontal scroll** | 1 to 100 characters per horizontal wheel notch           |
 | **Primary button**    | Left or Right                                            |
+| **Double-click speed**| 200 to 900 ms between clicks; 500 is the Windows default |
+| **Mouse trails**      | Off, or a trail length from 2 (short) to 7 (long)        |
 
 **Load** fills the values from the current Windows mouse settings without changing which settings are checked. New profiles start from the current Windows values with every setting unchecked. The settings are the per-user values from the Windows Mouse control panel and apply to every connected mouse.
 

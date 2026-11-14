@@ -896,6 +896,10 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="12"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="12"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="12"/>
+                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
                         <!-- Pointer Speed -->
@@ -1096,6 +1100,83 @@
                                 </ComboBox.ItemContainerStyle>
                                 <ComboBoxItem Content="Left" Tag="False"/>
                                 <ComboBoxItem Content="Right" Tag="True"/>
+                            </ComboBox>
+                        </Grid>
+                        <!-- Double-click Speed -->
+                        <Grid Grid.Row="10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" SharedSizeGroup="MouseLabelGroup"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <CheckBox Grid.Column="0"
+                                      Name="ApplyDoubleClickTimeCheckBox"
+                                      Content="Double-click speed"
+                                      FontSize="14"
+                                      Padding="6,0,0,0"
+                                      Margin="0,0,8,0"
+                                      VerticalAlignment="Center"
+                                      VerticalContentAlignment="Center"
+                                      Foreground="{DynamicResource PrimaryTextBrush}"
+                                      ToolTip="Maximum time between the two clicks of a double-click"
+                                      Checked="MouseOptionCheckBox_Changed"
+                                      Unchecked="MouseOptionCheckBox_Changed"/>
+
+                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                <TextBox Name="DoubleClickTimeTextBox"
+                                         Style="{StaticResource PrimaryTextBoxStyle}"
+                                         Width="72"
+                                         Padding="8,5"
+                                         MaxLength="3"
+                                         ToolTip="200 to 900; 500 is the Windows default"
+                                         PreviewTextInput="NumberTextBox_PreviewTextInput"
+                                         TextChanged="MouseNumberTextBox_TextChanged"/>
+                                <TextBlock Text="ms"
+                                           Margin="8,0,0,0"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource SecondaryTextBrush}"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Mouse Trails -->
+                        <Grid Grid.Row="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" SharedSizeGroup="MouseLabelGroup"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <CheckBox Grid.Column="0"
+                                      Name="ApplyMouseTrailsCheckBox"
+                                      Content="Mouse trails"
+                                      FontSize="14"
+                                      Padding="6,0,0,0"
+                                      Margin="0,0,8,0"
+                                      VerticalAlignment="Center"
+                                      VerticalContentAlignment="Center"
+                                      Foreground="{DynamicResource PrimaryTextBrush}"
+                                      ToolTip="Pointer trail length, or Off"
+                                      Checked="MouseOptionCheckBox_Changed"
+                                      Unchecked="MouseOptionCheckBox_Changed"/>
+
+                            <ComboBox Grid.Column="1"
+                                      Name="MouseTrailsComboBox"
+                                      Style="{StaticResource PrimaryComboBoxStyle}"
+                                      Height="32"
+                                      ToolTip="Pointer trail length, 2 (short) to 7 (long)"
+                                      SelectionChanged="MouseOptionComboBox_SelectionChanged">
+                                <ComboBox.ItemContainerStyle>
+                                    <Style TargetType="ComboBoxItem"
+                                           BasedOn="{StaticResource {x:Type ComboBoxItem}}">
+                                        <Setter Property="Padding" Value="8,4"/>
+                                    </Style>
+                                </ComboBox.ItemContainerStyle>
+                                <ComboBoxItem Content="Off" Tag="0"/>
+                                <ComboBoxItem Content="2" Tag="2"/>
+                                <ComboBoxItem Content="3" Tag="3"/>
+                                <ComboBoxItem Content="4" Tag="4"/>
+                                <ComboBoxItem Content="5" Tag="5"/>
+                                <ComboBoxItem Content="6" Tag="6"/>
+                                <ComboBoxItem Content="7" Tag="7"/>
                             </ComboBox>
                         </Grid>
                     </Grid>
