@@ -12,6 +12,7 @@ using DisplayProfileManager.Common;
 using DisplayProfileManager.Displays;
 using DisplayProfileManager.Displays.Events;
 using DisplayProfileManager.Displays.Models;
+using DisplayProfileManager.Pointer;
 using DisplayProfileManager.Profiles.Models;
 using DisplayProfileManager.Profiles.Policy;
 using DisplayProfileManager.Scripts;
@@ -33,6 +34,7 @@ namespace DisplayProfileManager.Profiles
         IDisplayApplyAdapter displayApply,
         IWallpaperService wallpaperService,
         IAudioDeviceService audioService,
+        IMouseSettingsService mouseService,
         IScriptRunner scriptRunner,
         SettingsService settingsService,
         Func<string, Profile> getProfile,
@@ -49,6 +51,7 @@ namespace DisplayProfileManager.Profiles
         private readonly IDisplayEventEvidenceScopeProvider _displayEventEvidence = displayEventEvidence;
         private readonly IWallpaperService _wallpaperService = wallpaperService ?? throw new ArgumentNullException(nameof(wallpaperService));
         private readonly IAudioDeviceService _audioService = audioService ?? throw new ArgumentNullException(nameof(audioService));
+        private readonly IMouseSettingsService _mouseService = mouseService ?? throw new ArgumentNullException(nameof(mouseService));
         private readonly IScriptRunner _scriptRunner = scriptRunner ?? throw new ArgumentNullException(nameof(scriptRunner));
         private readonly SettingsService _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
         private readonly Func<string, Profile> _getProfile = getProfile ?? throw new ArgumentNullException(nameof(getProfile));
@@ -172,6 +175,12 @@ namespace DisplayProfileManager.Profiles
                     result.AudioSuccess = _audioService.ApplyAudioSettings(profile.AudioSettings);
                 audioWatch.Stop();
 
+                // Apply Mouse Settings
+                var mouseWatch = Stopwatch.StartNew();
+                if (profile.MouseSettings?.Enabled == true)
+                    result.MouseSuccess = _mouseService.ApplyMouseSettings(profile.MouseSettings);
+                mouseWatch.Stop();
+
                 // Finalize Result
                 var finalizeWatch = new Stopwatch();
                 var scriptWatch = new Stopwatch();
@@ -245,7 +254,7 @@ namespace DisplayProfileManager.Profiles
 
                 // Timing Summary
                 _logger.Info($"[PERF] Map: {mapWatch.ElapsedMilliseconds} ms | Topology: {topologyWatch.ElapsedMilliseconds} ms | Config: {configWatch.ElapsedMilliseconds} ms");
-                _logger.Info($"[PERF] DPI: {dpiWatch.ElapsedMilliseconds} ms | Wallpaper: {wallpaperWatch.ElapsedMilliseconds} ms | Audio: {audioWatch.ElapsedMilliseconds} ms | Scripts: {scriptWatch.ElapsedMilliseconds} ms");
+                _logger.Info($"[PERF] DPI: {dpiWatch.ElapsedMilliseconds} ms | Wallpaper: {wallpaperWatch.ElapsedMilliseconds} ms | Audio: {audioWatch.ElapsedMilliseconds} ms | Mouse: {mouseWatch.ElapsedMilliseconds} ms | Scripts: {scriptWatch.ElapsedMilliseconds} ms");
                 _logger.Info($"[PERF] Finalize: {finalizeWatch.ElapsedMilliseconds} ms | TOTAL: {totalWatch.ElapsedMilliseconds} ms");
 
                 return result;

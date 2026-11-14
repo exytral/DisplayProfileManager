@@ -8,6 +8,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using DisplayProfileManager.Audio;
 using DisplayProfileManager.Displays;
 using DisplayProfileManager.Displays.Models;
+using DisplayProfileManager.Pointer;
 using DisplayProfileManager.Profiles;
 using DisplayProfileManager.Profiles.Models;
 using DisplayProfileManager.Profiles.Persistence;
@@ -245,6 +246,7 @@ namespace DisplayProfileManager.Tests.Profiles
                     runtime,
                     new WallpaperService(),
                     new AudioDeviceService(),
+                    new MouseSettingsService(),
                     new ScriptRunner(scripts),
                     settings,
                     profiles.GetProfile,

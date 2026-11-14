@@ -20,6 +20,7 @@ using DisplayProfileManager.Common;
 using DisplayProfileManager.Displays.Models;
 using DisplayProfileManager.Hotkeys;
 using DisplayProfileManager.Hotkeys.Models;
+using DisplayProfileManager.Pointer.Models;
 using DisplayProfileManager.Profiles;
 using DisplayProfileManager.Profiles.Models;
 using DisplayProfileManager.Scripts.Models;
@@ -56,6 +57,7 @@ namespace DisplayProfileManager.UI.Windows
         private bool _suppressAudioSelection;
         private bool _audioDevicesLoaded;
         private bool _audioSettingsDisabled;
+        private bool _suppressDeviceSettingEvents;
 
         internal ProfileEditWindow(
             ProfileEditorService profileEditorService,
@@ -84,6 +86,7 @@ namespace DisplayProfileManager.UI.Windows
             if (!_isEditMode)
                 PrefillNewProfile();
 
+            InitializeDeviceSettings();
             UpdateScriptControlsState();
             UpdateAudioUiState();
         }
@@ -475,6 +478,9 @@ namespace DisplayProfileManager.UI.Windows
                     _profile.AudioSettings.CaptureDeviceName = selectedInput.SystemName;
                 }
 
+                // Mouse
+                _profile.MouseSettings = ReadMouseSettingsFromUi();
+
                 // Scripts
                 string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
                 string scriptsFolder = System.IO.Path.Combine(appDataPath, "DisplayProfileManager", "Scripts");
@@ -589,6 +595,27 @@ namespace DisplayProfileManager.UI.Windows
             {
                 MessageBox.Show("Please select an audio input device.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                 ApplyInputDeviceCheckBox.Focus();
+                return false;
+            }
+
+            if (ApplyVerticalScrollCheckBox.IsChecked == true && !TryReadScrollAmount(VerticalScrollTextBox, out _))
+            {
+                MessageBox.Show($"Vertical scroll must be a whole number from {MouseSetting.MinScrollAmount} to {MouseSetting.MaxScrollAmount}.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                VerticalScrollTextBox.Focus();
+                return false;
+            }
+
+            if (ApplyHorizontalScrollCheckBox.IsChecked == true && !TryReadScrollAmount(HorizontalScrollTextBox, out _))
+            {
+                MessageBox.Show($"Horizontal scroll must be a whole number from {MouseSetting.MinScrollAmount} to {MouseSetting.MaxScrollAmount}.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                HorizontalScrollTextBox.Focus();
+                return false;
+            }
+
+            if (ApplyDoubleClickTimeCheckBox.IsChecked == true && !TryReadDoubleClickTime(out _))
+            {
+                MessageBox.Show($"Double-click speed must be a whole number from {MouseSetting.MinDoubleClickTime} to {MouseSetting.MaxDoubleClickTime} ms.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                DoubleClickTimeTextBox.Focus();
                 return false;
             }
 
@@ -1341,6 +1368,214 @@ namespace DisplayProfileManager.UI.Windows
             InputDeviceComboBox.Opacity = inputUnavailable || noDevices || !inputOn
                 ? UiOpacity.Blocked
                 : (sectionOn ? 1.0 : UiOpacity.Inactive);
+        }
+
+        private void InitializeDeviceSettings()
+        {
+            if (!_isEditMode)
+            {
+                // New profiles start from the current Windows mouse values with every option unchecked
+                try
+                {
+                    _profile.MouseSettings = _profileEditorService.CaptureCurrentMouseSettings();
+                }
+                catch (Exception ex)
+                {
+                    _logger.Warn(ex, "Could not read current mouse settings");
+                    _profile.MouseSettings = new MouseSetting();
+                }
+            }
+
+            _profile.MouseSettings ??= new MouseSetting();
+
+            _suppressDeviceSettingEvents = true;
+            try
+            {
+                LoadMouseSettingsIntoUi(_profile.MouseSettings);
+                EnableMouseCheckBox.IsChecked = _profile.MouseSettings.Enabled;
+            }
+            finally
+            {
+                _suppressDeviceSettingEvents = false;
+            }
+
+            UpdateMouseUiState();
+        }
+
+        private void LoadMouseSettingsIntoUi(MouseSetting settings)
+        {
+            ApplyPointerSpeedCheckBox.IsChecked = settings.ApplyPointerSpeed;
+            SelectComboBoxTag(PointerSpeedComboBox, Math.Clamp(settings.PointerSpeed, MouseSetting.MinPointerSpeed, MouseSetting.MaxPointerSpeed).ToString());
+            ApplyPointerPrecisionCheckBox.IsChecked = settings.ApplyPointerPrecision;
+            SelectComboBoxTag(PointerPrecisionComboBox, settings.EnhancePointerPrecision.ToString());
+            ApplyVerticalScrollCheckBox.IsChecked = settings.ApplyVerticalScroll;
+            VerticalScrollTextBox.Text = settings.VerticalScrollLines.ToString();
+            ApplyHorizontalScrollCheckBox.IsChecked = settings.ApplyHorizontalScroll;
+            HorizontalScrollTextBox.Text = settings.HorizontalScrollChars.ToString();
+            ApplySwapButtonsCheckBox.IsChecked = settings.ApplySwapButtons;
+            SelectComboBoxTag(PrimaryButtonComboBox, settings.SwapButtons.ToString());
+            ApplyDoubleClickTimeCheckBox.IsChecked = settings.ApplyDoubleClickTime;
+            DoubleClickTimeTextBox.Text = settings.DoubleClickTime.ToString();
+            ApplyMouseTrailsCheckBox.IsChecked = settings.ApplyMouseTrails;
+            SelectMouseTrails(MouseSetting.NormalizeMouseTrails(settings.MouseTrails));
+        }
+
+        // A captured length outside the Control Panel set gets its own entry so it still shows
+        private void SelectMouseTrails(int length)
+        {
+            foreach (var extra in MouseTrailsComboBox.Items.OfType<ComboBoxItem>().Where(item => item.Name == "ExtraMouseTrailsItem").ToList())
+                MouseTrailsComboBox.Items.Remove(extra);
+
+            string tag = length.ToString();
+            if (!MouseTrailsComboBox.Items.OfType<ComboBoxItem>().Any(item => item.Tag as string == tag))
+                MouseTrailsComboBox.Items.Add(new ComboBoxItem { Name = "ExtraMouseTrailsItem", Content = tag, Tag = tag });
+
+            SelectComboBoxTag(MouseTrailsComboBox, tag);
+        }
+
+        private MouseSetting ReadMouseSettingsFromUi()
+        {
+            var settings = _profile.MouseSettings?.Clone() ?? new MouseSetting();
+
+            settings.ApplyPointerSpeed = ApplyPointerSpeedCheckBox.IsChecked == true;
+            if (PointerSpeedComboBox.SelectedItem is ComboBoxItem { Tag: string speed })
+                settings.PointerSpeed = int.Parse(speed);
+
+            settings.ApplyPointerPrecision = ApplyPointerPrecisionCheckBox.IsChecked == true;
+            if (PointerPrecisionComboBox.SelectedItem is ComboBoxItem { Tag: string precision })
+                settings.EnhancePointerPrecision = bool.Parse(precision);
+
+            settings.ApplyVerticalScroll = ApplyVerticalScrollCheckBox.IsChecked == true;
+            if (TryReadScrollAmount(VerticalScrollTextBox, out int lines))
+                settings.VerticalScrollLines = lines;
+
+            settings.ApplyHorizontalScroll = ApplyHorizontalScrollCheckBox.IsChecked == true;
+            if (TryReadScrollAmount(HorizontalScrollTextBox, out int chars))
+                settings.HorizontalScrollChars = chars;
+
+            settings.ApplySwapButtons = ApplySwapButtonsCheckBox.IsChecked == true;
+            if (PrimaryButtonComboBox.SelectedItem is ComboBoxItem { Tag: string swap })
+                settings.SwapButtons = bool.Parse(swap);
+
+            settings.ApplyDoubleClickTime = ApplyDoubleClickTimeCheckBox.IsChecked == true;
+            if (TryReadDoubleClickTime(out int doubleClick))
+                settings.DoubleClickTime = doubleClick;
+
+            settings.ApplyMouseTrails = ApplyMouseTrailsCheckBox.IsChecked == true;
+            if (MouseTrailsComboBox.SelectedItem is ComboBoxItem { Tag: string trails })
+                settings.MouseTrails = int.Parse(trails);
+
+            settings.Enabled = EnableMouseCheckBox.IsChecked == true && settings.AppliesAny();
+            return settings;
+        }
+
+        private static bool TryReadScrollAmount(TextBox textBox, out int value) =>
+            int.TryParse(textBox.Text, out value) && value >= MouseSetting.MinScrollAmount && value <= MouseSetting.MaxScrollAmount;
+
+        private bool TryReadDoubleClickTime(out int value) =>
+            int.TryParse(DoubleClickTimeTextBox.Text, out value) && value >= MouseSetting.MinDoubleClickTime && value <= MouseSetting.MaxDoubleClickTime;
+
+        private static void SelectComboBoxTag(ComboBox comboBox, string tag) =>
+            comboBox.SelectedItem = comboBox.Items.OfType<ComboBoxItem>().FirstOrDefault(item => string.Equals(item.Tag as string, tag, StringComparison.OrdinalIgnoreCase));
+
+        private void EnableMouseCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!_suppressDeviceSettingEvents)
+                StatusTextBlock.Text = EnableMouseCheckBox.IsChecked == true ? "Mouse settings enabled" : "Mouse settings disabled";
+
+            UpdateMouseUiState();
+        }
+
+        private void MouseOptionCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!_suppressDeviceSettingEvents && sender is CheckBox { IsChecked: true } && EnableMouseCheckBox.IsChecked != true)
+                EnableMouseCheckBox.IsChecked = true;
+
+            UpdateMouseUiState();
+        }
+
+        private void MouseOptionComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_suppressDeviceSettingEvents) return;
+
+            if (sender == PointerSpeedComboBox)
+                ApplyPointerSpeedCheckBox.IsChecked = true;
+            else if (sender == PointerPrecisionComboBox)
+                ApplyPointerPrecisionCheckBox.IsChecked = true;
+            else if (sender == PrimaryButtonComboBox)
+                ApplySwapButtonsCheckBox.IsChecked = true;
+            else if (sender == MouseTrailsComboBox)
+                ApplyMouseTrailsCheckBox.IsChecked = true;
+        }
+
+        private void MouseNumberTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (_suppressDeviceSettingEvents) return;
+
+            if (sender == VerticalScrollTextBox)
+                ApplyVerticalScrollCheckBox.IsChecked = true;
+            else if (sender == HorizontalScrollTextBox)
+                ApplyHorizontalScrollCheckBox.IsChecked = true;
+            else if (sender == DoubleClickTimeTextBox)
+                ApplyDoubleClickTimeCheckBox.IsChecked = true;
+        }
+
+        private void NumberTextBox_PreviewTextInput(object sender, TextCompositionEventArgs e) => e.Handled = !e.Text.All(char.IsDigit);
+
+        private void LoadMouseButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var current = _profileEditorService.CaptureCurrentMouseSettings();
+                var loaded = ReadMouseSettingsFromUi();
+                loaded.PointerSpeed = current.PointerSpeed;
+                loaded.EnhancePointerPrecision = current.EnhancePointerPrecision;
+                loaded.VerticalScrollLines = current.VerticalScrollLines;
+                loaded.HorizontalScrollChars = current.HorizontalScrollChars;
+                loaded.SwapButtons = current.SwapButtons;
+                loaded.DoubleClickTime = current.DoubleClickTime;
+                loaded.MouseTrails = current.MouseTrails;
+
+                _suppressDeviceSettingEvents = true;
+                LoadMouseSettingsIntoUi(loaded);
+                _suppressDeviceSettingEvents = false;
+
+                StatusTextBlock.Text = "Loaded current mouse settings";
+            }
+            catch (Exception ex)
+            {
+                _suppressDeviceSettingEvents = false;
+                _logger.Error(ex, "Error loading current mouse settings");
+                StatusTextBlock.Text = "Could not load current mouse settings";
+            }
+
+            UpdateMouseUiState();
+        }
+
+        private void UpdateMouseUiState()
+        {
+            bool sectionOn = EnableMouseCheckBox.IsChecked == true;
+            bool anyOn = ApplyPointerSpeedCheckBox.IsChecked == true || ApplyPointerPrecisionCheckBox.IsChecked == true
+                || ApplyVerticalScrollCheckBox.IsChecked == true || ApplyHorizontalScrollCheckBox.IsChecked == true
+                || ApplySwapButtonsCheckBox.IsChecked == true || ApplyDoubleClickTimeCheckBox.IsChecked == true
+                || ApplyMouseTrailsCheckBox.IsChecked == true;
+
+            EnableMouseCheckBox.Opacity = !anyOn ? UiOpacity.Blocked : (sectionOn ? 1.0 : UiOpacity.Inactive);
+
+            foreach (var (check, control) in new (CheckBox, FrameworkElement)[]
+            {
+                (ApplyPointerSpeedCheckBox, PointerSpeedComboBox),
+                (ApplyPointerPrecisionCheckBox, PointerPrecisionComboBox),
+                (ApplyVerticalScrollCheckBox, VerticalScrollTextBox),
+                (ApplyHorizontalScrollCheckBox, HorizontalScrollTextBox),
+                (ApplySwapButtonsCheckBox, PrimaryButtonComboBox),
+                (ApplyDoubleClickTimeCheckBox, DoubleClickTimeTextBox),
+                (ApplyMouseTrailsCheckBox, MouseTrailsComboBox)
+            })
+            {
+                check.Opacity = sectionOn ? 1.0 : UiOpacity.Inactive;
+                control.Opacity = check.IsChecked != true ? UiOpacity.Blocked : (sectionOn ? 1.0 : UiOpacity.Inactive);
+            }
         }
 
         private async void AddScriptButton_Click(object sender, RoutedEventArgs e)

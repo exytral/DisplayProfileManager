@@ -9,6 +9,8 @@ using DisplayProfileManager.Displays;
 using DisplayProfileManager.Displays.Models;
 using DisplayProfileManager.Hotkeys;
 using DisplayProfileManager.Hotkeys.Models;
+using DisplayProfileManager.Pointer;
+using DisplayProfileManager.Pointer.Models;
 using DisplayProfileManager.Profiles;
 using DisplayProfileManager.Profiles.Icons;
 using DisplayProfileManager.Profiles.Models;
@@ -24,12 +26,14 @@ namespace DisplayProfileManager.Application
         DisplayEditorService displays,
         ScriptLibrary scripts,
         IAudioDeviceService audio,
+        IMouseSettingsService mouse,
         IWallpaperService wallpaper)
     {
         private readonly ProfileService _profiles = profiles ?? throw new ArgumentNullException(nameof(profiles));
         private readonly DisplayEditorService _displays = displays ?? throw new ArgumentNullException(nameof(displays));
         private readonly ScriptLibrary _scripts = scripts ?? throw new ArgumentNullException(nameof(scripts));
         private readonly IAudioDeviceService _audio = audio ?? throw new ArgumentNullException(nameof(audio));
+        private readonly IMouseSettingsService _mouse = mouse ?? throw new ArgumentNullException(nameof(mouse));
         private readonly IWallpaperService _wallpaper = wallpaper ?? throw new ArgumentNullException(nameof(wallpaper));
         private readonly ConditionalWeakTable<Profile, Profile> _displayBaselines = [];
 
@@ -74,6 +78,8 @@ namespace DisplayProfileManager.Application
         public List<AudioDeviceInfo> GetCaptureDevices() => _audio.GetCaptureDevices();
         public AudioDeviceInfo GetDefaultPlaybackDevice() => _audio.GetDefaultPlaybackDevice();
         public AudioDeviceInfo GetDefaultCaptureDevice() => _audio.GetDefaultCaptureDevice();
+
+        public MouseSetting CaptureCurrentMouseSettings() => _mouse.CaptureCurrent();
         public WallpaperSettings CaptureWallpaper() => _wallpaper.Capture();
 
         public Task<ScriptImportBatchResult> ImportScriptsAsync(IEnumerable<string> sourcePaths) => _scripts.ImportScriptsAsync(sourcePaths);

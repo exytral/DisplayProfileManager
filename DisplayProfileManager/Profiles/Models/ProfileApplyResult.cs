@@ -20,6 +20,7 @@ namespace DisplayProfileManager.Profiles.Models
         public bool ResolutionChanged { get; set; }
         public bool DpiChanged { get; set; }
         public bool AudioSuccess { get; set; }
+        public bool MouseSuccess { get; set; } = true;
         public bool WallpaperSuccess { get; set; } = true;
         public bool AdvancedColorSuccess { get; set; } = true;
         public bool ColorProfileSuccess { get; set; } = true;

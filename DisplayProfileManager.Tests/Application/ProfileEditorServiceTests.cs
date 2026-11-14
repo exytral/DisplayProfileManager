@@ -10,6 +10,8 @@ using DisplayProfileManager.Audio;
 using DisplayProfileManager.Audio.Models;
 using DisplayProfileManager.Displays;
 using DisplayProfileManager.Displays.Models;
+using DisplayProfileManager.Pointer;
+using DisplayProfileManager.Pointer.Models;
 using DisplayProfileManager.Profiles;
 using DisplayProfileManager.Profiles.Models;
 using DisplayProfileManager.Profiles.Persistence;
@@ -199,6 +201,7 @@ namespace DisplayProfileManager.Tests.Application
                     new DisplayEditorService(),
                     new ScriptLibrary(_tempFolder),
                     Audio,
+                    new FakeMouseSettingsService(),
                     Wallpaper);
             }
 
@@ -233,6 +236,12 @@ namespace DisplayProfileManager.Tests.Application
 
             public Task<AppSettings> LoadAsync() => Task.FromResult(new AppSettings());
             public Task<bool> SaveAsync(AppSettings settings) => Task.FromResult(true);
+        }
+
+private sealed class FakeMouseSettingsService : IMouseSettingsService
+        {
+            public MouseSetting CaptureCurrent() => new();
+            public bool ApplyMouseSettings(MouseSetting settings) => true;
         }
 
         private sealed class FakeAudioDeviceService : IAudioDeviceService

@@ -10,6 +10,7 @@ using DisplayProfileManager.Audio.Models;
 using DisplayProfileManager.Common;
 using DisplayProfileManager.Displays.Models;
 using DisplayProfileManager.Hotkeys.Models;
+using DisplayProfileManager.Pointer.Models;
 using DisplayProfileManager.Profiles.Models;
 using DisplayProfileManager.Profiles.Persistence;
 using DisplayProfileManager.Profiles.Policy;
@@ -123,6 +124,7 @@ namespace DisplayProfileManager.Profiles
                     ApplyPlaybackDevice = sourceProfile.AudioSettings.ApplyPlaybackDevice,
                     ApplyCaptureDevice = sourceProfile.AudioSettings.ApplyCaptureDevice
                 } : new AudioSetting(),
+                MouseSettings = sourceProfile.MouseSettings?.Clone() ?? new MouseSetting(),
                 WallpaperSettings = sourceProfile.WallpaperSettings != null ? new WallpaperSettings
                 {
                     Enabled = sourceProfile.WallpaperSettings.Enabled,

@@ -845,6 +845,343 @@
                     </Grid>
                 </Border>
 
+                <!-- Mouse Section -->
+                <Grid Margin="0,16,0,16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Mouse"
+                                   Style="{StaticResource LabelTextBlockStyle}"
+                                   FontSize="24"
+                                   Margin="0,0,8,0"
+                                   VerticalAlignment="Center"/>
+                        <CheckBox Name="EnableMouseCheckBox"
+                                  Content="Enable"
+                                  FontSize="14"
+                                  Padding="6,0,0,0"
+                                  Margin="0,6,8,0"
+                                  VerticalAlignment="Center"
+                                  VerticalContentAlignment="Center"
+                                  Foreground="{DynamicResource PrimaryTextBrush}"
+                                  ToolTip="Set the checked Windows mouse settings when this profile is applied"
+                                  Checked="EnableMouseCheckBox_Changed"
+                                  Unchecked="EnableMouseCheckBox_Changed"/>
+                    </StackPanel>
+
+                    <Button Grid.Column="1"
+                            Name="LoadMouseButton"
+                            Content="Load"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Width="60"
+                            Click="LoadMouseButton_Click"
+                            ToolTip="Load the current Windows mouse settings"/>
+                </Grid>
+
+                <Border Background="{DynamicResource ContentBackgroundBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        Padding="16">
+                    <Grid Grid.IsSharedSizeScope="True">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="12"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="12"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="12"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="12"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="12"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="12"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Pointer Speed -->
+                        <Grid Grid.Row="0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" SharedSizeGroup="MouseLabelGroup"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <CheckBox Grid.Column="0"
+                                      Name="ApplyPointerSpeedCheckBox"
+                                      Content="Pointer speed"
+                                      FontSize="14"
+                                      Padding="6,0,0,0"
+                                      Margin="0,0,8,0"
+                                      VerticalAlignment="Center"
+                                      VerticalContentAlignment="Center"
+                                      Foreground="{DynamicResource PrimaryTextBrush}"
+                                      ToolTip="Windows pointer speed, from 1 (slowest) to 20 (fastest); 10 is the Windows default"
+                                      Checked="MouseOptionCheckBox_Changed"
+                                      Unchecked="MouseOptionCheckBox_Changed"/>
+
+                            <ComboBox Grid.Column="1"
+                                      Name="PointerSpeedComboBox"
+                                      Style="{StaticResource PrimaryComboBoxStyle}"
+                                      Height="32"
+                                      ToolTip="1 is slowest, 20 is fastest, 10 is the Windows default"
+                                      SelectionChanged="MouseOptionComboBox_SelectionChanged">
+                                <ComboBox.ItemContainerStyle>
+                                    <Style TargetType="ComboBoxItem"
+                                           BasedOn="{StaticResource {x:Type ComboBoxItem}}">
+                                        <Setter Property="Padding" Value="8,4"/>
+                                    </Style>
+                                </ComboBox.ItemContainerStyle>
+                                <ComboBoxItem Content="1" Tag="1"/>
+                                <ComboBoxItem Content="2" Tag="2"/>
+                                <ComboBoxItem Content="3" Tag="3"/>
+                                <ComboBoxItem Content="4" Tag="4"/>
+                                <ComboBoxItem Content="5" Tag="5"/>
+                                <ComboBoxItem Content="6" Tag="6"/>
+                                <ComboBoxItem Content="7" Tag="7"/>
+                                <ComboBoxItem Content="8" Tag="8"/>
+                                <ComboBoxItem Content="9" Tag="9"/>
+                                <ComboBoxItem Content="10" Tag="10"/>
+                                <ComboBoxItem Content="11" Tag="11"/>
+                                <ComboBoxItem Content="12" Tag="12"/>
+                                <ComboBoxItem Content="13" Tag="13"/>
+                                <ComboBoxItem Content="14" Tag="14"/>
+                                <ComboBoxItem Content="15" Tag="15"/>
+                                <ComboBoxItem Content="16" Tag="16"/>
+                                <ComboBoxItem Content="17" Tag="17"/>
+                                <ComboBoxItem Content="18" Tag="18"/>
+                                <ComboBoxItem Content="19" Tag="19"/>
+                                <ComboBoxItem Content="20" Tag="20"/>
+                            </ComboBox>
+                        </Grid>
+
+                        <!-- Pointer Precision -->
+                        <Grid Grid.Row="2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" SharedSizeGroup="MouseLabelGroup"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <CheckBox Grid.Column="0"
+                                      Name="ApplyPointerPrecisionCheckBox"
+                                      Content="Pointer precision"
+                                      FontSize="14"
+                                      Padding="6,0,0,0"
+                                      Margin="0,0,8,0"
+                                      VerticalAlignment="Center"
+                                      VerticalContentAlignment="Center"
+                                      Foreground="{DynamicResource PrimaryTextBrush}"
+                                      ToolTip="Windows Enhance pointer precision (mouse acceleration)"
+                                      Checked="MouseOptionCheckBox_Changed"
+                                      Unchecked="MouseOptionCheckBox_Changed"/>
+
+                            <ComboBox Grid.Column="1"
+                                      Name="PointerPrecisionComboBox"
+                                      Style="{StaticResource PrimaryComboBoxStyle}"
+                                      Height="32"
+                                      ToolTip="Enhance pointer precision"
+                                      SelectionChanged="MouseOptionComboBox_SelectionChanged">
+                                <ComboBox.ItemContainerStyle>
+                                    <Style TargetType="ComboBoxItem"
+                                           BasedOn="{StaticResource {x:Type ComboBoxItem}}">
+                                        <Setter Property="Padding" Value="8,4"/>
+                                    </Style>
+                                </ComboBox.ItemContainerStyle>
+                                <ComboBoxItem Content="Enhanced" Tag="True"/>
+                                <ComboBoxItem Content="Not enhanced" Tag="False"/>
+                            </ComboBox>
+                        </Grid>
+
+                        <!-- Vertical Scroll -->
+                        <Grid Grid.Row="4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" SharedSizeGroup="MouseLabelGroup"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <CheckBox Grid.Column="0"
+                                      Name="ApplyVerticalScrollCheckBox"
+                                      Content="Vertical scroll"
+                                      FontSize="14"
+                                      Padding="6,0,0,0"
+                                      Margin="0,0,8,0"
+                                      VerticalAlignment="Center"
+                                      VerticalContentAlignment="Center"
+                                      Foreground="{DynamicResource PrimaryTextBrush}"
+                                      ToolTip="Lines to scroll for each wheel notch"
+                                      Checked="MouseOptionCheckBox_Changed"
+                                      Unchecked="MouseOptionCheckBox_Changed"/>
+
+                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                <TextBox Name="VerticalScrollTextBox"
+                                         Style="{StaticResource PrimaryTextBoxStyle}"
+                                         Width="72"
+                                         Padding="8,5"
+                                         MaxLength="3"
+                                         ToolTip="1 to 100"
+                                         PreviewTextInput="NumberTextBox_PreviewTextInput"
+                                         TextChanged="MouseNumberTextBox_TextChanged"/>
+                                <TextBlock Text="lines per notch"
+                                           Margin="8,0,0,0"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource SecondaryTextBrush}"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Horizontal Scroll -->
+                        <Grid Grid.Row="6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" SharedSizeGroup="MouseLabelGroup"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <CheckBox Grid.Column="0"
+                                      Name="ApplyHorizontalScrollCheckBox"
+                                      Content="Horizontal scroll"
+                                      FontSize="14"
+                                      Padding="6,0,0,0"
+                                      Margin="0,0,8,0"
+                                      VerticalAlignment="Center"
+                                      VerticalContentAlignment="Center"
+                                      Foreground="{DynamicResource PrimaryTextBrush}"
+                                      ToolTip="Characters to scroll for each horizontal wheel notch"
+                                      Checked="MouseOptionCheckBox_Changed"
+                                      Unchecked="MouseOptionCheckBox_Changed"/>
+
+                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                <TextBox Name="HorizontalScrollTextBox"
+                                         Style="{StaticResource PrimaryTextBoxStyle}"
+                                         Width="72"
+                                         Padding="8,5"
+                                         MaxLength="3"
+                                         ToolTip="1 to 100"
+                                         PreviewTextInput="NumberTextBox_PreviewTextInput"
+                                         TextChanged="MouseNumberTextBox_TextChanged"/>
+                                <TextBlock Text="characters per notch"
+                                           Margin="8,0,0,0"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource SecondaryTextBrush}"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Primary Button -->
+                        <Grid Grid.Row="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" SharedSizeGroup="MouseLabelGroup"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <CheckBox Grid.Column="0"
+                                      Name="ApplySwapButtonsCheckBox"
+                                      Content="Primary button"
+                                      FontSize="14"
+                                      Padding="6,0,0,0"
+                                      Margin="0,0,8,0"
+                                      VerticalAlignment="Center"
+                                      VerticalContentAlignment="Center"
+                                      Foreground="{DynamicResource PrimaryTextBrush}"
+                                      ToolTip="Which mouse button is the primary button"
+                                      Checked="MouseOptionCheckBox_Changed"
+                                      Unchecked="MouseOptionCheckBox_Changed"/>
+
+                            <ComboBox Grid.Column="1"
+                                      Name="PrimaryButtonComboBox"
+                                      Style="{StaticResource PrimaryComboBoxStyle}"
+                                      Height="32"
+                                      ToolTip="Primary mouse button"
+                                      SelectionChanged="MouseOptionComboBox_SelectionChanged">
+                                <ComboBox.ItemContainerStyle>
+                                    <Style TargetType="ComboBoxItem"
+                                           BasedOn="{StaticResource {x:Type ComboBoxItem}}">
+                                        <Setter Property="Padding" Value="8,4"/>
+                                    </Style>
+                                </ComboBox.ItemContainerStyle>
+                                <ComboBoxItem Content="Left" Tag="False"/>
+                                <ComboBoxItem Content="Right" Tag="True"/>
+                            </ComboBox>
+                        </Grid>
+                        <!-- Double-click Speed -->
+                        <Grid Grid.Row="10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" SharedSizeGroup="MouseLabelGroup"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <CheckBox Grid.Column="0"
+                                      Name="ApplyDoubleClickTimeCheckBox"
+                                      Content="Double-click speed"
+                                      FontSize="14"
+                                      Padding="6,0,0,0"
+                                      Margin="0,0,8,0"
+                                      VerticalAlignment="Center"
+                                      VerticalContentAlignment="Center"
+                                      Foreground="{DynamicResource PrimaryTextBrush}"
+                                      ToolTip="Maximum time between the two clicks of a double-click"
+                                      Checked="MouseOptionCheckBox_Changed"
+                                      Unchecked="MouseOptionCheckBox_Changed"/>
+
+                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                <TextBox Name="DoubleClickTimeTextBox"
+                                         Style="{StaticResource PrimaryTextBoxStyle}"
+                                         Width="72"
+                                         Padding="8,5"
+                                         MaxLength="3"
+                                         ToolTip="200 to 900; 500 is the Windows default"
+                                         PreviewTextInput="NumberTextBox_PreviewTextInput"
+                                         TextChanged="MouseNumberTextBox_TextChanged"/>
+                                <TextBlock Text="ms"
+                                           Margin="8,0,0,0"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource SecondaryTextBrush}"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Mouse Trails -->
+                        <Grid Grid.Row="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" SharedSizeGroup="MouseLabelGroup"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <CheckBox Grid.Column="0"
+                                      Name="ApplyMouseTrailsCheckBox"
+                                      Content="Mouse trails"
+                                      FontSize="14"
+                                      Padding="6,0,0,0"
+                                      Margin="0,0,8,0"
+                                      VerticalAlignment="Center"
+                                      VerticalContentAlignment="Center"
+                                      Foreground="{DynamicResource PrimaryTextBrush}"
+                                      ToolTip="Pointer trail length, or Off"
+                                      Checked="MouseOptionCheckBox_Changed"
+                                      Unchecked="MouseOptionCheckBox_Changed"/>
+
+                            <ComboBox Grid.Column="1"
+                                      Name="MouseTrailsComboBox"
+                                      Style="{StaticResource PrimaryComboBoxStyle}"
+                                      Height="32"
+                                      ToolTip="Pointer trail length, 2 (short) to 7 (long)"
+                                      SelectionChanged="MouseOptionComboBox_SelectionChanged">
+                                <ComboBox.ItemContainerStyle>
+                                    <Style TargetType="ComboBoxItem"
+                                           BasedOn="{StaticResource {x:Type ComboBoxItem}}">
+                                        <Setter Property="Padding" Value="8,4"/>
+                                    </Style>
+                                </ComboBox.ItemContainerStyle>
+                                <ComboBoxItem Content="Off" Tag="0"/>
+                                <ComboBoxItem Content="2" Tag="2"/>
+                                <ComboBoxItem Content="3" Tag="3"/>
+                                <ComboBoxItem Content="4" Tag="4"/>
+                                <ComboBoxItem Content="5" Tag="5"/>
+                                <ComboBoxItem Content="6" Tag="6"/>
+                                <ComboBoxItem Content="7" Tag="7"/>
+                            </ComboBox>
+                        </Grid>
+                    </Grid>
+                </Border>
+
                 <!-- Script Section -->
                 <Grid Margin="0,16,0,16">
                     <Grid.ColumnDefinitions>

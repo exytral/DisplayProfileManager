@@ -1,6 +1,6 @@
 # Creating and Managing Profiles
 
-Profiles store display settings such as monitor layout, resolution, refresh rate, rotation, HDR/WCG state, and DPI scaling. A profile can also store wallpaper, audio, scripts, and a global hotkey.
+Profiles store display settings such as monitor layout, resolution, refresh rate, rotation, HDR/WCG state, and DPI scaling. A profile can also store wallpaper, audio, mouse settings, scripts, and a global hotkey.
 
 ---
 
@@ -75,9 +75,27 @@ The device dropdown menus enumerate currently available devices when opened. A s
 
 ---
 
+## Mouse
+
+When **Enable Mouse** is active, the profile applies each checked mouse setting. Unchecked settings are left unchanged.
+
+| Setting               | Values                                                   |
+| --------------------- | -------------------------------------------------------- |
+| **Pointer speed**     | 1 (slowest) to 20 (fastest); 10 is the Windows default   |
+| **Pointer precision** | Enhanced or Not enhanced (Windows mouse acceleration)    |
+| **Vertical scroll**   | 1 to 100 lines per wheel notch                           |
+| **Horizontal scroll** | 1 to 100 characters per horizontal wheel notch           |
+| **Primary button**    | Left or Right                                            |
+| **Double-click speed**| 200 to 900 ms between clicks; 500 is the Windows default |
+| **Mouse trails**      | Off, or a trail length from 2 (short) to 7 (long)        |
+
+**Load** fills the values from the current Windows mouse settings without changing which settings are checked. New profiles start from the current Windows values with every setting unchecked. The settings are the per-user values from the Windows Mouse control panel and apply to every connected mouse.
+
+---
+
 ## Scripts
 
-When **Enable Scripts** is active, the profile runs its enabled scripts after the display, wallpaper, and audio stages. Imported scripts are copied into the application-managed Scripts folder.
+When **Enable Scripts** is active, the profile runs its enabled scripts after the display, wallpaper, audio, and mouse stages. Imported scripts are copied into the application-managed Scripts folder.
 
 Each script has its own enable checkbox. Disabling a row keeps the script, its file, and its arguments in the profile but skips that script during apply.
 

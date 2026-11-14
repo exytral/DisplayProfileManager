@@ -20,6 +20,7 @@ namespace DisplayProfileManager.UI.Presentation
             if (!result.DpiChanged) failures.Add("DPI");
             if (!result.WallpaperSuccess) failures.Add("Wallpaper");
             if (!result.AudioSuccess) failures.Add("Audio");
+            if (!result.MouseSuccess) failures.Add("Mouse");
             if (!result.CurrentProfilePersisted) failures.Add("Current Profile Marker");
 
             return string.Join(", ", failures);
@@ -50,7 +51,8 @@ namespace DisplayProfileManager.UI.Presentation
                 $"Color Profile: {result.ColorProfileSuccess},\n" +
                 $"DPI: {result.DpiChanged},\n" +
                 $"Wallpaper: {result.WallpaperSuccess},\n" +
-                $"Audio: {result.AudioSuccess}";
+                $"Audio: {result.AudioSuccess},\n" +
+                $"Mouse: {result.MouseSuccess}";
 
             return errorDetails;
         }

@@ -6,6 +6,7 @@ using Newtonsoft.Json;
 using DisplayProfileManager.Audio.Models;
 using DisplayProfileManager.Displays.Models;
 using DisplayProfileManager.Hotkeys.Models;
+using DisplayProfileManager.Pointer.Models;
 using DisplayProfileManager.Scripts.Models;
 using DisplayProfileManager.Wallpapers.Models;
 
@@ -33,6 +34,8 @@ namespace DisplayProfileManager.Profiles.Models
         public WallpaperSettings WallpaperSettings { get; set; } = null;
         [JsonProperty("audioSettings")]
         public AudioSetting AudioSettings { get; set; } = new AudioSetting();
+        [JsonProperty("mouseSettings")]
+        public MouseSetting MouseSettings { get; set; } = new MouseSetting();
         [JsonProperty("scriptSettings")]
         public ScriptSettings ScriptSettings { get; set; } = new ScriptSettings();
         [JsonProperty("hotkeyConfig")]

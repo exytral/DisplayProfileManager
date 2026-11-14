@@ -6,6 +6,25 @@ For user-facing release notes, see the [GitHub Releases](https://github.com/exyt
 
 ---
 
+<a id="unreleased"></a>
+## [Unreleased]
+
+### feat — mouse profile setting
+
+- **Per-profile Windows mouse settings** — profiles gain an optional `mouseSettings` section with independent `Apply*` flags for pointer speed (1-20), Enhance pointer precision, vertical wheel lines, horizontal wheel characters (1-100), primary-button swap, double-click speed (200-900 ms, `GetDoubleClickTime` / `SPI_SETDOUBLECLICKTIME`), and mouse trails (0 for off, 2-16, `SPI_GETMOUSETRAILS` / `SPI_SETMOUSETRAILS`; 1 is normalized to 0). Values are applied through `SystemParametersInfo` with `SPIF_UPDATEINIFILE | SPIF_SENDCHANGE` after the audio stage. Failures set `ProfileApplyResult.MouseSuccess = false`.
+- **Pointer namespace** — the capability lives in `DisplayProfileManager.Pointer` because a `DisplayProfileManager.Mouse` namespace hides WPF's `System.Windows.Input.Mouse` inside the application namespace.
+
+### feat — profile editor and details
+
+- **Mouse section** — the editor adds a Mouse section (per-setting checkboxes and **Load** from current Windows values). The Details panel lists the checked mouse settings.
+- **Schema compatibility** — the member is optional and deserializes to disabled defaults through `RecoverOptionalProperty`; `CurrentSchemaVersion` is unchanged at 6, so builds without this section ignore it.
+
+### test — regression coverage
+
+- **Managed suite — 1,213 tests** — adds mouse apply ordering and warning coverage with a fake service, serialization round-trip, recovery, and working-copy coverage for the new member, and double-click clamping and mouse-trail normalization coverage.
+
+---
+
 <a id="2.3.3"></a>
 ## [2.3.3] - 2026-10-31
 
