@@ -695,6 +695,25 @@ namespace DisplayProfileManager.UI.Windows
                 ProfileDetailsPanel.Children.Add(audioPanel);
             }
 
+            // Variable Refresh Rate Section
+            if (profile.VrrSettings?.Enabled == true)
+            {
+                ProfileDetailsPanel.Children.Add(new TextBlock
+                {
+                    Text = "Variable refresh rate",
+                    Style = (Style)FindResource("PrimaryTextBlockStyle"),
+                    FontWeight = FontWeights.Medium,
+                    Margin = new Thickness(0, 8, 0, 8)
+                });
+                ProfileDetailsPanel.Children.Add(SetThemeResourceReference(new TextBlock
+                {
+                    Text = $"Mode: {profile.VrrSettings}",
+                    Style = (Style)FindResource("PrimaryTextBlockStyle"),
+                    FontSize = 12,
+                    Margin = new Thickness(0, 0, 0, 12)
+                }, TextBlock.ForegroundProperty, "SecondaryTextBrush"));
+            }
+
             // Script Section
             if (profile.ScriptSettings?.Scripts?.Count > 0)
             {

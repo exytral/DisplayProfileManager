@@ -12,13 +12,13 @@ Do not treat historical plans, changelog entries, release records, or cleanup no
 - **Application seams**: `ApplicationCommandRouter`, `SingleInstanceCoordinator`, `ProfileEditorService`, `SettingsCoordinator`, and `HotkeyCoordinator` own cross-capability use-case policy. UI code calls these seams or capability services rather than reaching persistence/native APIs directly.
 - **Capability ownership**: persisted models, policy, persistence, and native interop stay with their owning capability. There is no generic top-level Models/Services/Repositories/Interfaces/Platform/Infrastructure bucket.
 - **Async/Await**: file I/O and profile-apply operations are asynchronous. Wallpaper COM/settling work runs off the WPF UI thread while remaining inside the owning serialized apply request.
-- **P/Invoke/COM**: Windows-specific APIs are isolated in capability-local adapters/interop such as Displays/Interop, Audio/Interop, Wallpapers/Interop, Hotkeys/Interop, Integration, and UI/Interop.
+- **P/Invoke/COM**: Windows-specific APIs are isolated in capability-local adapters/interop such as Displays/Interop, Audio/Interop, Vrr/Nvidia/Interop, Vrr/Amd/Interop, Wallpapers/Interop, Hotkeys/Interop, Integration, and UI/Interop.
 - **MVVM + code-behind**: ViewModels expose binding-friendly state where useful; focused WPF code-behind remains deliberate for interaction-heavy windows and controls.
 - **Logging**: NLog provides structured application logging.
 
 ### Composition and Application Flow
 
-- **App** (`DisplayProfileManager/App.xaml.cs`) — WPF entry point and composition root. It wires settings, profiles, display/wallpaper/audio/script services, integration adapters, theme/hotkey/tray/UI coordinators, startup behavior, and shutdown.
+- **App** (`DisplayProfileManager/App.xaml.cs`) — WPF entry point and composition root. It wires settings, profiles, display/wallpaper/audio/VRR/script services, integration adapters, theme/hotkey/tray/UI coordinators, startup behavior, and shutdown.
 - **ApplicationCommandRouter** (`DisplayProfileManager/Application/ApplicationCommandRouter.cs`) — interprets CLI/IPC commands and routes application actions.
 - **EngineeringOverrides** (`DisplayProfileManager/Application/EngineeringOverrides.cs`) — immutable process-scoped engineering fault-injection snapshot resolved once by `App` from `DPM_ENGINEERING_FORCE_APPLY_FAILURE` and `DPM_ENGINEERING_FORCE_TOPOLOGY_RECOVERY`; malformed values fail inactive with warnings, and downstream services never read these variables directly.
 - **SingleInstanceCoordinator** (`DisplayProfileManager/Application/SingleInstanceCoordinator.cs`) — owns normal/development single-instance authority and secondary-instance redirection policy.
@@ -41,6 +41,9 @@ Do not treat historical plans, changelog entries, release records, or cleanup no
 - **DisplayApplyAdapter** — application-facing display apply boundary. `DisplayConfigService` owns CCD topology/layout/query mechanics; `AdvancedColorService`, `ColorProfileAdapter`, `DpiScalingAdapter`, `GdiDisplayAdapter`, and `MonitorBoundsProvider` own their focused platform responsibilities.
 - **WallpaperService** — application-facing wallpaper capture/apply boundary. `WallpaperCapture`, `WallpaperApply`, `WallpaperTransitionPlanner`, `WallpaperMonitorMapper`, `SpotlightProvider`, and `WindowsWallpaperPlatform` separate capture, transition policy, monitor identity, Spotlight provider state, and Windows interop.
 - **AudioDeviceService** — enumerates/resolves Core Audio endpoints and applies configured playback/recording defaults through capability-local COM interop.
+- **VrrService** — vendor-neutral variable refresh rate seam (`IVrrService`). It reports a `VrrCapability` (detected technology, whether `OnIncludingWindowed` is supported, current mode when readable) and applies a `VrrMode` through every `IVrrBackend` that finds a capable display.
+- **NvidiaVrrBackend / GsyncPlan** — NVIDIA backend. It writes the global driver-profile G-SYNC settings through NVAPI DRS, resolved at runtime from `nvapi64.dll`/`nvapi.dll` by interface ID; `GsyncPlan` owns the pure five-setting target and save-group policy. `NvAPI_Disp_GetVRRInfo` decides whether any connected display is VRR capable and falls back to DRS availability when the driver cannot answer. On/off changes wait for NVIDIA monitor interfaces to return and reapply the faster display snapshot if the modeset lowered the refresh rate.
+- **AmdVrrBackend / AmdVrrPlan** — AMD FreeSync backend through the driver-installed ADLX runtime (`amdadlx64.dll`, never shipped), bound by vtable slot in `AdlxNative`. `AmdVrrPlan` owns the pure mode mapping and display selection; AMD has no windowed mode, so `OnIncludingWindowed` applies as `On`. Untested on AMD hardware. There is no Intel backend because Intel's driver leaves adaptive sync to Windows.
 - **ScriptLibrary / ScriptRunner** — separate managed script storage/import from execution.
 - **SettingsService / SettingsStore** — separate in-memory settings authority/events from `Settings.json` persistence.
 - **HotkeyCoordinator / GlobalHotkeyRegistrar** — separate application hotkey policy/lifecycle from Win32 registration.
@@ -76,6 +79,7 @@ DisplayProfileManager/
   Displays/                          CCD topology, layout, identity, color and interop
   Wallpapers/                        Capture, apply, transitions and Windows interop
   Audio/                             Core Audio service and interop
+  Vrr/                               Variable refresh rate service, NVIDIA and AMD backends and interop
   Scripts/                           Script library and execution
   Settings/                          Settings models, service and store
   Hotkeys/                           Hotkey policy and registration
@@ -87,7 +91,7 @@ DisplayProfileManager/
 
 DisplayProfileManager.Tests/
   Application/, Audio/, Common/, Displays/, Helpers/
-  Hotkeys/, Integration/, Profiles/, Scripts/, Settings/, UI/, Wallpapers/
+  Hotkeys/, Integration/, Profiles/, Scripts/, Settings/, UI/, Vrr/, Wallpapers/
 
 DisplayProfileManager.ShellExt/           Native Explorer COM extension
 DisplayProfileManager.ShellExt.Tests/     Native JsonReader test executable
@@ -140,6 +144,7 @@ Display-specific clone semantics and deferred hardware self-healing are intentio
 | `DisplaySettings`   | `List<DisplaySetting>` | `[]`     | Per-monitor display configuration                                                                                                 |
 | `WallpaperSettings` | `WallpaperSettings`    | `null`   | Stored wallpaper state; its nested `Enabled` value controls whether the wallpaper stage applies                                   |
 | `AudioSettings`     | `AudioSetting`         | default  | Playback/recording configuration; nested `Enabled` gates the audio stage and per-endpoint flags select which defaults are changed |
+| `VrrSettings`       | `VrrSetting`           | default  | Variable refresh rate mode; nested `Enabled` gates the VRR stage                                                                  |
 | `ScriptSettings`    | `ScriptSettings`       | default  | Nested script enablement plus the stored `List<Script>` entries                                                                   |
 | `HotkeyConfig`      | `HotkeyConfig`         | default  | Global hotkey assigned to the profile                                                                                             |
 
@@ -202,6 +207,8 @@ Each `DisplaySetting` entry, in current declaration order:
 | `AvailableDpiScaling`   | Supported DPI scaling values                      |
 
 `AudioSetting` properties: `Enabled`, `DefaultPlaybackDeviceId`, `DefaultCaptureDeviceId`, `PlaybackDeviceName`, `CaptureDeviceName`, `ApplyPlaybackDevice`, `ApplyCaptureDevice`. The nested `Enabled` flag gates the audio stage. `ApplyPlaybackDevice` and `ApplyCaptureDevice` select which configured endpoint is changed independently of whether that endpoint is currently available. `ScriptSettings` similarly stores the section-level `Enabled` value together with its `Scripts` collection.
+
+`VrrSetting` properties: `Enabled`, `Mode` (`Off`, `On`, `OnIncludingWindowed`, serialized as a string). It is an optional member: profiles without it deserialize to a disabled default, and a malformed value recovers through `RecoverOptionalProperty`.
 
 ### Data Storage
 
@@ -413,8 +420,9 @@ When a profile is selected, the panel shows:
 - per-monitor resolution, refresh rate, rotation, HDR/WCG, color profile, and DPI.
 - disabled-monitor and disabled-clone-group badges.
 - the primary display marker and clone-group indicators with member names.
-- **Display → Wallpaper → Audio → Scripts** sections, with enabled/disabled state reflected in their secondary text.
+- **Display → Wallpaper → Audio → Variable refresh rate → Scripts** sections, with enabled/disabled state reflected in their secondary text.
 - saved playback/capture endpoints, marked `(Unavailable)` when the configured endpoint is no longer enumerated. Profiles without a configured endpoint ID do not trigger endpoint enumeration.
+- the variable refresh rate mode when `VrrSettings.Enabled` is on.
 - `Scripts (Disabled)` when `ScriptSettings.Enabled` is off; otherwise, stored script file names are shown, with `(Not Found)` appended when a script file is missing.
 - hotkey combination and enabled/disabled state.
 - read-only saved-layout preview projected from the profile's stored display geometry as saved intent, not as a guarantee of the Windows-realized topology.
@@ -434,6 +442,7 @@ When a profile is selected, the panel shows:
 - **Displays** — shows per-monitor resolution, refresh rate, rotation, HDR/WCG, DPI, and color profile controls. **Load** replaces the stored display settings with the current live configuration; new profiles are initialized from the current live desktop when being created, while existing profiles retain their stored display settings until explicitly loaded. **Identify** temporarily overlays each physical monitor with its number. The Clone action selects a display to mirror, with the initiating display becoming the clone source and the selected display becoming the mirror; grouped displays share resolution and refresh controls. Break Clone splits a group back into independent displays while restoring the saved attached-member state.
 - **Wallpaper** - includes the section enable toggle and **Load** action, followed by the wallpaper preview and mode-specific controls. Solid Color provides a color picker; Picture provides color and fitment. Slideshow provides color, fitment, interval, shuffle/order, and source-folder controls. Spotlight provides only a preview.
 - **Audio** — includes the section enable toggle and playback and recording device dropdown menus. The dropdown menus enumerate current devices when opened and preserve saved endpoints that are no longer available.
+- **Variable refresh rate** — includes the section enable toggle, a mode dropdown menu, and a status line with the detected technology (NVIDIA G-SYNC or AMD FreeSync) and the current mode. **On, including windowed** is listed only when the backend supports it. Selecting a mode enables the section. The whole section is hidden when no backend finds a capable display, unless the edited profile already stores an enabled setting.
 - **Scripts** — includes a section-level Enable toggle and per-script rows containing the script checkbox, file name, arguments, and delete button. The section can be enabled only when at least one non-deleted script is individually enabled, and both the section toggle and the individual script's `IsEnabled` flag must be enabled for that script to execute. Missing script files are shown with `(Not Found)`. **Clear All Scripts** marks all non-deleted scripts for removal while allowing individual rows to be restored.
 
 ### Settings Window

@@ -17,6 +17,8 @@ using DisplayProfileManager.Scripts.Models;
 using DisplayProfileManager.Settings;
 using DisplayProfileManager.Settings.Models;
 using DisplayProfileManager.Settings.Persistence;
+using DisplayProfileManager.Vrr;
+using DisplayProfileManager.Vrr.Models;
 using DisplayProfileManager.Wallpapers;
 using DisplayProfileManager.Wallpapers.Models;
 
@@ -212,6 +214,7 @@ namespace DisplayProfileManager.Tests.Profiles
                 adapter,
                 new FakeWallpaperService(),
                 new FakeAudioDeviceService(),
+                new FakeVrrService(),
                 new FakeScriptRunner(),
                 settings,
                 id => profiles.Find(p => p.Id == id),
@@ -340,6 +343,12 @@ namespace DisplayProfileManager.Tests.Profiles
             public bool SetDefaultPlaybackDevice(string deviceId) => true;
             public bool SetDefaultCaptureDevice(string deviceId) => true;
             public bool ApplyAudioSettings(AudioSetting settings) => true;
+        }
+
+        private sealed class FakeVrrService : IVrrService
+        {
+            public VrrCapability GetCapability() => VrrCapability.Unavailable;
+            public bool ApplyVrrSettings(VrrSetting settings) => true;
         }
 
         private sealed class FakeScriptRunner : IScriptRunner

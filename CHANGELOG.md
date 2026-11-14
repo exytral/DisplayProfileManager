@@ -6,6 +6,30 @@ For user-facing release notes, see the [GitHub Releases](https://github.com/exyt
 
 ---
 
+<a id="unreleased"></a>
+## [Unreleased]
+
+### feat — variable refresh rate profile setting
+
+- **Vendor-neutral per-profile VRR mode** — profiles gain an optional `vrrSettings` section (`enabled`, `mode` = `Off` / `On` / `OnIncludingWindowed`, serialized as strings) that sets variable refresh rate for the whole PC. The capability lives in `DisplayProfileManager.Vrr`; `IVrrService` reports availability (detected technology, whether `OnIncludingWindowed` exists, current mode when readable) and applies a mode, and `VrrService` routes it to every vendor backend that finds a capable display.
+- **NVIDIA G-SYNC backend** — `Off`, `On`, and `OnIncludingWindowed` map to the NVIDIA Control Panel **Enable G-SYNC, G-SYNC Compatible** setting (`VRRREQUESTSTATE` 0, 1, 2). NVAPI is loaded at runtime from `nvapi64.dll`/`nvapi.dll` and DRS entry points are resolved through `nvapi_QueryInterface`. The mode writes the five settings the control panel changes together (`VRR_MODE`, `VRR_APP_OVERRIDE`, `VRRFEATUREINDICATOR`, `VRRREQUESTSTATE`, `REFRESH_RATE_OVERRIDE`) in three saves, then reloads and verifies them; switching between the two on modes keeps the existing per-feature values. Logic adapted from [GsyncStatusTrayToggle](https://github.com/Fr0stX76/GsyncStatusTrayToggle) by [@Fr0stX76](https://github.com/Fr0stX76) (MIT).
+- **On/off modeset handling** — turning G-SYNC on or off re-trains NVIDIA displays. The stage waits for NVIDIA monitor device interfaces to be removed and return (`CM_Register_Notification`), then reapplies the faster pre/post display snapshot when the modeset lowered the refresh rate.
+- **NVIDIA display capability** — `NvAPI_GPU_GetConnectedDisplayIds` and `NvAPI_Disp_GetVRRInfo` report whether any connected display can do VRR. When the driver cannot answer, the backend falls back to DRS availability so a working NVIDIA system is never hidden.
+- **AMD FreeSync backend** — loads `amdadlx64.dll` (installed with the AMD driver, never shipped with the app) and walks the ADLX C vtables through marshaled function pointers: `ADLXInitialize`, display services, display list, then `IADLXDisplayFreeSync` `IsSupported` / `IsEnabled` / `SetEnabled` on every supported display. `Off` disables FreeSync; `On` and `OnIncludingWindowed` enable it because AMD has no windowed switch, and a windowed request is applied as `On` and logged. Every acquired interface is released before `ADLXTerminate`. This backend is untested on hardware; only its mode mapping and display selection are covered by unit tests.
+- **No Intel backend** — the Intel Graphics Control Library leaves adaptive sync to Windows, so there is nothing for the application to set.
+- **Apply ordering** — VRR runs before topology so the modeset settles before the layout is applied. Failures set `ProfileApplyResult.VrrSuccess = false` and appear as **Variable refresh rate** in the non-blocking warning summary. Writes use the user's token; on the validation system a non-elevated process could save the DRS store.
+
+### feat — profile editor and details
+
+- **Variable refresh rate section** — the editor adds one section (mode and the detected technology with the current mode). The **On, including windowed** item shows only when a backend supports it. The whole section is hidden when no backend finds a capable display, unless the edited profile already stores an enabled setting, so a stored value can still be turned off. The Details panel lists the stored mode.
+- **Schema compatibility** — `vrrSettings` is optional and deserializes to a disabled default through `RecoverOptionalProperty`. `CurrentSchemaVersion` is unchanged at 6; any schema bump is left to the maintainer.
+
+### test — regression coverage
+
+- **Managed suite — 1,226 tests** — adds G-SYNC plan and capability-fallback coverage, AMD mode mapping and display selection, composite backend routing, apply ordering and warning coverage with fake services, and serialization round-trip, recovery, and working-copy coverage for the new member.
+
+---
+
 <a id="2.3.3"></a>
 ## [2.3.3] - 2026-10-31
 

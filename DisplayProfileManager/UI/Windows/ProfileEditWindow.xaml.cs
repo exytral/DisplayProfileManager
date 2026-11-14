@@ -30,6 +30,8 @@ using DisplayProfileManager.UI.Icons;
 using DisplayProfileManager.UI.Interop;
 using DisplayProfileManager.UI.Presentation;
 using DisplayProfileManager.UI.ViewModels;
+using DisplayProfileManager.Vrr;
+using DisplayProfileManager.Vrr.Models;
 using DisplayProfileManager.Wallpapers.Models;
 
 namespace DisplayProfileManager.UI.Windows
@@ -56,6 +58,9 @@ namespace DisplayProfileManager.UI.Windows
         private bool _suppressAudioSelection;
         private bool _audioDevicesLoaded;
         private bool _audioSettingsDisabled;
+        private bool _suppressVrrEvents;
+        private bool _vrrAvailable;
+        private bool _vrrStoredEnabled;
 
         internal ProfileEditWindow(
             ProfileEditorService profileEditorService,
@@ -84,6 +89,7 @@ namespace DisplayProfileManager.UI.Windows
             if (!_isEditMode)
                 PrefillNewProfile();
 
+            InitializeVrrSettings();
             UpdateScriptControlsState();
             UpdateAudioUiState();
         }
@@ -474,6 +480,11 @@ namespace DisplayProfileManager.UI.Windows
                     _profile.AudioSettings.DefaultCaptureDeviceId = selectedInput.Id;
                     _profile.AudioSettings.CaptureDeviceName = selectedInput.SystemName;
                 }
+
+                // Variable refresh rate
+                _profile.VrrSettings ??= new VrrSetting();
+                _profile.VrrSettings.Mode = GetSelectedVrrMode();
+                _profile.VrrSettings.Enabled = EnableVrrCheckBox.IsChecked == true;
 
                 // Scripts
                 string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
@@ -1341,6 +1352,95 @@ namespace DisplayProfileManager.UI.Windows
             InputDeviceComboBox.Opacity = inputUnavailable || noDevices || !inputOn
                 ? UiOpacity.Blocked
                 : (sectionOn ? 1.0 : UiOpacity.Inactive);
+        }
+
+        private void InitializeVrrSettings()
+        {
+            _profile.VrrSettings ??= new VrrSetting();
+            _vrrStoredEnabled = _profile.VrrSettings.Enabled;
+
+            _suppressVrrEvents = true;
+            try
+            {
+                EnableVrrCheckBox.IsChecked = _profile.VrrSettings.Enabled;
+                SelectVrrMode(_profile.VrrSettings.Mode);
+            }
+            finally
+            {
+                _suppressVrrEvents = false;
+            }
+
+            // Hidden until a capable display is found, unless the stored profile already uses the setting
+            VrrSection.Visibility = _vrrStoredEnabled ? Visibility.Visible : Visibility.Collapsed;
+            UpdateVrrUiState();
+            _ = RefreshVrrCapabilityAsync();
+        }
+
+        private async Task RefreshVrrCapabilityAsync()
+        {
+            VrrStatusTextBlock.Text = "Checking for variable refresh rate support...";
+            var capability = VrrCapability.Unavailable;
+            try
+            {
+                capability = await Task.Run(_profileEditorService.GetVrrCapability);
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn(ex, "Variable refresh rate capability check failed");
+            }
+
+            _vrrAvailable = capability.IsAvailable;
+            VrrWindowedItem.Visibility = capability.SupportsWindowed || !capability.IsAvailable ? Visibility.Visible : Visibility.Collapsed;
+            VrrSection.Visibility = capability.IsAvailable || _vrrStoredEnabled ? Visibility.Visible : Visibility.Collapsed;
+
+            if (!capability.IsAvailable)
+                VrrStatusTextBlock.Text = "No variable refresh rate capable display was found on this PC";
+            else
+            {
+                string current = capability.CurrentMode.HasValue ? $"Current: {VrrSetting.GetModeLabel(capability.CurrentMode.Value)}" : "Current: unknown";
+                VrrStatusTextBlock.Text = $"{capability.Technology}. {current}";
+            }
+
+            if (!_isEditMode && capability.CurrentMode.HasValue)
+                SelectVrrMode(capability.CurrentMode.Value);
+
+            UpdateVrrUiState();
+        }
+
+        private void SelectVrrMode(VrrMode mode)
+        {
+            bool previous = _suppressVrrEvents;
+            _suppressVrrEvents = true;
+            VrrModeComboBox.SelectedItem = VrrModeComboBox.Items.OfType<ComboBoxItem>()
+                .FirstOrDefault(item => string.Equals(item.Tag as string, mode.ToString(), StringComparison.OrdinalIgnoreCase));
+            _suppressVrrEvents = previous;
+        }
+
+        private VrrMode GetSelectedVrrMode() =>
+            VrrModeComboBox.SelectedItem is ComboBoxItem { Tag: string tag } && Enum.TryParse(tag, out VrrMode mode) ? mode : VrrMode.On;
+
+        private void EnableVrrCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!_suppressVrrEvents)
+                StatusTextBlock.Text = EnableVrrCheckBox.IsChecked == true ? "Variable refresh rate enabled" : "Variable refresh rate disabled";
+
+            UpdateVrrUiState();
+        }
+
+        private void VrrModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_suppressVrrEvents) return;
+
+            StatusTextBlock.Text = $"Variable refresh rate: {VrrSetting.GetModeLabel(GetSelectedVrrMode())}";
+            if (EnableVrrCheckBox.IsChecked != true)
+                EnableVrrCheckBox.IsChecked = true;
+        }
+
+        private void UpdateVrrUiState()
+        {
+            bool sectionOn = EnableVrrCheckBox.IsChecked == true;
+            VrrModeComboBox.Opacity = sectionOn ? 1.0 : UiOpacity.Inactive;
+            EnableVrrCheckBox.Opacity = _vrrAvailable || sectionOn ? 1.0 : UiOpacity.Blocked;
         }
 
         private async void AddScriptButton_Click(object sender, RoutedEventArgs e)
