@@ -1398,7 +1398,7 @@ namespace DisplayProfileManager.UI.Windows
             else
             {
                 string current = capability.CurrentMode.HasValue ? $"Current: {VrrSetting.GetModeLabel(capability.CurrentMode.Value)}" : "Current: unknown";
-                VrrStatusTextBlock.Text = $"{capability.Technology}. {current}";
+                VrrStatusTextBlock.Text = $"Applied as {capability.Technology} on this PC. {current}";
             }
 
             if (!_isEditMode && capability.CurrentMode.HasValue)

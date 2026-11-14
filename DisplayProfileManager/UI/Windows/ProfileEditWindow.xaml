@@ -855,6 +855,7 @@
 
                         <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                             <TextBlock Text="Variable refresh rate"
+                                       ToolTip="G-SYNC on NVIDIA, FreeSync on AMD. The setting goes to whichever driver this PC has."
                                        Style="{StaticResource LabelTextBlockStyle}"
                                        FontSize="24"
                                        Margin="0,0,8,0"
@@ -867,7 +868,7 @@
                                       VerticalAlignment="Center"
                                       VerticalContentAlignment="Center"
                                       Foreground="{DynamicResource PrimaryTextBrush}"
-                                      ToolTip="Set the variable refresh rate mode when this profile is applied"
+                                      ToolTip="Set G-SYNC (NVIDIA) or FreeSync (AMD) when this profile is applied"
                                       Checked="EnableVrrCheckBox_Changed"
                                       Unchecked="EnableVrrCheckBox_Changed"/>
                         </StackPanel>
@@ -899,7 +900,7 @@
                                       Name="VrrModeComboBox"
                                       Style="{StaticResource PrimaryComboBoxStyle}"
                                       Height="32"
-                                      ToolTip="Variable refresh rate (NVIDIA G-SYNC or AMD FreeSync)"
+                                      ToolTip="Applied as the G-SYNC or FreeSync setting of this PC's GPU driver"
                                       SelectionChanged="VrrModeComboBox_SelectionChanged">
                                 <ComboBox.ItemContainerStyle>
                                     <Style TargetType="ComboBoxItem"
