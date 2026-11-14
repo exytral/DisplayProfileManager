@@ -910,7 +910,7 @@
                                 </ComboBox.ItemContainerStyle>
                                 <ComboBoxItem Content="Off" Tag="Off"/>
                                 <ComboBoxItem Content="On" Tag="On"/>
-                                <ComboBoxItem Name="VrrWindowedItem" Content="On, including windowed" Tag="OnIncludingWindowed"/>
+                                <ComboBoxItem Name="VrrFullscreenOnlyItem" Content="On, fullscreen only" Tag="OnFullscreenOnly"/>
                             </ComboBox>
 
                             <!-- Detected Technology and Current State -->

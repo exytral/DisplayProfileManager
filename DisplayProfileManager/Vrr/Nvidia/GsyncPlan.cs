@@ -29,8 +29,8 @@ namespace DisplayProfileManager.Vrr.Nvidia
         internal static VrrMode? Decode(uint applicationMode) => applicationMode switch
         {
             0 => VrrMode.Off,
-            1 => VrrMode.On,
-            2 => VrrMode.OnIncludingWindowed,
+            1 => VrrMode.OnFullscreenOnly,
+            2 => VrrMode.On,
             _ => null
         };
 
@@ -42,8 +42,8 @@ namespace DisplayProfileManager.Vrr.Nvidia
 
             uint mode = target switch
             {
-                VrrMode.On => 1u,
-                VrrMode.OnIncludingWindowed => 2u,
+                VrrMode.OnFullscreenOnly => 1u,
+                VrrMode.On => 2u,
                 _ => 0u
             };
             bool on = IsOn(target);

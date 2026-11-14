@@ -29,20 +29,20 @@ namespace DisplayProfileManager.Tests.Vrr
 
             Assert.IsTrue(capability.IsAvailable);
             Assert.AreEqual("NVIDIA G-SYNC", capability.Technology);
-            Assert.IsTrue(capability.SupportsWindowed);
+            Assert.IsTrue(capability.SupportsFullscreenOnly);
             Assert.AreEqual(VrrMode.Off, capability.CurrentMode);
         }
 
         [TestMethod]
         [TestCategory("Unit")]
-        public void GetCapability_AmdOnly_HasNoWindowedMode()
+        public void GetCapability_AmdOnly_HasNoFullscreenOnlyMode()
         {
             var service = new VrrService([new FakeBackend(VrrCapability.Unavailable), new FakeBackend(Amd)]);
 
             var capability = service.GetCapability();
 
             Assert.AreEqual("AMD FreeSync", capability.Technology);
-            Assert.IsFalse(capability.SupportsWindowed);
+            Assert.IsFalse(capability.SupportsFullscreenOnly);
         }
 
         [TestMethod]
@@ -54,7 +54,7 @@ namespace DisplayProfileManager.Tests.Vrr
             var capability = service.GetCapability();
 
             Assert.AreEqual("NVIDIA G-SYNC and AMD FreeSync", capability.Technology);
-            Assert.IsTrue(capability.SupportsWindowed);
+            Assert.IsTrue(capability.SupportsFullscreenOnly);
         }
 
         [TestMethod]
@@ -65,11 +65,11 @@ namespace DisplayProfileManager.Tests.Vrr
             var amd = new FakeBackend(Amd);
             var service = new VrrService([nvidia, amd]);
 
-            bool result = service.ApplyVrrSettings(new VrrSetting { Enabled = true, Mode = VrrMode.OnIncludingWindowed });
+            bool result = service.ApplyVrrSettings(new VrrSetting { Enabled = true, Mode = VrrMode.OnFullscreenOnly });
 
             Assert.IsTrue(result);
             CollectionAssert.AreEqual(new List<VrrMode>(), nvidia.Applied);
-            CollectionAssert.AreEqual(new List<VrrMode> { VrrMode.OnIncludingWindowed }, amd.Applied);
+            CollectionAssert.AreEqual(new List<VrrMode> { VrrMode.OnFullscreenOnly }, amd.Applied);
         }
 
         [TestMethod]

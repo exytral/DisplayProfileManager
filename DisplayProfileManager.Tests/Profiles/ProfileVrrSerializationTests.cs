@@ -25,14 +25,14 @@ namespace DisplayProfileManager.Tests.Profiles
         [TestCategory("Unit")]
         public void SerializeProfile_VrrSettings_RoundTrip()
         {
-            var source = new Profile("Profile") { VrrSettings = new VrrSetting { Enabled = true, Mode = VrrMode.OnIncludingWindowed } };
+            var source = new Profile("Profile") { VrrSettings = new VrrSetting { Enabled = true, Mode = VrrMode.OnFullscreenOnly } };
 
             string json = ProfileSerializer.SerializeProfile(source);
             var loaded = ProfileSerializer.DeserializeProfile(json);
 
-            Assert.AreEqual("OnIncludingWindowed", JObject.Parse(json)["vrrSettings"]["mode"].Value<string>());
+            Assert.AreEqual("OnFullscreenOnly", JObject.Parse(json)["vrrSettings"]["mode"].Value<string>());
             Assert.IsTrue(loaded.VrrSettings.Enabled);
-            Assert.AreEqual(VrrMode.OnIncludingWindowed, loaded.VrrSettings.Mode);
+            Assert.AreEqual(VrrMode.OnFullscreenOnly, loaded.VrrSettings.Mode);
         }
 
         [TestMethod]

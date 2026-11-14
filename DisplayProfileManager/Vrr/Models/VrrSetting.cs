@@ -7,7 +7,7 @@ namespace DisplayProfileManager.Vrr.Models
     {
         Off,
         On,
-        OnIncludingWindowed
+        OnFullscreenOnly
     }
 
     public class VrrSetting
@@ -24,7 +24,7 @@ namespace DisplayProfileManager.Vrr.Models
         {
             VrrMode.Off => "Off",
             VrrMode.On => "On",
-            VrrMode.OnIncludingWindowed => "On, including windowed",
+            VrrMode.OnFullscreenOnly => "On, fullscreen only",
             _ => mode.ToString()
         };
     }

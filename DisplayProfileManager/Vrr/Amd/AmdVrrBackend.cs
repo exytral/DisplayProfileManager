@@ -67,7 +67,7 @@ namespace DisplayProfileManager.Vrr.Amd
         {
             var mode = AmdVrrPlan.EffectiveMode(requested);
             if (mode != requested)
-                _logger.Info($"AMD FreeSync has no windowed mode, applying {VrrSetting.GetModeLabel(mode)}");
+                _logger.Info($"AMD FreeSync has no fullscreen-only mode, applying {VrrSetting.GetModeLabel(mode)}");
 
             using var session = AdlxNative.Session.Open(out string openError);
             if (session == null)

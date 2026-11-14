@@ -18,8 +18,8 @@ namespace DisplayProfileManager.Tests.Vrr
         public void Decode_KnownValues_ReturnModes()
         {
             Assert.AreEqual(VrrMode.Off, GsyncPlan.Decode(0));
-            Assert.AreEqual(VrrMode.On, GsyncPlan.Decode(1));
-            Assert.AreEqual(VrrMode.OnIncludingWindowed, GsyncPlan.Decode(2));
+            Assert.AreEqual(VrrMode.OnFullscreenOnly, GsyncPlan.Decode(1));
+            Assert.AreEqual(VrrMode.On, GsyncPlan.Decode(2));
         }
 
         [TestMethod]
@@ -35,18 +35,18 @@ namespace DisplayProfileManager.Tests.Vrr
 
         [TestMethod]
         [TestCategory("Unit")]
-        public void MakeTarget_OnFromOff_EnablesEverySetting()
+        public void MakeTarget_FullscreenOnlyFromOff_EnablesEverySetting()
         {
-            CollectionAssert.AreEqual(OnValues, GsyncPlan.MakeTarget(VrrMode.On, OffValues));
+            CollectionAssert.AreEqual(OnValues, GsyncPlan.MakeTarget(VrrMode.OnFullscreenOnly, OffValues));
         }
 
         [TestMethod]
         [TestCategory("Unit")]
-        public void MakeTarget_WindowedFromOn_KeepsPerFeatureValues()
+        public void MakeTarget_OnFromFullscreenOnly_KeepsPerFeatureValues()
         {
             uint[] current = [1, 2, 0, 1, 0];
 
-            CollectionAssert.AreEqual(new uint[] { 2, 2, 0, 2, 0 }, GsyncPlan.MakeTarget(VrrMode.OnIncludingWindowed, current));
+            CollectionAssert.AreEqual(new uint[] { 2, 2, 0, 2, 0 }, GsyncPlan.MakeTarget(VrrMode.On, current));
         }
 
         [TestMethod]
@@ -55,14 +55,14 @@ namespace DisplayProfileManager.Tests.Vrr
         {
             uint[] current = [9, 2, 0, 1, 0];
 
-            CollectionAssert.AreEqual(OnValues, GsyncPlan.MakeTarget(VrrMode.On, current));
+            CollectionAssert.AreEqual(OnValues, GsyncPlan.MakeTarget(VrrMode.OnFullscreenOnly, current));
         }
 
         [TestMethod]
         [TestCategory("Unit")]
         public void MakeTarget_SameMode_MatchesCurrentValues()
         {
-            Assert.IsTrue(GsyncPlan.SameValues(OnValues, GsyncPlan.MakeTarget(VrrMode.On, OnValues)));
+            Assert.IsTrue(GsyncPlan.SameValues(OnValues, GsyncPlan.MakeTarget(VrrMode.OnFullscreenOnly, OnValues)));
             Assert.IsTrue(GsyncPlan.SameValues(OffValues, GsyncPlan.MakeTarget(VrrMode.Off, OffValues)));
         }
 

@@ -1390,7 +1390,7 @@ namespace DisplayProfileManager.UI.Windows
             }
 
             _vrrAvailable = capability.IsAvailable;
-            VrrWindowedItem.Visibility = capability.SupportsWindowed || !capability.IsAvailable ? Visibility.Visible : Visibility.Collapsed;
+            VrrFullscreenOnlyItem.Visibility = capability.SupportsFullscreenOnly || !capability.IsAvailable ? Visibility.Visible : Visibility.Collapsed;
             VrrSection.Visibility = capability.IsAvailable || _vrrStoredEnabled ? Visibility.Visible : Visibility.Collapsed;
 
             if (!capability.IsAvailable)

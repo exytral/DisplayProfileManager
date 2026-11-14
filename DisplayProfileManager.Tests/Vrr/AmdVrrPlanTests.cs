@@ -20,14 +20,14 @@ namespace DisplayProfileManager.Tests.Vrr
         {
             Assert.IsFalse(AmdVrrPlan.ShouldEnable(VrrMode.Off));
             Assert.IsTrue(AmdVrrPlan.ShouldEnable(VrrMode.On));
-            Assert.IsTrue(AmdVrrPlan.ShouldEnable(VrrMode.OnIncludingWindowed));
+            Assert.IsTrue(AmdVrrPlan.ShouldEnable(VrrMode.OnFullscreenOnly));
         }
 
         [TestMethod]
         [TestCategory("Unit")]
-        public void EffectiveMode_WindowedDegradesToOn()
+        public void EffectiveMode_FullscreenOnlyDegradesToOn()
         {
-            Assert.AreEqual(VrrMode.On, AmdVrrPlan.EffectiveMode(VrrMode.OnIncludingWindowed));
+            Assert.AreEqual(VrrMode.On, AmdVrrPlan.EffectiveMode(VrrMode.OnFullscreenOnly));
             Assert.AreEqual(VrrMode.On, AmdVrrPlan.EffectiveMode(VrrMode.On));
             Assert.AreEqual(VrrMode.Off, AmdVrrPlan.EffectiveMode(VrrMode.Off));
         }

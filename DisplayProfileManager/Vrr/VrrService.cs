@@ -56,7 +56,7 @@ namespace DisplayProfileManager.Vrr
             return new VrrCapability(
                 true,
                 string.Join(" and ", available.Select(c => c.Technology)),
-                available.Any(c => c.SupportsWindowed),
+                available.Any(c => c.SupportsFullscreenOnly),
                 available.Select(c => c.CurrentMode).FirstOrDefault(m => m.HasValue));
         }
     }

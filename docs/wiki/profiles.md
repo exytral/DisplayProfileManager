@@ -79,14 +79,14 @@ The device dropdown menus enumerate currently available devices when opened. A s
 
 When **Enable** is active, the profile sets variable refresh rate for the whole PC. The section appears only on PCs where a display supports it, and it names the detected technology and the current mode. A profile that already stores an enabled setting keeps the section visible so it can be turned off.
 
-| Mode                       | Effect                                                                                  |
-| -------------------------- | --------------------------------------------------------------------------------------- |
-| **Off**                    | Variable refresh rate is turned off                                                     |
-| **On**                     | Variable refresh rate is active for fullscreen applications                             |
-| **On, including windowed** | Also active for windowed and borderless applications (NVIDIA G-SYNC only)               |
+| Mode                    | Effect                                                                         |
+| ----------------------- | ------------------------------------------------------------------------------ |
+| **Off**                 | Variable refresh rate is turned off                                            |
+| **On**                  | Variable refresh rate is active for fullscreen, windowed, and borderless apps  |
+| **On, fullscreen only** | Variable refresh rate is active for fullscreen applications only (NVIDIA only) |
 
 - **NVIDIA G-SYNC** — sets the global driver mode, the same setting as **Enable G-SYNC, G-SYNC Compatible** in the NVIDIA Control Panel. Turning G-SYNC on or off makes NVIDIA displays go dark briefly while the driver resets them; Display Profile Manager waits for the displays to return and restores their previous refresh rate when the driver lowers it.
-- **AMD FreeSync** — switches FreeSync on or off on every FreeSync display through the ADLX runtime that ships with the AMD driver. AMD has no windowed switch, so **On, including windowed** is applied as **On**. This path has not been tested on AMD hardware.
+- **AMD FreeSync** — switches FreeSync on or off on every FreeSync display through the ADLX runtime that ships with the AMD driver. AMD has no fullscreen-only switch, so **On, fullscreen only** is applied as **On**. This path has not been tested on AMD hardware.
 - **Intel** — not offered, because Intel's driver leaves adaptive sync to the Windows display settings.
 
 Variable refresh rate is applied before the display stage. Applications that are already running keep their current behavior until they restart.
