@@ -75,7 +75,6 @@ namespace DisplayProfileManager.Tests.Profiles
             "displaySettings",
             "wallpaperSettings",
             "audioSettings",
-            "gsyncSettings",
             "mouseSettings",
             "scriptSettings",
             "hotkeyConfig"

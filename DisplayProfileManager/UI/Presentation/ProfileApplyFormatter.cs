@@ -15,7 +15,6 @@ namespace DisplayProfileManager.UI.Presentation
             }
 
             var failures = new List<string>();
-            if (!result.GsyncSuccess) failures.Add("G-SYNC");
             if (!result.AdvancedColorSuccess) failures.Add("Advanced Color");
             if (!result.ColorProfileSuccess) failures.Add("Color Profile");
             if (!result.DpiChanged) failures.Add("DPI");
@@ -47,7 +46,6 @@ namespace DisplayProfileManager.UI.Presentation
             string errorDetails =
                 $"Failed to apply profile '{profileName}'.\n" +
                 $"Some settings may not have been applied correctly.\n\n" +
-                $"G-SYNC: {result.GsyncSuccess},\n" +
                 $"Display Layout: {result.DisplayConfigApplied},\n" +
                 $"Advanced Color: {result.AdvancedColorSuccess},\n" +
                 $"Color Profile: {result.ColorProfileSuccess},\n" +

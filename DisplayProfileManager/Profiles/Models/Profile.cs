@@ -5,7 +5,6 @@ using Newtonsoft.Json;
 
 using DisplayProfileManager.Audio.Models;
 using DisplayProfileManager.Displays.Models;
-using DisplayProfileManager.Gsync.Models;
 using DisplayProfileManager.Hotkeys.Models;
 using DisplayProfileManager.Pointer.Models;
 using DisplayProfileManager.Scripts.Models;
@@ -35,8 +34,6 @@ namespace DisplayProfileManager.Profiles.Models
         public WallpaperSettings WallpaperSettings { get; set; } = null;
         [JsonProperty("audioSettings")]
         public AudioSetting AudioSettings { get; set; } = new AudioSetting();
-        [JsonProperty("gsyncSettings")]
-        public GsyncSetting GsyncSettings { get; set; } = new GsyncSetting();
         [JsonProperty("mouseSettings")]
         public MouseSetting MouseSettings { get; set; } = new MouseSetting();
         [JsonProperty("scriptSettings")]

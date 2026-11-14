@@ -7,8 +7,6 @@ using DisplayProfileManager.Audio;
 using DisplayProfileManager.Audio.Models;
 using DisplayProfileManager.Displays;
 using DisplayProfileManager.Displays.Models;
-using DisplayProfileManager.Gsync;
-using DisplayProfileManager.Gsync.Models;
 using DisplayProfileManager.Pointer;
 using DisplayProfileManager.Pointer.Models;
 using DisplayProfileManager.Profiles;
@@ -29,25 +27,11 @@ namespace DisplayProfileManager.Tests.Profiles
     {
         [TestMethod]
         [TestCategory("Unit")]
-        public async Task ApplyProfileAsync_GsyncEnabled_AppliesBeforeDisplayTopology()
-        {
-            var harness = new ApplyHarness();
-            var profile = new Profile("Profile") { GsyncSettings = new GsyncSetting { Enabled = true, Mode = GsyncMode.Off } };
-
-            var result = await harness.ApplyAsync(profile);
-
-            Assert.IsTrue(result.Success);
-            CollectionAssert.AreEqual(new[] { "gsync:Off", "topology", "config" }, harness.Calls);
-        }
-
-        [TestMethod]
-        [TestCategory("Unit")]
-        public async Task ApplyProfileAsync_SectionsDisabled_SkipsGsyncAndMouse()
+        public async Task ApplyProfileAsync_MouseSectionDisabled_SkipsMouse()
         {
             var harness = new ApplyHarness();
             var profile = new Profile("Profile")
             {
-                GsyncSettings = new GsyncSetting { Enabled = false },
                 MouseSettings = new MouseSetting { Enabled = false, ApplyPointerSpeed = true }
             };
 
@@ -72,31 +56,27 @@ namespace DisplayProfileManager.Tests.Profiles
 
         [TestMethod]
         [TestCategory("Unit")]
-        public async Task ApplyProfileAsync_GsyncAndMouseFailures_ReportWarningsWithoutFailingApply()
+        public async Task ApplyProfileAsync_MouseFailure_ReportsWarningWithoutFailingApply()
         {
-            var harness = new ApplyHarness { GsyncResult = false, MouseResult = false };
+            var harness = new ApplyHarness { MouseResult = false };
             var profile = new Profile("Profile")
             {
-                GsyncSettings = new GsyncSetting { Enabled = true },
                 MouseSettings = new MouseSetting { Enabled = true, ApplySwapButtons = true }
             };
 
             var result = await harness.ApplyAsync(profile);
 
             Assert.IsTrue(result.Success);
-            Assert.IsFalse(result.GsyncSuccess);
             Assert.IsFalse(result.MouseSuccess);
             string warnings = ProfileApplyFormatter.GetApplyWarningSummary(result);
-            StringAssert.StartsWith(warnings, "G-SYNC");
-            StringAssert.Contains(warnings, "Mouse");
+            StringAssert.StartsWith(warnings, "Mouse");
         }
 
-        private sealed class ApplyHarness : IDisplayApplyAdapter, IGsyncService, IMouseSettingsService
+        private sealed class ApplyHarness : IDisplayApplyAdapter, IMouseSettingsService
         {
             private readonly ProfileApplyService _service;
 
             internal List<string> Calls { get; } = [];
-            internal bool GsyncResult { get; set; } = true;
             internal bool MouseResult { get; set; } = true;
 
             internal ApplyHarness()
@@ -108,7 +88,6 @@ namespace DisplayProfileManager.Tests.Profiles
                     this,
                     new FakeWallpaperService(),
                     new FakeAudioDeviceService(),
-                    this,
                     this,
                     new FakeScriptRunner(),
                     settings,
@@ -139,15 +118,6 @@ namespace DisplayProfileManager.Tests.Profiles
             public bool ApplyDpi(DisplaySetting setting, DisplayConfigInfo liveDisplay) => true;
             public bool ApplyAdvancedColor(List<DisplayConfigInfo> displays) => true;
             public bool ApplyColorProfiles(List<DisplayConfigInfo> displays) => true;
-
-            public bool IsAvailable() => true;
-            public GsyncMode? GetCurrentMode() => GsyncMode.Fullscreen;
-
-            public bool ApplyGsyncSettings(GsyncSetting settings)
-            {
-                Calls.Add($"gsync:{settings.Mode}");
-                return GsyncResult;
-            }
 
             public MouseSetting CaptureCurrent() => new();
 

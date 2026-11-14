@@ -10,8 +10,6 @@ using DisplayProfileManager.Audio.Models;
 using DisplayProfileManager.Displays;
 using DisplayProfileManager.Displays.Events;
 using DisplayProfileManager.Displays.Models;
-using DisplayProfileManager.Gsync;
-using DisplayProfileManager.Gsync.Models;
 using DisplayProfileManager.Pointer;
 using DisplayProfileManager.Pointer.Models;
 using DisplayProfileManager.Profiles;
@@ -216,7 +214,6 @@ namespace DisplayProfileManager.Tests.Profiles
                 adapter,
                 new FakeWallpaperService(),
                 new FakeAudioDeviceService(),
-                new FakeGsyncService(),
                 new FakeMouseSettingsService(),
                 new FakeScriptRunner(),
                 settings,
@@ -348,14 +345,7 @@ namespace DisplayProfileManager.Tests.Profiles
             public bool ApplyAudioSettings(AudioSetting settings) => true;
         }
 
-        private sealed class FakeGsyncService : IGsyncService
-        {
-            public bool IsAvailable() => false;
-            public GsyncMode? GetCurrentMode() => null;
-            public bool ApplyGsyncSettings(GsyncSetting settings) => true;
-        }
-
-        private sealed class FakeMouseSettingsService : IMouseSettingsService
+private sealed class FakeMouseSettingsService : IMouseSettingsService
         {
             public MouseSetting CaptureCurrent() => new();
             public bool ApplyMouseSettings(MouseSetting settings) => true;

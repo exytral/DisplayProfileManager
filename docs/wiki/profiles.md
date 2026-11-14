@@ -1,6 +1,6 @@
 # Creating and Managing Profiles
 
-Profiles store display settings such as monitor layout, resolution, refresh rate, rotation, HDR/WCG state, and DPI scaling. A profile can also store wallpaper, audio, NVIDIA G-SYNC mode, mouse settings, scripts, and a global hotkey.
+Profiles store display settings such as monitor layout, resolution, refresh rate, rotation, HDR/WCG state, and DPI scaling. A profile can also store wallpaper, audio, mouse settings, scripts, and a global hotkey.
 
 ---
 
@@ -72,20 +72,6 @@ The profile editor shows a wallpaper preview and provides mode-specific controls
 When **Enable Audio** is active, the profile applies its configured playback and recording devices. Each playback or recording row has an **Apply** setting that controls whether that endpoint changes when the profile runs.
 
 The device dropdown menus enumerate currently available devices when opened. A saved device that is no longer available remains selected until another device is chosen, and is shown as **Unavailable** in the editor and Details panel. Closing the dropdown without selecting another device preserves the saved endpoint, which can still be saved with the profile.
-
----
-
-## G-SYNC
-
-When **Enable G-SYNC** is active, the profile sets the global NVIDIA G-SYNC mode, the same setting as **Enable G-SYNC, G-SYNC Compatible** in the NVIDIA Control Panel:
-
-| Mode                        | Effect                                                           |
-| --------------------------- | ---------------------------------------------------------------- |
-| **Off**                     | G-SYNC is turned off                                             |
-| **Fullscreen only**         | G-SYNC is active for fullscreen applications                     |
-| **Fullscreen and windowed** | G-SYNC is also active for windowed and borderless applications   |
-
-The section shows the current driver mode, or a notice when NVIDIA G-SYNC settings are not available on the PC. G-SYNC is applied before the display stage. Turning G-SYNC on or off makes NVIDIA displays go dark briefly while the driver resets them; Display Profile Manager waits for the displays to return and restores their previous refresh rate when the driver lowers it. Applications that are already running keep their current G-SYNC behavior until they restart.
 
 ---
 

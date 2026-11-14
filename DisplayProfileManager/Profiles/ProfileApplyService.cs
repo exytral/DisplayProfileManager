@@ -12,7 +12,6 @@ using DisplayProfileManager.Common;
 using DisplayProfileManager.Displays;
 using DisplayProfileManager.Displays.Events;
 using DisplayProfileManager.Displays.Models;
-using DisplayProfileManager.Gsync;
 using DisplayProfileManager.Pointer;
 using DisplayProfileManager.Profiles.Models;
 using DisplayProfileManager.Profiles.Policy;
@@ -35,7 +34,6 @@ namespace DisplayProfileManager.Profiles
         IDisplayApplyAdapter displayApply,
         IWallpaperService wallpaperService,
         IAudioDeviceService audioService,
-        IGsyncService gsyncService,
         IMouseSettingsService mouseService,
         IScriptRunner scriptRunner,
         SettingsService settingsService,
@@ -53,7 +51,6 @@ namespace DisplayProfileManager.Profiles
         private readonly IDisplayEventEvidenceScopeProvider _displayEventEvidence = displayEventEvidence;
         private readonly IWallpaperService _wallpaperService = wallpaperService ?? throw new ArgumentNullException(nameof(wallpaperService));
         private readonly IAudioDeviceService _audioService = audioService ?? throw new ArgumentNullException(nameof(audioService));
-        private readonly IGsyncService _gsyncService = gsyncService ?? throw new ArgumentNullException(nameof(gsyncService));
         private readonly IMouseSettingsService _mouseService = mouseService ?? throw new ArgumentNullException(nameof(mouseService));
         private readonly IScriptRunner _scriptRunner = scriptRunner ?? throw new ArgumentNullException(nameof(scriptRunner));
         private readonly SettingsService _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
@@ -111,12 +108,6 @@ namespace DisplayProfileManager.Profiles
                             $"Cannot safely resolve current display address for '{setting.ReadableDeviceName}' ({resolutionStatus}); refusing topology mutation."));
                 }
                 mapWatch.Stop();
-
-                // Apply G-SYNC before the display stage so a G-SYNC on/off modeset settles before the layout is applied
-                var gsyncWatch = Stopwatch.StartNew();
-                if (profile.GsyncSettings?.Enabled == true)
-                    result.GsyncSuccess = _gsyncService.ApplyGsyncSettings(profile.GsyncSettings);
-                gsyncWatch.Stop();
 
                 // Apply Display Topology
                 var topologyWatch = Stopwatch.StartNew();
@@ -262,7 +253,7 @@ namespace DisplayProfileManager.Profiles
                 }
 
                 // Timing Summary
-                _logger.Info($"[PERF] Map: {mapWatch.ElapsedMilliseconds} ms | G-SYNC: {gsyncWatch.ElapsedMilliseconds} ms | Topology: {topologyWatch.ElapsedMilliseconds} ms | Config: {configWatch.ElapsedMilliseconds} ms");
+                _logger.Info($"[PERF] Map: {mapWatch.ElapsedMilliseconds} ms | Topology: {topologyWatch.ElapsedMilliseconds} ms | Config: {configWatch.ElapsedMilliseconds} ms");
                 _logger.Info($"[PERF] DPI: {dpiWatch.ElapsedMilliseconds} ms | Wallpaper: {wallpaperWatch.ElapsedMilliseconds} ms | Audio: {audioWatch.ElapsedMilliseconds} ms | Mouse: {mouseWatch.ElapsedMilliseconds} ms | Scripts: {scriptWatch.ElapsedMilliseconds} ms");
                 _logger.Info($"[PERF] Finalize: {finalizeWatch.ElapsedMilliseconds} ms | TOTAL: {totalWatch.ElapsedMilliseconds} ms");
 

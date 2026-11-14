@@ -9,7 +9,6 @@ using Newtonsoft.Json;
 using DisplayProfileManager.Audio.Models;
 using DisplayProfileManager.Common;
 using DisplayProfileManager.Displays.Models;
-using DisplayProfileManager.Gsync.Models;
 using DisplayProfileManager.Hotkeys.Models;
 using DisplayProfileManager.Pointer.Models;
 using DisplayProfileManager.Profiles.Models;
@@ -125,11 +124,6 @@ namespace DisplayProfileManager.Profiles
                     ApplyPlaybackDevice = sourceProfile.AudioSettings.ApplyPlaybackDevice,
                     ApplyCaptureDevice = sourceProfile.AudioSettings.ApplyCaptureDevice
                 } : new AudioSetting(),
-                GsyncSettings = sourceProfile.GsyncSettings != null ? new GsyncSetting
-                {
-                    Enabled = sourceProfile.GsyncSettings.Enabled,
-                    Mode = sourceProfile.GsyncSettings.Mode
-                } : new GsyncSetting(),
                 MouseSettings = sourceProfile.MouseSettings?.Clone() ?? new MouseSetting(),
                 WallpaperSettings = sourceProfile.WallpaperSettings != null ? new WallpaperSettings
                 {

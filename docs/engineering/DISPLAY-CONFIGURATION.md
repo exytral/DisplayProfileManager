@@ -36,7 +36,7 @@ The application uses the Windows Display Configuration API (`SetDisplayConfig`) 
 
 The display recovery settings control what happens after a display stage fails.
 
-- `abortOnApplyFailure` stops the pipeline when topology or layout fails instead of continuing through DPI, wallpaper, audio, mouse, and scripts. G-SYNC runs before topology, so an aborted apply keeps the G-SYNC mode it already set; a rollback to the previous profile reapplies that profile's G-SYNC mode when its section is enabled.
+- `abortOnApplyFailure` stops the pipeline when topology or layout fails instead of continuing through DPI, wallpaper, audio, mouse, and scripts.
 - `rollbackAfterApplyFailure` enables rollback after an aborted apply.
 - `rollbackToPreviousProfile` selects the recovery target. When enabled and a previous profile exists, the application reapplies that profile. When no previous profile exists, recovery falls back to the pre-apply display snapshot. When disabled, the snapshot is used directly.
 - All three recovery settings default to `true`.
@@ -46,7 +46,7 @@ The display recovery settings control what happens after a display stage fails.
 - Previous-profile rollback applies the entire profile pipeline, while snapshot rollback restores display state only.
 - Rollback reuses `ApplyProfileAsync` with a `_rollingBack` guard so a failed rollback reports the failure instead of recursively entering the abort/recovery path.
 
-G-SYNC, Advanced Color, Color Profile, DPI, Wallpaper, Audio, and Mouse are non-blocking secondary stages. `ProfileApplyResult.Success` remains controlled by the display/layout stage. Secondary failures are represented separately and, on otherwise successful applies, summarized in application order for status and normal successful-apply notification presentation. They do not independently make the profile apply fail, trigger rollback, or create blocking error UI.
+Advanced Color, Color Profile, DPI, Wallpaper, Audio, and Mouse are non-blocking secondary stages. `ProfileApplyResult.Success` remains controlled by the display/layout stage. Secondary failures are represented separately and, on otherwise successful applies, summarized in application order for status and normal successful-apply notification presentation. They do not independently make the profile apply fail, trigger rollback, or create blocking error UI.
 
 ### Engineering Overrides
 

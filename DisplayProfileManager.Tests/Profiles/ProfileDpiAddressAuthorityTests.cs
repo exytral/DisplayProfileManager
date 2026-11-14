@@ -8,7 +8,6 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using DisplayProfileManager.Audio;
 using DisplayProfileManager.Displays;
 using DisplayProfileManager.Displays.Models;
-using DisplayProfileManager.Gsync;
 using DisplayProfileManager.Pointer;
 using DisplayProfileManager.Profiles;
 using DisplayProfileManager.Profiles.Models;
@@ -247,7 +246,6 @@ namespace DisplayProfileManager.Tests.Profiles
                     runtime,
                     new WallpaperService(),
                     new AudioDeviceService(),
-                    new GsyncService(),
                     new MouseSettingsService(),
                     new ScriptRunner(scripts),
                     settings,

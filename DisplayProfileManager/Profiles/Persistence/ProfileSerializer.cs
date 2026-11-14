@@ -8,7 +8,6 @@ using Newtonsoft.Json.Linq;
 
 using DisplayProfileManager.Audio.Models;
 using DisplayProfileManager.Common;
-using DisplayProfileManager.Gsync.Models;
 using DisplayProfileManager.Hotkeys.Models;
 using DisplayProfileManager.Pointer.Models;
 using DisplayProfileManager.Profiles.Models;
@@ -36,7 +35,6 @@ namespace DisplayProfileManager.Profiles.Persistence
 
             RecoverScriptEntries(root);
             RecoverOptionalProperty(root, "audioSettings", typeof(AudioSetting));
-            RecoverOptionalProperty(root, "gsyncSettings", typeof(GsyncSetting));
             RecoverOptionalProperty(root, "mouseSettings", typeof(MouseSetting));
             RecoverOptionalProperty(root, "wallpaperSettings", typeof(WallpaperSettings));
             RecoverOptionalProperty(root, "scriptSettings", typeof(ScriptSettings));

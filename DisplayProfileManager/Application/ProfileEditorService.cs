@@ -7,8 +7,6 @@ using DisplayProfileManager.Audio;
 using DisplayProfileManager.Audio.Models;
 using DisplayProfileManager.Displays;
 using DisplayProfileManager.Displays.Models;
-using DisplayProfileManager.Gsync;
-using DisplayProfileManager.Gsync.Models;
 using DisplayProfileManager.Hotkeys;
 using DisplayProfileManager.Hotkeys.Models;
 using DisplayProfileManager.Pointer;
@@ -28,7 +26,6 @@ namespace DisplayProfileManager.Application
         DisplayEditorService displays,
         ScriptLibrary scripts,
         IAudioDeviceService audio,
-        IGsyncService gsync,
         IMouseSettingsService mouse,
         IWallpaperService wallpaper)
     {
@@ -36,7 +33,6 @@ namespace DisplayProfileManager.Application
         private readonly DisplayEditorService _displays = displays ?? throw new ArgumentNullException(nameof(displays));
         private readonly ScriptLibrary _scripts = scripts ?? throw new ArgumentNullException(nameof(scripts));
         private readonly IAudioDeviceService _audio = audio ?? throw new ArgumentNullException(nameof(audio));
-        private readonly IGsyncService _gsync = gsync ?? throw new ArgumentNullException(nameof(gsync));
         private readonly IMouseSettingsService _mouse = mouse ?? throw new ArgumentNullException(nameof(mouse));
         private readonly IWallpaperService _wallpaper = wallpaper ?? throw new ArgumentNullException(nameof(wallpaper));
         private readonly ConditionalWeakTable<Profile, Profile> _displayBaselines = [];
@@ -83,8 +79,6 @@ namespace DisplayProfileManager.Application
         public AudioDeviceInfo GetDefaultPlaybackDevice() => _audio.GetDefaultPlaybackDevice();
         public AudioDeviceInfo GetDefaultCaptureDevice() => _audio.GetDefaultCaptureDevice();
 
-        public bool IsGsyncAvailable() => _gsync.IsAvailable();
-        public GsyncMode? GetCurrentGsyncMode() => _gsync.GetCurrentMode();
         public MouseSetting CaptureCurrentMouseSettings() => _mouse.CaptureCurrent();
         public WallpaperSettings CaptureWallpaper() => _wallpaper.Capture();
 

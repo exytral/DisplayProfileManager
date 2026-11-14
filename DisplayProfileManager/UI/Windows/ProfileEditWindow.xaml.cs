@@ -18,7 +18,6 @@ using DisplayProfileManager.Application;
 using DisplayProfileManager.Audio.Models;
 using DisplayProfileManager.Common;
 using DisplayProfileManager.Displays.Models;
-using DisplayProfileManager.Gsync.Models;
 using DisplayProfileManager.Hotkeys;
 using DisplayProfileManager.Hotkeys.Models;
 using DisplayProfileManager.Pointer.Models;
@@ -59,7 +58,6 @@ namespace DisplayProfileManager.UI.Windows
         private bool _audioDevicesLoaded;
         private bool _audioSettingsDisabled;
         private bool _suppressDeviceSettingEvents;
-        private bool _gsyncAvailable;
 
         internal ProfileEditWindow(
             ProfileEditorService profileEditorService,
@@ -479,11 +477,6 @@ namespace DisplayProfileManager.UI.Windows
                     _profile.AudioSettings.DefaultCaptureDeviceId = selectedInput.Id;
                     _profile.AudioSettings.CaptureDeviceName = selectedInput.SystemName;
                 }
-
-                // G-SYNC
-                _profile.GsyncSettings ??= new GsyncSetting();
-                _profile.GsyncSettings.Mode = GetSelectedGsyncMode();
-                _profile.GsyncSettings.Enabled = EnableGsyncCheckBox.IsChecked == true;
 
                 // Mouse
                 _profile.MouseSettings = ReadMouseSettingsFromUi();
@@ -1386,14 +1379,11 @@ namespace DisplayProfileManager.UI.Windows
                 }
             }
 
-            _profile.GsyncSettings ??= new GsyncSetting();
             _profile.MouseSettings ??= new MouseSetting();
 
             _suppressDeviceSettingEvents = true;
             try
             {
-                EnableGsyncCheckBox.IsChecked = _profile.GsyncSettings.Enabled;
-                SelectComboBoxTag(GsyncModeComboBox, _profile.GsyncSettings.Mode.ToString());
                 LoadMouseSettingsIntoUi(_profile.MouseSettings);
                 EnableMouseCheckBox.IsChecked = _profile.MouseSettings.Enabled;
             }
@@ -1402,68 +1392,7 @@ namespace DisplayProfileManager.UI.Windows
                 _suppressDeviceSettingEvents = false;
             }
 
-            UpdateGsyncUiState();
             UpdateMouseUiState();
-            _ = RefreshGsyncAvailabilityAsync();
-        }
-
-        private async Task RefreshGsyncAvailabilityAsync()
-        {
-            GsyncStatusTextBlock.Text = "Checking for NVIDIA G-SYNC...";
-            bool available = false;
-            GsyncMode? current = null;
-            try
-            {
-                (available, current) = await Task.Run(() => (_profileEditorService.IsGsyncAvailable(), _profileEditorService.GetCurrentGsyncMode()));
-            }
-            catch (Exception ex)
-            {
-                _logger.Warn(ex, "G-SYNC availability check failed");
-            }
-
-            _gsyncAvailable = available;
-            if (!available)
-                GsyncStatusTextBlock.Text = "NVIDIA G-SYNC settings are not available on this PC";
-            else
-                GsyncStatusTextBlock.Text = current.HasValue ? $"Current: {GsyncSetting.GetModeLabel(current.Value)}" : "Current: unknown";
-
-            if (!_isEditMode && available && current.HasValue)
-            {
-                _suppressDeviceSettingEvents = true;
-                SelectComboBoxTag(GsyncModeComboBox, current.Value.ToString());
-                _suppressDeviceSettingEvents = false;
-            }
-
-            UpdateGsyncUiState();
-        }
-
-        private GsyncMode GetSelectedGsyncMode() =>
-            GsyncModeComboBox.SelectedItem is ComboBoxItem { Tag: string tag } && Enum.TryParse(tag, out GsyncMode mode) ? mode : GsyncMode.Fullscreen;
-
-        private void EnableGsyncCheckBox_Changed(object sender, RoutedEventArgs e)
-        {
-            if (!_suppressDeviceSettingEvents)
-                StatusTextBlock.Text = EnableGsyncCheckBox.IsChecked == true ? "G-SYNC enabled" : "G-SYNC disabled";
-
-            UpdateGsyncUiState();
-        }
-
-        private void GsyncModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (_suppressDeviceSettingEvents) return;
-
-            StatusTextBlock.Text = $"G-SYNC: {GsyncSetting.GetModeLabel(GetSelectedGsyncMode())}";
-            if (EnableGsyncCheckBox.IsChecked != true)
-                EnableGsyncCheckBox.IsChecked = true;
-        }
-
-        private void UpdateGsyncUiState()
-        {
-            bool sectionOn = EnableGsyncCheckBox.IsChecked == true;
-            GsyncModeComboBox.Opacity = sectionOn ? 1.0 : UiOpacity.Inactive;
-
-            // A saved G-SYNC setting stays editable on a PC without NVIDIA so the profile can be shared
-            EnableGsyncCheckBox.Opacity = _gsyncAvailable || sectionOn ? 1.0 : UiOpacity.Blocked;
         }
 
         private void LoadMouseSettingsIntoUi(MouseSetting settings)

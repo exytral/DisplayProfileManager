@@ -12,13 +12,13 @@ Do not treat historical plans, changelog entries, release records, or cleanup no
 - **Application seams**: `ApplicationCommandRouter`, `SingleInstanceCoordinator`, `ProfileEditorService`, `SettingsCoordinator`, and `HotkeyCoordinator` own cross-capability use-case policy. UI code calls these seams or capability services rather than reaching persistence/native APIs directly.
 - **Capability ownership**: persisted models, policy, persistence, and native interop stay with their owning capability. There is no generic top-level Models/Services/Repositories/Interfaces/Platform/Infrastructure bucket.
 - **Async/Await**: file I/O and profile-apply operations are asynchronous. Wallpaper COM/settling work runs off the WPF UI thread while remaining inside the owning serialized apply request.
-- **P/Invoke/COM**: Windows-specific APIs are isolated in capability-local adapters/interop such as Displays/Interop, Audio/Interop, Gsync/Interop, Pointer/Interop, Wallpapers/Interop, Hotkeys/Interop, Integration, and UI/Interop.
+- **P/Invoke/COM**: Windows-specific APIs are isolated in capability-local adapters/interop such as Displays/Interop, Audio/Interop, Pointer/Interop, Wallpapers/Interop, Hotkeys/Interop, Integration, and UI/Interop.
 - **MVVM + code-behind**: ViewModels expose binding-friendly state where useful; focused WPF code-behind remains deliberate for interaction-heavy windows and controls.
 - **Logging**: NLog provides structured application logging.
 
 ### Composition and Application Flow
 
-- **App** (`DisplayProfileManager/App.xaml.cs`) — WPF entry point and composition root. It wires settings, profiles, display/wallpaper/audio/G-SYNC/mouse/script services, integration adapters, theme/hotkey/tray/UI coordinators, startup behavior, and shutdown.
+- **App** (`DisplayProfileManager/App.xaml.cs`) — WPF entry point and composition root. It wires settings, profiles, display/wallpaper/audio/mouse/script services, integration adapters, theme/hotkey/tray/UI coordinators, startup behavior, and shutdown.
 - **ApplicationCommandRouter** (`DisplayProfileManager/Application/ApplicationCommandRouter.cs`) — interprets CLI/IPC commands and routes application actions.
 - **EngineeringOverrides** (`DisplayProfileManager/Application/EngineeringOverrides.cs`) — immutable process-scoped engineering fault-injection snapshot resolved once by `App` from `DPM_ENGINEERING_FORCE_APPLY_FAILURE` and `DPM_ENGINEERING_FORCE_TOPOLOGY_RECOVERY`; malformed values fail inactive with warnings, and downstream services never read these variables directly.
 - **SingleInstanceCoordinator** (`DisplayProfileManager/Application/SingleInstanceCoordinator.cs`) — owns normal/development single-instance authority and secondary-instance redirection policy.
@@ -41,7 +41,6 @@ Do not treat historical plans, changelog entries, release records, or cleanup no
 - **DisplayApplyAdapter** — application-facing display apply boundary. `DisplayConfigService` owns CCD topology/layout/query mechanics; `AdvancedColorService`, `ColorProfileAdapter`, `DpiScalingAdapter`, `GdiDisplayAdapter`, and `MonitorBoundsProvider` own their focused platform responsibilities.
 - **WallpaperService** — application-facing wallpaper capture/apply boundary. `WallpaperCapture`, `WallpaperApply`, `WallpaperTransitionPlanner`, `WallpaperMonitorMapper`, `SpotlightProvider`, and `WindowsWallpaperPlatform` separate capture, transition policy, monitor identity, Spotlight provider state, and Windows interop.
 - **AudioDeviceService** — enumerates/resolves Core Audio endpoints and applies configured playback/recording defaults through capability-local COM interop.
-- **GsyncService** — reads and writes the global NVIDIA driver-profile G-SYNC settings through NVAPI DRS, resolved at runtime from `nvapi64.dll`/`nvapi.dll` by interface ID. `GsyncPlan` owns the pure five-setting target and save-group policy; on/off changes wait for NVIDIA monitor interfaces to return and reapply the faster display snapshot if the modeset lowered the refresh rate.
 - **MouseSettingsService** — captures and applies Windows pointer speed, pointer precision, wheel scroll amounts, and primary-button swap through `SystemParametersInfo`. The capability namespace is `Pointer` so it does not hide WPF's `System.Windows.Input.Mouse`.
 - **ScriptLibrary / ScriptRunner** — separate managed script storage/import from execution.
 - **SettingsService / SettingsStore** — separate in-memory settings authority/events from `Settings.json` persistence.
@@ -78,7 +77,6 @@ DisplayProfileManager/
   Displays/                          CCD topology, layout, identity, color and interop
   Wallpapers/                        Capture, apply, transitions and Windows interop
   Audio/                             Core Audio service and interop
-  Gsync/                             NVIDIA G-SYNC driver settings and NVAPI interop
   Pointer/                           Windows mouse settings and interop
   Scripts/                           Script library and execution
   Settings/                          Settings models, service and store
@@ -90,7 +88,7 @@ DisplayProfileManager/
   DisplayProfileManager.csproj
 
 DisplayProfileManager.Tests/
-  Application/, Audio/, Common/, Displays/, Gsync/, Helpers/
+  Application/, Audio/, Common/, Displays/, Helpers/
   Hotkeys/, Integration/, Profiles/, Scripts/, Settings/, UI/, Wallpapers/
 
 DisplayProfileManager.ShellExt/           Native Explorer COM extension
@@ -144,7 +142,6 @@ Display-specific clone semantics and deferred hardware self-healing are intentio
 | `DisplaySettings`   | `List<DisplaySetting>` | `[]`     | Per-monitor display configuration                                                                                                 |
 | `WallpaperSettings` | `WallpaperSettings`    | `null`   | Stored wallpaper state; its nested `Enabled` value controls whether the wallpaper stage applies                                   |
 | `AudioSettings`     | `AudioSetting`         | default  | Playback/recording configuration; nested `Enabled` gates the audio stage and per-endpoint flags select which defaults are changed |
-| `GsyncSettings`     | `GsyncSetting`         | default  | NVIDIA G-SYNC mode; nested `Enabled` gates the G-SYNC stage                                                                       |
 | `MouseSettings`     | `MouseSetting`         | default  | Windows mouse settings; nested `Enabled` gates the mouse stage and per-setting `Apply*` flags select which values are changed     |
 | `ScriptSettings`    | `ScriptSettings`       | default  | Nested script enablement plus the stored `List<Script>` entries                                                                   |
 | `HotkeyConfig`      | `HotkeyConfig`         | default  | Global hotkey assigned to the profile                                                                                             |
@@ -209,7 +206,7 @@ Each `DisplaySetting` entry, in current declaration order:
 
 `AudioSetting` properties: `Enabled`, `DefaultPlaybackDeviceId`, `DefaultCaptureDeviceId`, `PlaybackDeviceName`, `CaptureDeviceName`, `ApplyPlaybackDevice`, `ApplyCaptureDevice`. The nested `Enabled` flag gates the audio stage. `ApplyPlaybackDevice` and `ApplyCaptureDevice` select which configured endpoint is changed independently of whether that endpoint is currently available. `ScriptSettings` similarly stores the section-level `Enabled` value together with its `Scripts` collection.
 
-`GsyncSetting` properties: `Enabled`, `Mode` (`Off`, `Fullscreen`, `FullscreenAndWindowed`, serialized as a string). `MouseSetting` properties: `Enabled`, `ApplyPointerSpeed`, `PointerSpeed` (1-20), `ApplyPointerPrecision`, `EnhancePointerPrecision`, `ApplyVerticalScroll`, `VerticalScrollLines` (1-100), `ApplyHorizontalScroll`, `HorizontalScrollChars` (1-100), `ApplySwapButtons`, `SwapButtons`. Both are optional members: profiles without them deserialize to disabled defaults, and malformed values recover through `RecoverOptionalProperty`.
+`MouseSetting` properties: `Enabled`, `ApplyPointerSpeed`, `PointerSpeed` (1-20), `ApplyPointerPrecision`, `EnhancePointerPrecision`, `ApplyVerticalScroll`, `VerticalScrollLines` (1-100), `ApplyHorizontalScroll`, `HorizontalScrollChars` (1-100), `ApplySwapButtons`, `SwapButtons`. It is an optional member: profiles without it deserialize to disabled defaults, and malformed values recover through `RecoverOptionalProperty`.
 
 ### Data Storage
 
@@ -421,9 +418,9 @@ When a profile is selected, the panel shows:
 - per-monitor resolution, refresh rate, rotation, HDR/WCG, color profile, and DPI.
 - disabled-monitor and disabled-clone-group badges.
 - the primary display marker and clone-group indicators with member names.
-- **Display → Wallpaper → Audio → G-SYNC → Mouse → Scripts** sections, with enabled/disabled state reflected in their secondary text.
+- **Display → Wallpaper → Audio → Mouse → Scripts** sections, with enabled/disabled state reflected in their secondary text.
 - saved playback/capture endpoints, marked `(Unavailable)` when the configured endpoint is no longer enumerated. Profiles without a configured endpoint ID do not trigger endpoint enumeration.
-- the G-SYNC mode when `GsyncSettings.Enabled` is on, and the checked mouse settings when any `MouseSettings` setting is checked, with `Mouse (Disabled)` when the section is off.
+- the checked mouse settings when any `MouseSettings` setting is checked, with `Mouse (Disabled)` when the section is off.
 - `Scripts (Disabled)` when `ScriptSettings.Enabled` is off; otherwise, stored script file names are shown, with `(Not Found)` appended when a script file is missing.
 - hotkey combination and enabled/disabled state.
 - read-only saved-layout preview projected from the profile's stored display geometry as saved intent, not as a guarantee of the Windows-realized topology.
@@ -443,7 +440,6 @@ When a profile is selected, the panel shows:
 - **Displays** — shows per-monitor resolution, refresh rate, rotation, HDR/WCG, DPI, and color profile controls. **Load** replaces the stored display settings with the current live configuration; new profiles are initialized from the current live desktop when being created, while existing profiles retain their stored display settings until explicitly loaded. **Identify** temporarily overlays each physical monitor with its number. The Clone action selects a display to mirror, with the initiating display becoming the clone source and the selected display becoming the mirror; grouped displays share resolution and refresh controls. Break Clone splits a group back into independent displays while restoring the saved attached-member state.
 - **Wallpaper** - includes the section enable toggle and **Load** action, followed by the wallpaper preview and mode-specific controls. Solid Color provides a color picker; Picture provides color and fitment. Slideshow provides color, fitment, interval, shuffle/order, and source-folder controls. Spotlight provides only a preview.
 - **Audio** — includes the section enable toggle and playback and recording device dropdown menus. The dropdown menus enumerate current devices when opened and preserve saved endpoints that are no longer available.
-- **G-SYNC** — includes the section enable toggle, a mode dropdown menu, and the current driver mode. Selecting a mode enables the section. The section remains editable on a PC without NVIDIA G-SYNC settings so a stored profile keeps its value.
 - **Mouse** — includes the section enable toggle, a **Load** action that fills values from the current Windows settings, and a checkbox per setting for pointer speed, pointer precision, vertical scroll, horizontal scroll, and primary button. Changing a value checks its setting, and checking a setting enables the section.
 - **Scripts** — includes a section-level Enable toggle and per-script rows containing the script checkbox, file name, arguments, and delete button. The section can be enabled only when at least one non-deleted script is individually enabled, and both the section toggle and the individual script's `IsEnabled` flag must be enabled for that script to execute. Missing script files are shown with `(Not Found)`. **Clear All Scripts** marks all non-deleted scripts for removal while allowing individual rows to be restored.
 

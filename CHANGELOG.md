@@ -9,13 +9,6 @@ For user-facing release notes, see the [GitHub Releases](https://github.com/exyt
 <a id="unreleased"></a>
 ## [Unreleased]
 
-### feat — G-SYNC profile setting
-
-- **Per-profile NVIDIA G-SYNC mode** — profiles gain an optional `gsyncSettings` section (`enabled`, `mode` = `Off` / `Fullscreen` / `FullscreenAndWindowed`) that sets the global driver-profile G-SYNC mode, the same setting as the NVIDIA Control Panel **Enable G-SYNC, G-SYNC Compatible** option. NVAPI is loaded at runtime from `nvapi64.dll`/`nvapi.dll` and DRS entry points are resolved through `nvapi_QueryInterface`, so systems without an NVIDIA driver report the setting as unavailable instead of failing.
-- **Coordinated driver settings** — the mode writes the five settings the control panel changes together (`VRR_MODE`, `VRR_APP_OVERRIDE`, `VRRFEATUREINDICATOR`, `VRRREQUESTSTATE`, `REFRESH_RATE_OVERRIDE`) in three saves, then reloads and verifies them. Switching between the two on modes keeps the existing per-feature values. Logic adapted from [GsyncStatusTrayToggle](https://github.com/Fr0stX76/GsyncStatusTrayToggle) by [@Fr0stX76](https://github.com/Fr0stX76) (MIT).
-- **On/off modeset handling** — turning G-SYNC on or off re-trains NVIDIA displays. The stage waits for NVIDIA monitor device interfaces to be removed and return (`CM_Register_Notification`), then reapplies the faster pre/post display snapshot when the modeset lowered the refresh rate.
-- **Apply ordering** — G-SYNC runs before topology so the modeset settles before the layout is applied. Failures set `ProfileApplyResult.GsyncSuccess = false` and appear in the non-blocking warning summary. Writes use the user's token; on the validation system a non-elevated process could save the DRS store.
-
 ### feat — mouse profile setting
 
 - **Per-profile Windows mouse settings** — profiles gain an optional `mouseSettings` section with independent `Apply*` flags for pointer speed (1-20), Enhance pointer precision, vertical wheel lines, horizontal wheel characters (1-100), and primary-button swap. Values are applied through `SystemParametersInfo` with `SPIF_UPDATEINIFILE | SPIF_SENDCHANGE` after the audio stage. Failures set `ProfileApplyResult.MouseSuccess = false`.
@@ -23,12 +16,12 @@ For user-facing release notes, see the [GitHub Releases](https://github.com/exyt
 
 ### feat — profile editor and details
 
-- **G-SYNC and Mouse sections** — the editor adds a G-SYNC section (mode and current driver state) and a Mouse section (per-setting checkboxes and **Load** from current Windows values). The Details panel lists the stored G-SYNC mode and checked mouse settings.
-- **Schema compatibility** — both members are optional and deserialize to disabled defaults through `RecoverOptionalProperty`; `CurrentSchemaVersion` is unchanged at 6, so builds without these sections ignore them.
+- **Mouse section** — the editor adds a Mouse section (per-setting checkboxes and **Load** from current Windows values). The Details panel lists the checked mouse settings.
+- **Schema compatibility** — the member is optional and deserializes to disabled defaults through `RecoverOptionalProperty`; `CurrentSchemaVersion` is unchanged at 6, so builds without this section ignore it.
 
 ### test — regression coverage
 
-- **Managed suite — 1,210 tests** — adds G-SYNC plan coverage (mode decoding, target values, on/off detection, save-group coverage), apply ordering and warning coverage with fake services, and serialization round-trip, recovery, and working-copy coverage for the new members.
+- **Managed suite — 1,200 tests** — adds mouse apply ordering and warning coverage with a fake service, and serialization round-trip, recovery, and working-copy coverage for the new member.
 
 ---
 
