@@ -845,6 +845,86 @@
                     </Grid>
                 </Border>
 
+                <!-- Variable Refresh Rate Section -->
+                <StackPanel Name="VrrSection" Visibility="Collapsed">
+                    <Grid Margin="0,16,0,16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="Variable refresh rate"
+                                       ToolTip="G-SYNC on NVIDIA, FreeSync on AMD. The setting goes to whichever driver this PC has."
+                                       Style="{StaticResource LabelTextBlockStyle}"
+                                       FontSize="24"
+                                       Margin="0,0,8,0"
+                                       VerticalAlignment="Center"/>
+                            <CheckBox Name="EnableVrrCheckBox"
+                                      Content="Enable"
+                                      FontSize="14"
+                                      Padding="6,0,0,0"
+                                      Margin="0,6,8,0"
+                                      VerticalAlignment="Center"
+                                      VerticalContentAlignment="Center"
+                                      Foreground="{DynamicResource PrimaryTextBrush}"
+                                      ToolTip="Set G-SYNC (NVIDIA) or FreeSync (AMD) when this profile is applied"
+                                      Checked="EnableVrrCheckBox_Changed"
+                                      Unchecked="EnableVrrCheckBox_Changed"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <Border Name="VrrOptionsBorder"
+                            Background="{DynamicResource ContentBackgroundBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Padding="16">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Column="0"
+                                       Text="Mode"
+                                       FontSize="14"
+                                       Margin="0,0,16,0"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource PrimaryTextBrush}"/>
+                            <ComboBox Grid.Column="1"
+                                      Name="VrrModeComboBox"
+                                      Style="{StaticResource PrimaryComboBoxStyle}"
+                                      Height="32"
+                                      ToolTip="Applied as the G-SYNC or FreeSync setting of this PC's GPU driver"
+                                      SelectionChanged="VrrModeComboBox_SelectionChanged">
+                                <ComboBox.ItemContainerStyle>
+                                    <Style TargetType="ComboBoxItem"
+                                           BasedOn="{StaticResource {x:Type ComboBoxItem}}">
+                                        <Setter Property="Padding" Value="8,4"/>
+                                    </Style>
+                                </ComboBox.ItemContainerStyle>
+                                <ComboBoxItem Content="Off" Tag="Off"/>
+                                <ComboBoxItem Content="On" Tag="On"/>
+                                <ComboBoxItem Name="VrrFullscreenOnlyItem" Content="On, fullscreen only" Tag="OnFullscreenOnly"/>
+                            </ComboBox>
+
+                            <!-- Detected Technology and Current State -->
+                            <TextBlock Grid.Row="1"
+                                       Grid.Column="1"
+                                       Name="VrrStatusTextBlock"
+                                       Margin="0,8,0,0"
+                                       FontSize="12"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TertiaryTextBrush}"/>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+
                 <!-- Script Section -->
                 <Grid Margin="0,16,0,16">
                     <Grid.ColumnDefinitions>

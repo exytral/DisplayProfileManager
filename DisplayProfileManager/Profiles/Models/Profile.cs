@@ -7,6 +7,7 @@ using DisplayProfileManager.Audio.Models;
 using DisplayProfileManager.Displays.Models;
 using DisplayProfileManager.Hotkeys.Models;
 using DisplayProfileManager.Scripts.Models;
+using DisplayProfileManager.Vrr.Models;
 using DisplayProfileManager.Wallpapers.Models;
 
 namespace DisplayProfileManager.Profiles.Models
@@ -33,6 +34,8 @@ namespace DisplayProfileManager.Profiles.Models
         public WallpaperSettings WallpaperSettings { get; set; } = null;
         [JsonProperty("audioSettings")]
         public AudioSetting AudioSettings { get; set; } = new AudioSetting();
+        [JsonProperty("vrrSettings")]
+        public VrrSetting VrrSettings { get; set; } = new VrrSetting();
         [JsonProperty("scriptSettings")]
         public ScriptSettings ScriptSettings { get; set; } = new ScriptSettings();
         [JsonProperty("hotkeyConfig")]

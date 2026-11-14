@@ -14,6 +14,7 @@ using DisplayProfileManager.Profiles.Icons;
 using DisplayProfileManager.Profiles.Models;
 using DisplayProfileManager.Scripts;
 using DisplayProfileManager.Scripts.Models;
+using DisplayProfileManager.Vrr;
 using DisplayProfileManager.Wallpapers;
 using DisplayProfileManager.Wallpapers.Models;
 
@@ -24,12 +25,14 @@ namespace DisplayProfileManager.Application
         DisplayEditorService displays,
         ScriptLibrary scripts,
         IAudioDeviceService audio,
+        IVrrService vrr,
         IWallpaperService wallpaper)
     {
         private readonly ProfileService _profiles = profiles ?? throw new ArgumentNullException(nameof(profiles));
         private readonly DisplayEditorService _displays = displays ?? throw new ArgumentNullException(nameof(displays));
         private readonly ScriptLibrary _scripts = scripts ?? throw new ArgumentNullException(nameof(scripts));
         private readonly IAudioDeviceService _audio = audio ?? throw new ArgumentNullException(nameof(audio));
+        private readonly IVrrService _vrr = vrr ?? throw new ArgumentNullException(nameof(vrr));
         private readonly IWallpaperService _wallpaper = wallpaper ?? throw new ArgumentNullException(nameof(wallpaper));
         private readonly ConditionalWeakTable<Profile, Profile> _displayBaselines = [];
 
@@ -74,6 +77,8 @@ namespace DisplayProfileManager.Application
         public List<AudioDeviceInfo> GetCaptureDevices() => _audio.GetCaptureDevices();
         public AudioDeviceInfo GetDefaultPlaybackDevice() => _audio.GetDefaultPlaybackDevice();
         public AudioDeviceInfo GetDefaultCaptureDevice() => _audio.GetDefaultCaptureDevice();
+
+        public VrrCapability GetVrrCapability() => _vrr.GetCapability();
         public WallpaperSettings CaptureWallpaper() => _wallpaper.Capture();
 
         public Task<ScriptImportBatchResult> ImportScriptsAsync(IEnumerable<string> sourcePaths) => _scripts.ImportScriptsAsync(sourcePaths);

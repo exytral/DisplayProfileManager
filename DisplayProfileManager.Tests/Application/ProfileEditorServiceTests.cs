@@ -17,6 +17,8 @@ using DisplayProfileManager.Scripts;
 using DisplayProfileManager.Settings;
 using DisplayProfileManager.Settings.Models;
 using DisplayProfileManager.Settings.Persistence;
+using DisplayProfileManager.Vrr;
+using DisplayProfileManager.Vrr.Models;
 using DisplayProfileManager.Wallpapers;
 using DisplayProfileManager.Wallpapers.Models;
 
@@ -199,6 +201,7 @@ namespace DisplayProfileManager.Tests.Application
                     new DisplayEditorService(),
                     new ScriptLibrary(_tempFolder),
                     Audio,
+                    new FakeVrrService(),
                     Wallpaper);
             }
 
@@ -233,6 +236,12 @@ namespace DisplayProfileManager.Tests.Application
 
             public Task<AppSettings> LoadAsync() => Task.FromResult(new AppSettings());
             public Task<bool> SaveAsync(AppSettings settings) => Task.FromResult(true);
+        }
+
+        private sealed class FakeVrrService : IVrrService
+        {
+            public VrrCapability GetCapability() => VrrCapability.Unavailable;
+            public bool ApplyVrrSettings(VrrSetting settings) => true;
         }
 
         private sealed class FakeAudioDeviceService : IAudioDeviceService
